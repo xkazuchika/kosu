@@ -1,0 +1,15 @@
+services:
+  kosu:
+    build: .
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=production
+      - KOSU_SESSION_SECRET=${KOSU_SESSION_SECRET}
+      - KOSU_DATA_DIR=/data
+    volumes:
+      - kosu-data:/data
+    restart: unless-stopped
+
+volumes:
+  kosu-data:

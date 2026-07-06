@@ -1,0 +1,181 @@
+// @vitest-environment node
+
+import { existsSync, mkdirSync, rmSync } from "node:fs";
+import os from "node:os";
+import path from "node:path";
+
+import { eq } from "drizzle-orm";
+import { beforeEach, describe, expect, test } from "vitest";
+
+import { createDatabaseConnection } from "../../app/db/client";
+import { resolveDatabaseConfig } from "../../app/db/config";
+import { members } from "../../app/db/schema";
+import { action as projectAssignmentsAction, loader as projectAssignmentsLoader } from "../../app/routes/projects.$id.assignments";
+import { action as newProjectAction } from "../../app/routes/projects.new";
+import { loader as projectsLoader } from "../../app/routes/projects";
+import { action as reportsAction, loader as reportsLoader } from "../../app/routes/reports";
+import { action as workLogDateAction } from "../../app/routes/work-logs.$date";
+import { buildContext, buildRequest, setupAndLogin, type RouteActionHandler, type RouteLoaderHandler } from "./helpers";
+
+let dataDir: string;
+let originalDataDir: string | undefined;
+
+function tempDataDir() {
+  return path.join(os.tmpdir(), `kosu-reports-${Date.now()}-${Math.random().toString(36).slice(2)}`);
+}
+
+beforeEach(() => {
+  dataDir = tempDataDir();
+  mkdirSync(dataDir, { recursive: true });
+  originalDataDir = process.env.KOSU_DATA_DIR;
+});
+
+afterEach(() => {
+  if (originalDataDir !== undefined) {
+    process.env.KOSU_DATA_DIR = originalDataDir;
+  } else {
+    delete process.env.KOSU_DATA_DIR;
+  }
+
+  if (existsSync(dataDir)) {
+    rmSync(dataDir, { recursive: true, force: true });
+  }
+});
+
+async function createProject(cookie: string, code: string, name: string, type = "internal") {
+  const formData = new FormData();
+  formData.append("code", code);
+  formData.append("name", name);
+  formData.append("projectType", type);
+
+  return (newProjectAction as unknown as RouteActionHandler)({
+    request: buildRequest(formData, cookie),
+    params: {},
+    context: buildContext(),
+  });
+}
+
+async function assignAdminToProject(cookie: string, projectId: string) {
+  const assignmentsResponse = await (projectAssignmentsLoader as unknown as RouteLoaderHandler)({
+    request: new Request(`http://localhost/projects/${projectId}/assignments`, { headers: { Cookie: cookie } }),
+    params: { id: projectId },
+    context: buildContext(),
+  });
+  const adminMember = (assignmentsResponse as { members: { id: string }[] }).members[0];
+
+  const assignForm = new FormData();
+  assignForm.append("memberId", adminMember.id);
+  assignForm.append("assignmentRole", "Engineer");
+
+  await (projectAssignmentsAction as unknown as RouteActionHandler)({
+    request: buildRequest(assignForm, cookie),
+    params: { id: projectId },
+    context: buildContext(),
+  });
+}
+
+async function createWorkLogAndAllocation(cookie: string, projectId: string, date: string) {
+  const workLogForm = new FormData();
+  workLogForm.append("intent", "saveWorkLog");
+  workLogForm.append("totalWorkingHours", "8");
+  await (workLogDateAction as unknown as RouteActionHandler)({
+    request: buildRequest(workLogForm, cookie),
+    params: { date },
+    context: buildContext(),
+  });
+
+  const allocationForm = new FormData();
+  allocationForm.append("intent", "addAllocation");
+  allocationForm.append("projectId", projectId);
+  allocationForm.append("allocatedHours", "6");
+
+  await (workLogDateAction as unknown as RouteActionHandler)({
+    request: buildRequest(allocationForm, cookie),
+    params: { date },
+    context: buildContext(),
+  });
+}
+
+describe("reports", () => {
+  test("admin effort report shows allocation rows", async () => {
+    const cookie = await setupAndLogin(dataDir, "password123");
+    await createProject(cookie, "PRJ-001", "Website", "internal");
+
+    const listResponse = await (projectsLoader as unknown as RouteLoaderHandler)({
+      request: new Request("http://localhost/", { headers: { Cookie: cookie } }),
+      context: buildContext(),
+    });
+    const project = (listResponse as { projects: { id: string }[] }).projects[0];
+    await assignAdminToProject(cookie, project.id);
+    await createWorkLogAndAllocation(cookie, project.id, "2026-07-15");
+
+    const response = await (reportsLoader as unknown as RouteLoaderHandler)({
+      request: new Request("http://localhost/reports?month=2026-07", { headers: { Cookie: cookie } }),
+      context: buildContext(),
+    });
+    const rows = (response as { rows: { allocatedHours: number }[] }).rows;
+    expect(rows.length).toBeGreaterThan(0);
+    expect(rows[0].allocatedHours).toBe(6);
+  });
+
+  test("admin csv export uses v0.1 effort columns without financial columns", async () => {
+    const cookie = await setupAndLogin(dataDir, "password123");
+
+    const response = await (reportsAction as unknown as RouteActionHandler)({
+      request: new Request("http://localhost/reports?month=2026-07", {
+        method: "POST",
+        headers: { Cookie: cookie },
+      }),
+      params: {},
+      context: buildContext(),
+    });
+    expect(response).toBeInstanceOf(Response);
+    const body = await (response as Response).text();
+    expect(body).toContain("日付");
+    expect(body).toContain("時間");
+    expect(body).not.toContain("原価率");
+    expect(body).not.toContain("原価");
+    expect((response as Response).headers.get("Content-Disposition")).toContain("kosu-effort-report-2026-07.csv");
+  });
+
+  test("member csv export excludes financial columns", async () => {
+    const memberCookie = await setupAndLogin(dataDir, "password123", "member");
+
+    const response = await (reportsAction as unknown as RouteActionHandler)({
+      request: new Request("http://localhost/reports?month=2026-07", {
+        method: "POST",
+        headers: { Cookie: memberCookie },
+      }),
+      params: {},
+      context: buildContext(),
+    });
+    expect(response).toBeInstanceOf(Response);
+    const body = await (response as Response).text();
+    expect(body).not.toContain("原価率");
+    expect(body).not.toContain("原価");
+  });
+
+  test("effort report loader strips cost-rate snapshots from report payload", async () => {
+    const cookie = await setupAndLogin(dataDir, "password123");
+    const connection = createDatabaseConnection(resolveDatabaseConfig().databaseUrl);
+    connection.db.update(members).set({ hourlyCostRate: 5000 }).where(eq(members.email, "admin@example.com")).run();
+    connection.sqlite.close();
+
+    await createProject(cookie, "PRJ-001", "Website", "internal");
+    const listResponse = await (projectsLoader as unknown as RouteLoaderHandler)({
+      request: new Request("http://localhost/", { headers: { Cookie: cookie } }),
+      context: buildContext(),
+    });
+    const project = (listResponse as { projects: { id: string }[] }).projects[0];
+    await assignAdminToProject(cookie, project.id);
+    await createWorkLogAndAllocation(cookie, project.id, "2026-07-15");
+
+    const response = await (reportsLoader as unknown as RouteLoaderHandler)({
+      request: new Request("http://localhost/reports?month=2026-07", { headers: { Cookie: cookie } }),
+      context: buildContext(),
+    });
+    const rows = (response as { rows: { hourlyCostRateSnapshot: number | null }[]; isAdmin: boolean }).rows;
+    expect((response as { isAdmin: boolean }).isAdmin).toBe(true);
+    expect(rows[0].hourlyCostRateSnapshot).toBeNull();
+  });
+});

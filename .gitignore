@@ -22,8 +22,11 @@ test-results/
 # Runtime data
 data/
 *.sqlite
+*.sqlite-*
 *.sqlite3
+*.sqlite3-*
 *.db
+*.db-*
 *.db-shm
 *.db-wal
 

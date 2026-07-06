@@ -1,0 +1,31 @@
+import { index, layout, route, type RouteConfig } from "@react-router/dev/routes";
+
+export default [
+  index("routes/home.tsx"),
+  route("setup", "routes/setup.tsx"),
+  route("login", "routes/login.tsx"),
+  route("logout", "routes/logout.ts"),
+  layout("routes/app-layout.tsx", [
+    route("dashboard", "routes/dashboard.tsx"),
+    route("settings", "routes/settings.tsx"),
+    route("members", "routes/members.tsx"),
+    route("members/new", "routes/members.new.tsx"),
+    route("members/:id", "routes/members.$id.tsx"),
+    route("profile", "routes/profile.tsx"),
+    route("projects", "routes/projects.tsx"),
+    route("projects/new", "routes/projects.new.tsx"),
+    route("projects/:id", "routes/projects.$id.tsx"),
+    route("projects/:id/tasks", "routes/projects.$id.tasks.tsx"),
+    route("projects/:id/assignments", "routes/projects.$id.assignments.tsx"),
+    route("self-assign", "routes/self-assign.tsx"),
+    route("monthly-plans", "routes/monthly-plans.tsx"),
+    route("monthly-plans/admin", "routes/monthly-plans.admin.tsx"),
+    route("period-locks", "routes/period-locks.tsx"),
+    route("work-logs", "routes/work-logs.tsx"),
+    route("work-logs/:date", "routes/work-logs.$date.tsx"),
+    route("reports", "routes/reports.tsx"),
+    route("reports/planned-vs-actual", "routes/reports.planned-vs-actual.tsx"),
+    route("reports/resource-planning", "routes/reports.resource-planning.tsx"),
+    route("imports", "routes/imports.tsx"),
+  ]),
+] satisfies RouteConfig;
