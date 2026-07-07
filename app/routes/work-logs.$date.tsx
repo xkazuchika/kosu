@@ -1,4 +1,4 @@
-import { Form, redirect, useLoaderData } from "react-router";
+import { Form, Link, redirect, useLoaderData } from "react-router";
 import type { Route } from "./+types/work-logs.$date";
 
 import { Badge } from "~/components/ui/badge";
@@ -61,6 +61,7 @@ export const loader = async ({ request, params }: { request: Request; params: { 
     );
 
     return {
+      currentMemberId: currentMember.id,
       workDate,
       month,
       workLog,
@@ -270,11 +271,17 @@ function validateAllocationTarget(db: KosuDatabase, memberId: string, projectId:
 export const meta: Route.MetaFunction = () => [{ title: "日次工数入力 | kosu" }];
 
 export default function WorkLogEntry({ actionData }: Route.ComponentProps) {
-  const { workDate, month, workLog, allocations, assignedProjects, activeTasks, targetMember, isLocked } =
+  const { currentMemberId, workDate, month, workLog, allocations, assignedProjects, activeTasks, targetMember, isLocked } =
     useLoaderData<typeof loader>();
   const allocatedTotal = allocations.reduce((sum, a) => sum + a.allocatedHours, 0);
   const totalWorkingHours = workLog?.totalWorkingHours ?? 0;
   const variance = totalWorkingHours - allocatedTotal;
+  const remainingAllocationHours = variance > 0 ? variance : "";
+  const previousDate = addDays(workDate, -1);
+  const nextDate = addDays(workDate, 1);
+  const today = new Date().toISOString().slice(0, 10);
+  const memberQuery = targetMember.id !== currentMemberId ? `?memberId=${targetMember.id}` : "";
+  const monthlyMemberQuery = targetMember.id !== currentMemberId ? `&memberId=${targetMember.id}` : "";
 
   return (
     <div className="space-y-6">
@@ -290,6 +297,24 @@ export default function WorkLogEntry({ actionData }: Route.ComponentProps) {
         ) : (
           <Badge tone="success">編集可能</Badge>
         )}
+      </div>
+
+      <div className="flex flex-wrap gap-2">
+        <Link className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-900 hover:bg-slate-50" to={`/work-logs/${previousDate}${memberQuery}`}>
+          前日
+        </Link>
+        <Link className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-900 hover:bg-slate-50" to={`/work-logs/${today}${memberQuery}`}>
+          今日
+        </Link>
+        <Link className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-900 hover:bg-slate-50" to={`/work-logs/${nextDate}${memberQuery}`}>
+          翌日
+        </Link>
+        <Link className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-900 hover:bg-slate-50" to={`/work-logs/month?month=${month}${monthlyMemberQuery}`}>
+          月次一括入力
+        </Link>
+        <Link className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-900 hover:bg-slate-50" to="/work-logs">
+          一覧へ
+        </Link>
       </div>
 
       {actionData?.error ? (
@@ -339,17 +364,69 @@ export default function WorkLogEntry({ actionData }: Route.ComponentProps) {
             columns={["案件", "タスク", "時間", "備考", "操作"]}
             emptyMessage="配賦はまだありません。"
             rows={allocations.map((allocation) => {
-              const project = assignedProjects.find((p) => p.id === allocation.projectId);
-              const task = activeTasks.find((t) => t.id === allocation.taskId);
+              const formId = `allocation-${allocation.id}`;
+
               return [
-                project?.name ?? allocation.projectId,
-                task?.name ?? "-",
-                `${allocation.allocatedHours}h`,
-                allocation.note ?? "-",
-                <Form key={allocation.id} method="post">
-                  <input name="intent" type="hidden" value="deleteAllocation" />
+                <select
+                  className="block w-full min-w-40 rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm disabled:bg-slate-100"
+                  defaultValue={allocation.projectId}
+                  disabled={isLocked}
+                  form={formId}
+                  name="projectId"
+                  required
+                >
+                  {assignedProjects.map((project) => (
+                    <option key={project.id} value={project.id}>
+                      {project.name}
+                    </option>
+                  ))}
+                </select>,
+                <select
+                  className="block w-full min-w-40 rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm disabled:bg-slate-100"
+                  defaultValue={allocation.taskId ?? ""}
+                  disabled={isLocked}
+                  form={formId}
+                  name="taskId"
+                >
+                  <option value="">未指定</option>
+                  {assignedProjects.map((project) => {
+                    const projectTasks = activeTasks.filter((task) => task.projectId === project.id);
+
+                    return projectTasks.length > 0 ? (
+                      <optgroup key={project.id} label={project.name}>
+                        {projectTasks.map((task) => (
+                          <option key={task.id} value={task.id}>
+                            {task.name}
+                          </option>
+                        ))}
+                      </optgroup>
+                    ) : null;
+                  })}
+                </select>,
+                <Input
+                  className="w-28"
+                  defaultValue={allocation.allocatedHours}
+                  disabled={isLocked}
+                  form={formId}
+                  name="allocatedHours"
+                  step="0.25"
+                  type="number"
+                  required
+                />,
+                <Input
+                  className="min-w-40"
+                  defaultValue={allocation.note ?? ""}
+                  disabled={isLocked}
+                  form={formId}
+                  name="note"
+                  type="text"
+                />,
+                <Form className="flex gap-2" id={formId} key={allocation.id} method="post">
                   <input name="allocationId" type="hidden" value={allocation.id} />
-                  <Button disabled={isLocked} type="submit" variant="outline">
+                  <Button disabled={isLocked} name="intent" type="submit" value="updateAllocation" variant="primary">
+                    保存
+                  </Button>
+                  <Button disabled={isLocked} name="intent" type="submit" value="deleteAllocation" variant="outline">
                     削除
                   </Button>
                 </Form>,
@@ -391,7 +468,7 @@ export default function WorkLogEntry({ actionData }: Route.ComponentProps) {
             </div>
             <div>
               <label className="text-sm font-medium text-slate-800">時間</label>
-              <Input className="mt-1" disabled={isLocked} name="allocatedHours" step="0.25" type="number" required />
+              <Input className="mt-1" defaultValue={remainingAllocationHours} disabled={isLocked} name="allocatedHours" step="0.25" type="number" required />
             </div>
             <div>
               <label className="text-sm font-medium text-slate-800">備考</label>
@@ -407,4 +484,10 @@ export default function WorkLogEntry({ actionData }: Route.ComponentProps) {
       </Card>
     </div>
   );
+}
+
+function addDays(date: string, days: number) {
+  const value = new Date(`${date}T00:00:00.000Z`);
+  value.setUTCDate(value.getUTCDate() + days);
+  return value.toISOString().slice(0, 10);
 }

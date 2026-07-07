@@ -35,7 +35,7 @@ export default function Members() {
         </Link>
       </div>
       <DataTable
-        columns={["氏名", "メール", "ロール", "部署", "時給原価", "状態"]}
+        columns={["氏名", "メール", "権限", "部署", "時給原価", "状態"]}
         emptyMessage="メンバーがまだ登録されていません。"
         rows={members.map((member) => [
           <Link className="text-sky-700 hover:underline" key={member.id} to={`/members/${member.id}`}>

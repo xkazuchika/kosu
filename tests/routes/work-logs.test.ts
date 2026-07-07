@@ -4,16 +4,20 @@ import { existsSync, mkdirSync, rmSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 
+import { eq } from "drizzle-orm";
 import { beforeEach, describe, expect, test } from "vitest";
 
 import { createDatabaseConnection } from "../../app/db/client";
+import { createMember } from "../../app/db/repositories/members";
 import { archiveProject } from "../../app/db/repositories/projects";
 import { archiveTask, createTask } from "../../app/db/repositories/tasks";
+import { members } from "../../app/db/schema";
 import { action as periodLocksAction } from "../../app/routes/period-locks";
 import { action as projectAssignmentsAction, loader as projectAssignmentsLoader } from "../../app/routes/projects.$id.assignments";
 import { action as newProjectAction } from "../../app/routes/projects.new";
 import { loader as projectsLoader } from "../../app/routes/projects";
 import { action as workLogDateAction, loader as workLogDateLoader } from "../../app/routes/work-logs.$date";
+import { action as workLogMonthAction, loader as workLogMonthLoader } from "../../app/routes/work-logs.month";
 import { loader as workLogsLoader } from "../../app/routes/work-logs";
 import { buildContext, buildRequest, setupAndLogin, type RouteActionHandler, type RouteLoaderHandler } from "./helpers";
 
@@ -77,6 +81,122 @@ async function assignAdminToProject(cookie: string, projectId: string) {
 }
 
 describe("daily work logs and allocations", () => {
+  test("member bulk edits monthly daily totals", async () => {
+    const cookie = await setupAndLogin(dataDir, "password123", "member");
+
+    const formData = new FormData();
+    formData.append("date", "2026-07-01");
+    formData.append("totalWorkingHours", "8");
+    formData.append("date", "2026-07-02");
+    formData.append("totalWorkingHours", "7.5");
+
+    const response = await (workLogMonthAction as unknown as RouteActionHandler)({
+      request: new Request("http://localhost/work-logs/month?month=2026-07", {
+        method: "POST",
+        body: formData,
+        headers: { Cookie: cookie },
+      }),
+      params: {},
+      context: buildContext(),
+    });
+    expect(response).toBeInstanceOf(Response);
+    expect((response as Response).headers.get("Location")).toBe("/work-logs/month?month=2026-07");
+
+    const monthResponse = await (workLogMonthLoader as unknown as RouteLoaderHandler)({
+      request: new Request("http://localhost/work-logs/month?month=2026-07", { headers: { Cookie: cookie } }),
+      context: buildContext(),
+    });
+    const rows = (monthResponse as { rows: { workDate: string; totalWorkingHours: number }[] }).rows;
+    expect(rows).toHaveLength(31);
+    expect(rows.find((row) => row.workDate === "2026-07-01")?.totalWorkingHours).toBe(8);
+    expect(rows.find((row) => row.workDate === "2026-07-02")?.totalWorkingHours).toBe(7.5);
+  });
+
+  test("monthly work log rejects invalid bulk hours", async () => {
+    const cookie = await setupAndLogin(dataDir, "password123", "member");
+    const formData = new FormData();
+    formData.append("date", "2026-07-01");
+    formData.append("totalWorkingHours", "8.13");
+
+    const response = await (workLogMonthAction as unknown as RouteActionHandler)({
+      request: new Request("http://localhost/work-logs/month?month=2026-07", {
+        method: "POST",
+        body: formData,
+        headers: { Cookie: cookie },
+      }),
+      params: {},
+      context: buildContext(),
+    });
+    expect((response as { error: string }).error).toContain("0.25h");
+  });
+
+  test("admin bulk edits selected member month", async () => {
+    const cookie = await setupAndLogin(dataDir, "password123");
+    const connection = createDatabaseConnection();
+    const member = createMember(connection.db, {
+      displayName: "Member",
+      email: "member@example.com",
+      passwordHash: "unused",
+      role: "member",
+    });
+    connection.sqlite.close();
+
+    const formData = new FormData();
+    formData.append("date", "2026-07-01");
+    formData.append("totalWorkingHours", "6");
+
+    const response = await (workLogMonthAction as unknown as RouteActionHandler)({
+      request: new Request(`http://localhost/work-logs/month?month=2026-07&memberId=${member.id}`, {
+        method: "POST",
+        body: formData,
+        headers: { Cookie: cookie },
+      }),
+      params: {},
+      context: buildContext(),
+    });
+    expect(response).toBeInstanceOf(Response);
+    expect((response as Response).headers.get("Location")).toBe(`/work-logs/month?month=2026-07&memberId=${member.id}`);
+
+    const monthResponse = await (workLogMonthLoader as unknown as RouteLoaderHandler)({
+      request: new Request(`http://localhost/work-logs/month?month=2026-07&memberId=${member.id}`, { headers: { Cookie: cookie } }),
+      context: buildContext(),
+    });
+    expect((monthResponse as { targetMember: { id: string } }).targetMember.id).toBe(member.id);
+    expect((monthResponse as { rows: { totalWorkingHours: number }[] }).rows[0].totalWorkingHours).toBe(6);
+  });
+
+  test("locked month prevents member monthly bulk edit", async () => {
+    const cookie = await setupAndLogin(dataDir, "password123");
+    const lockForm = new FormData();
+    lockForm.append("intent", "lock");
+    lockForm.append("month", "2026-07");
+    await (periodLocksAction as unknown as RouteActionHandler)({
+      request: buildRequest(lockForm, cookie),
+      params: {},
+      context: buildContext(),
+    });
+
+    const connection = createDatabaseConnection();
+    connection.db.update(members).set({ role: "member" }).where(eq(members.email, "admin@example.com")).run();
+    connection.sqlite.close();
+
+    const formData = new FormData();
+    formData.append("date", "2026-07-01");
+    formData.append("totalWorkingHours", "8");
+
+    await expect(
+      (workLogMonthAction as unknown as RouteActionHandler)({
+        request: new Request("http://localhost/work-logs/month?month=2026-07", {
+          method: "POST",
+          body: formData,
+          headers: { Cookie: cookie },
+        }),
+        params: {},
+        context: buildContext(),
+      }),
+    ).rejects.toBeInstanceOf(Response);
+  });
+
   test("member creates and lists daily work log", async () => {
     const cookie = await setupAndLogin(dataDir, "password123");
 
@@ -98,6 +218,44 @@ describe("daily work logs and allocations", () => {
     });
     const logs = (listResponse as { logs: { workDate: string; totalWorkingHours: number }[] }).logs;
     expect(logs.some((log) => log.workDate === "2026-07-15" && log.totalWorkingHours === 8)).toBe(true);
+  });
+
+  test("work log list redirects date query to daily entry", async () => {
+    const cookie = await setupAndLogin(dataDir, "password123");
+
+    try {
+      await (workLogsLoader as unknown as RouteLoaderHandler)({
+        request: new Request("http://localhost/work-logs?date=2026-07-15", { headers: { Cookie: cookie } }),
+        context: buildContext(),
+      });
+      throw new Error("Expected redirect");
+    } catch (error) {
+      expect(error).toBeInstanceOf(Response);
+      expect((error as Response).headers.get("Location")).toBe("/work-logs/2026-07-15");
+    }
+  });
+
+  test("admin work log date redirect preserves selected member", async () => {
+    const cookie = await setupAndLogin(dataDir, "password123");
+    const connection = createDatabaseConnection();
+    const member = createMember(connection.db, {
+      displayName: "Member",
+      email: "member@example.com",
+      passwordHash: "unused",
+      role: "member",
+    });
+    connection.sqlite.close();
+
+    try {
+      await (workLogsLoader as unknown as RouteLoaderHandler)({
+        request: new Request(`http://localhost/work-logs?memberId=${member.id}&date=2026-07-15`, { headers: { Cookie: cookie } }),
+        context: buildContext(),
+      });
+      throw new Error("Expected redirect");
+    } catch (error) {
+      expect(error).toBeInstanceOf(Response);
+      expect((error as Response).headers.get("Location")).toBe(`/work-logs/2026-07-15?memberId=${member.id}`);
+    }
   });
 
   test("member adds allocation to assigned project", async () => {
@@ -144,6 +302,67 @@ describe("daily work logs and allocations", () => {
     const allocatedTotal = allocations.reduce((sum, a) => sum + a.allocatedHours, 0);
     expect(allocatedTotal).toBe(6.25);
     expect(8 - allocatedTotal).toBe(1.75);
+  });
+
+  test("member updates existing allocation hours and note", async () => {
+    const cookie = await setupAndLogin(dataDir, "password123");
+    await createProject(cookie, "PRJ-001", "Website", "internal");
+
+    const listResponse = await (projectsLoader as unknown as RouteLoaderHandler)({
+      request: new Request("http://localhost/", { headers: { Cookie: cookie } }),
+      context: buildContext(),
+    });
+    const project = (listResponse as { projects: { id: string }[] }).projects[0];
+    await assignAdminToProject(cookie, project.id);
+
+    const workLogForm = new FormData();
+    workLogForm.append("intent", "saveWorkLog");
+    workLogForm.append("totalWorkingHours", "8");
+    await (workLogDateAction as unknown as RouteActionHandler)({
+      request: buildRequest(workLogForm, cookie),
+      params: { date: "2026-07-15" },
+      context: buildContext(),
+    });
+
+    const allocationForm = new FormData();
+    allocationForm.append("intent", "addAllocation");
+    allocationForm.append("projectId", project.id);
+    allocationForm.append("allocatedHours", "4");
+    allocationForm.append("note", "Initial");
+    await (workLogDateAction as unknown as RouteActionHandler)({
+      request: buildRequest(allocationForm, cookie),
+      params: { date: "2026-07-15" },
+      context: buildContext(),
+    });
+
+    const detailResponse = await (workLogDateLoader as unknown as RouteLoaderHandler)({
+      request: new Request("http://localhost/work-logs/2026-07-15", { headers: { Cookie: cookie } }),
+      params: { date: "2026-07-15" },
+      context: buildContext(),
+    });
+    const allocationId = (detailResponse as { allocations: { id: string }[] }).allocations[0].id;
+
+    const updateForm = new FormData();
+    updateForm.append("intent", "updateAllocation");
+    updateForm.append("allocationId", allocationId);
+    updateForm.append("projectId", project.id);
+    updateForm.append("allocatedHours", "6.5");
+    updateForm.append("note", "Updated");
+    const updateResponse = await (workLogDateAction as unknown as RouteActionHandler)({
+      request: buildRequest(updateForm, cookie),
+      params: { date: "2026-07-15" },
+      context: buildContext(),
+    });
+    expect(updateResponse).toBeInstanceOf(Response);
+
+    const updatedDetailResponse = await (workLogDateLoader as unknown as RouteLoaderHandler)({
+      request: new Request("http://localhost/work-logs/2026-07-15", { headers: { Cookie: cookie } }),
+      params: { date: "2026-07-15" },
+      context: buildContext(),
+    });
+    const updatedAllocation = (updatedDetailResponse as { allocations: { allocatedHours: number; note: string | null }[] }).allocations[0];
+    expect(updatedAllocation.allocatedHours).toBe(6.5);
+    expect(updatedAllocation.note).toBe("Updated");
   });
 
   test("rejects non-quarter-hour values", async () => {

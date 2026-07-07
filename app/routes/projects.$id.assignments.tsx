@@ -107,7 +107,7 @@ export default function ProjectAssignments({ actionData }: Route.ComponentProps)
               </select>
             </div>
             <div className="flex-1">
-              <label className="text-sm font-medium text-slate-800">アサインロール</label>
+              <label className="text-sm font-medium text-slate-800">担当ロール</label>
               <input
                 className="mt-1 block w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm"
                 name="assignmentRole"
@@ -123,7 +123,7 @@ export default function ProjectAssignments({ actionData }: Route.ComponentProps)
       </Card>
 
       <DataTable
-        columns={["メンバー", "ロール", "ソース", "操作"]}
+        columns={["メンバー", "担当ロール", "ソース", "操作"]}
         emptyMessage="アサインされているメンバーはいません。"
         rows={assignments
           .filter((a) => !a.removedAt)

@@ -52,21 +52,32 @@ export default function Projects() {
         ) : null}
       </div>
       <DataTable
-        columns={["コード", "名前", "タイプ", "クライアント", "状態"]}
+        columns={isAdmin ? ["コード", "名前", "タイプ", "クライアント", "状態", "操作"] : ["コード", "名前", "タイプ", "クライアント", "状態"]}
         emptyMessage="案件がまだ登録されていません。"
-        rows={projects.map((project) => [
-          isAdmin ? (
-            <Link className="text-sky-700 hover:underline" key={project.id} to={`/projects/${project.id}`}>
-              {project.code}
-            </Link>
-          ) : (
-            project.code
-          ),
-          project.name,
-          project.projectType,
-          project.clientName ?? "-",
-          project.isArchived ? <Badge tone="neutral">アーカイブ</Badge> : <Badge tone="success">有効</Badge>,
-        ])}
+        rows={projects.map((project) => {
+          const baseRows = [
+            isAdmin ? (
+              <Link className="text-sky-700 hover:underline" key={project.id} to={`/projects/${project.id}`}>
+                {project.code}
+              </Link>
+            ) : (
+              project.code
+            ),
+            project.name,
+            project.projectType,
+            project.clientName ?? "-",
+            project.isArchived ? <Badge tone="neutral">アーカイブ</Badge> : <Badge tone="success">有効</Badge>,
+          ];
+
+          return isAdmin
+            ? [
+                ...baseRows,
+                <Link className="text-sky-700 hover:underline" key={`${project.id}-assignments`} to={`/projects/${project.id}/assignments`}>
+                  アサイン
+                </Link>,
+              ]
+            : baseRows;
+        })}
       />
     </div>
   );

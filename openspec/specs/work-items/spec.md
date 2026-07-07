@@ -100,7 +100,7 @@ The system SHALL require each effort allocation to reference an active assigned 
 - **WHEN** a member creates an effort allocation for an active assigned project without selecting a task
 - **THEN** the system accepts the entry as project-level effort
 
-## Future Scope (v0.2+)
+## Future Scope (v0.3+)
 
-- Project revenue or budget fields are not part of the v0.1 public scope.
-- Project profitability, cost, revenue, budget, and gross-profit reporting are outside the v0.1 public scope.
+- Project revenue or budget fields are not part of the v0.2 public scope.
+- Project profitability, cost, revenue, budget, and gross-profit reporting are outside the v0.2 public scope.

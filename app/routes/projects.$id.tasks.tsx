@@ -70,7 +70,7 @@ export default function ProjectTasks({ actionData }: Route.ComponentProps) {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold tracking-tight text-slate-950">
-          {project.name} のタスク
+          {project.name} のタスク（任意）
         </h1>
         <Link
           className="inline-flex items-center justify-center rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-900 hover:bg-slate-50"
@@ -90,6 +90,9 @@ export default function ProjectTasks({ actionData }: Route.ComponentProps) {
               {actionData.error}
             </p>
           ) : null}
+          <p className="mb-4 text-sm text-slate-600">
+            タスクは案件内の工数を細かく分けたい場合だけ使います。使わない場合は、日次工数入力で案件だけを選んで配賦できます。
+          </p>
           <Form method="post" className="flex gap-2">
             <Field label="">
               <Input name="name" placeholder="タスク名" required />

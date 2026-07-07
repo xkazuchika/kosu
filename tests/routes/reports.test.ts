@@ -9,11 +9,14 @@ import { beforeEach, describe, expect, test } from "vitest";
 
 import { createDatabaseConnection } from "../../app/db/client";
 import { resolveDatabaseConfig } from "../../app/db/config";
+import { createMemberMonthlyCapacity } from "../../app/db/repositories/member-monthly-capacities";
+import { createMonthlyPlan } from "../../app/db/repositories/monthly-plans";
 import { members } from "../../app/db/schema";
 import { action as projectAssignmentsAction, loader as projectAssignmentsLoader } from "../../app/routes/projects.$id.assignments";
 import { action as newProjectAction } from "../../app/routes/projects.new";
 import { loader as projectsLoader } from "../../app/routes/projects";
 import { action as reportsAction, loader as reportsLoader } from "../../app/routes/reports";
+import { loader as plannedVsActualLoader } from "../../app/routes/reports.planned-vs-actual";
 import { action as workLogDateAction } from "../../app/routes/work-logs.$date";
 import { buildContext, buildRequest, setupAndLogin, type RouteActionHandler, type RouteLoaderHandler } from "./helpers";
 
@@ -72,6 +75,8 @@ async function assignAdminToProject(cookie: string, projectId: string) {
     params: { id: projectId },
     context: buildContext(),
   });
+
+  return adminMember;
 }
 
 async function createWorkLogAndAllocation(cookie: string, projectId: string, date: string) {
@@ -177,5 +182,60 @@ describe("reports", () => {
     const rows = (response as { rows: { hourlyCostRateSnapshot: number | null }[]; isAdmin: boolean }).rows;
     expect((response as { isAdmin: boolean }).isAdmin).toBe(true);
     expect(rows[0].hourlyCostRateSnapshot).toBeNull();
+  });
+
+  test("planned-versus-actual report compares plans, actuals, and capacity", async () => {
+    const cookie = await setupAndLogin(dataDir, "password123");
+    await createProject(cookie, "PRJ-001", "Website", "internal");
+    const listResponse = await (projectsLoader as unknown as RouteLoaderHandler)({
+      request: new Request("http://localhost/", { headers: { Cookie: cookie } }),
+      context: buildContext(),
+    });
+    const project = (listResponse as { projects: { id: string }[] }).projects[0];
+    const adminMember = await assignAdminToProject(cookie, project.id);
+    await createWorkLogAndAllocation(cookie, project.id, "2026-07-15");
+
+    const connection = createDatabaseConnection(resolveDatabaseConfig().databaseUrl);
+    createMemberMonthlyCapacity(connection.db, { memberId: adminMember.id, month: "2026-07", capacityHours: 160 });
+    createMonthlyPlan(connection.db, {
+      memberId: adminMember.id,
+      projectId: project.id,
+      month: "2026-07",
+      assignmentRole: "Engineer",
+      plannedHours: 10,
+    });
+    connection.sqlite.close();
+
+    const response = await (plannedVsActualLoader as unknown as RouteLoaderHandler)({
+      request: new Request("http://localhost/reports/planned-vs-actual?month=2026-07", { headers: { Cookie: cookie } }),
+      context: buildContext(),
+    });
+    const rows = (response as { rows: { plannedHours: number; actualHours: number; variance: number }[] }).rows;
+    expect(rows[0].plannedHours).toBe(10);
+    expect(rows[0].actualHours).toBe(6);
+    expect(rows[0].variance).toBe(-4);
+    const capacityRows = (response as { capacityRows: { capacityHours: number; totalPlanned: number; totalActual: number; unallocatedCapacity: number; overplannedHours: number }[] }).capacityRows;
+    expect(capacityRows[0]).toMatchObject({
+      capacityHours: 160,
+      totalPlanned: 10,
+      totalActual: 6,
+      unallocatedCapacity: 150,
+      overplannedHours: 0,
+    });
+  });
+
+  test("planned-versus-actual report exposes missing-plan guidance state", async () => {
+    const cookie = await setupAndLogin(dataDir, "password123");
+    const connection = createDatabaseConnection(resolveDatabaseConfig().databaseUrl);
+    const adminMember = connection.db.select().from(members).where(eq(members.email, "admin@example.com")).get()!;
+    createMemberMonthlyCapacity(connection.db, { memberId: adminMember.id, month: "2026-07", capacityHours: 160 });
+    connection.sqlite.close();
+
+    const response = await (plannedVsActualLoader as unknown as RouteLoaderHandler)({
+      request: new Request("http://localhost/reports/planned-vs-actual?month=2026-07", { headers: { Cookie: cookie } }),
+      context: buildContext(),
+    });
+    expect((response as { hasPlans: boolean; planningState: string }).hasPlans).toBe(false);
+    expect((response as { hasPlans: boolean; planningState: string }).planningState).toBe("missing-plans");
   });
 });

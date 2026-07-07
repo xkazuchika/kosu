@@ -89,7 +89,7 @@ export const action = async ({ request }: Route.ActionArgs) => {
       "日付",
       "メンバー",
       "部署",
-      "ロール",
+      "権限",
       "案件コード",
       "案件名",
       "種別",
@@ -195,7 +195,7 @@ export default function Reports() {
             ) : null}
             {data.isAdmin ? (
               <div>
-                <label className="text-sm font-medium text-slate-800">ロール</label>
+                <label className="text-sm font-medium text-slate-800">権限</label>
                 <select
                   className="mt-1 block w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm"
                   defaultValue={data.role}

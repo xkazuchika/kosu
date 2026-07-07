@@ -58,7 +58,7 @@ export const action = async ({ request, params }: Route.ActionArgs) => {
     }
 
     if (role !== "admin" && role !== "member") {
-      return { error: "ロールが不正です。" };
+      return { error: "権限が不正です。" };
     }
 
     const updates: Parameters<typeof updateMember>[2] = {
@@ -111,7 +111,7 @@ export default function EditMember({ actionData }: Route.ComponentProps) {
             <Field label="メールアドレス">
               <Input name="email" type="email" defaultValue={member.email} required />
             </Field>
-            <Field label="ロール">
+            <Field label="権限">
               <select
                 className="block w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm"
                 defaultValue={member.role}

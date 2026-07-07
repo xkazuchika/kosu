@@ -15,16 +15,20 @@ const memberNavigation = [
   { href: "/work-logs", label: "工数入力" },
   { href: "/monthly-plans", label: "月次予定" },
   { href: "/projects", label: "担当案件" },
+  { href: "/self-assign", label: "自己アサイン" },
   { href: "/reports", label: "レポート" },
+  { href: "/reports/planned-vs-actual", label: "予定対実績" },
 ];
 
 const administratorNavigation = [
   { href: "/dashboard", label: "ダッシュボード" },
   { href: "/work-logs", label: "工数入力" },
-  { href: "/monthly-plans", label: "月次予定" },
+  { href: "/monthly-plans/admin", label: "月次予定入力" },
   { href: "/projects", label: "案件" },
+  { href: "/self-assign", label: "自己アサイン" },
   { href: "/members", label: "メンバー" },
   { href: "/reports", label: "レポート" },
+  { href: "/reports/planned-vs-actual", label: "予定対実績" },
   { href: "/imports", label: "インポート" },
   { href: "/settings", label: "設定" },
 ];
@@ -58,8 +62,15 @@ export function AppShell({ children, currentMonth, role, title, userName }: AppS
               <p className="text-xs font-medium text-slate-500">対象月 {currentMonth}</p>
               <h1 className="text-xl font-semibold tracking-tight">{title}</h1>
             </div>
-            <div className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-sm font-medium text-slate-700">
-              {userName}
+            <div className="flex items-center gap-2">
+              <div className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-sm font-medium text-slate-700">
+                {userName}
+              </div>
+              <form action="/logout" method="post">
+                <button className="rounded-full border border-slate-200 bg-white px-3 py-1 text-sm font-semibold text-slate-700 hover:bg-slate-50" type="submit">
+                  ログアウト
+                </button>
+              </form>
             </div>
           </div>
         </header>

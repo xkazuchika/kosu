@@ -1,4 +1,4 @@
-import { useLoaderData } from "react-router";
+import { Link, useLoaderData } from "react-router";
 import type { Route } from "./+types/monthly-plans";
 
 import { Card, CardContent, CardHeader, CardTitle } from "~/components/ui/card";
@@ -59,10 +59,21 @@ export default function MonthlyPlans() {
           </span>
         )}
       </div>
+      <div className="flex flex-wrap gap-2">
+        <Link className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-900 hover:bg-slate-50" to={`/work-logs/month?month=${currentMonth}`}>
+          月次一括入力
+        </Link>
+        <Link className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-900 hover:bg-slate-50" to={`/reports/planned-vs-actual?month=${currentMonth}`}>
+          予定対実績
+        </Link>
+        <Link className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-900 hover:bg-slate-50" to={`/monthly-plans/admin?month=${currentMonth}`}>
+          案件別予定を入力
+        </Link>
+      </div>
       <div className="grid gap-4 sm:grid-cols-3">
         <Card>
           <CardHeader>
-            <CardTitle>月次稼働可能時間</CardTitle>
+            <CardTitle>月次稼働予定時間</CardTitle>
           </CardHeader>
           <CardContent>
             <p className="text-3xl font-semibold">{capacityHours}h</p>
@@ -89,7 +100,7 @@ export default function MonthlyPlans() {
       </div>
 
       <DataTable
-        columns={["対象月", "案件", "ロール", "予定工数"]}
+        columns={["対象月", "案件", "担当ロール", "予定工数"]}
         emptyMessage={`${currentMonth} の月次計画はまだありません。`}
         rows={plans.map((plan) => [
           plan.month,

@@ -44,7 +44,7 @@ The system SHALL link dashboard summaries to the related operational pages.
 - **WHEN** a member selects today's input status
 - **THEN** the system opens that member's daily work-log entry page for today
 
-## Future Scope (v0.2+)
+## Future Scope (v0.3+)
 
-- Administrator-only financial summaries are outside the v0.1 public dashboard scope.
-- Full planned-versus-actual dashboard summaries that combine capacity, plans, and actual allocations are outside the v0.1 public dashboard scope.
+- Administrator-only financial summaries are outside the v0.2 public dashboard scope.
+- Full planned-versus-actual dashboard summaries that combine capacity, plans, and actual allocations are outside the v0.2 public dashboard scope.

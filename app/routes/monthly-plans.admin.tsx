@@ -1,4 +1,4 @@
-import { Form, useLoaderData } from "react-router";
+import { Form, Link, useLoaderData } from "react-router";
 import type { Route } from "./+types/monthly-plans.admin";
 
 import { Button } from "~/components/ui/button";
@@ -107,7 +107,19 @@ export default function MonthlyPlansAdmin({ actionData }: Route.ComponentProps) 
 
   return (
     <div className="space-y-6">
-      <h1 className="text-2xl font-bold tracking-tight text-slate-950">月次計画管理</h1>
+      <div>
+        <h1 className="text-2xl font-bold tracking-tight text-slate-950">月次予定入力</h1>
+        <p className="text-sm text-slate-600">担当者ごとの月次稼働予定時間と、案件別の予定工数を登録します。</p>
+      </div>
+
+      <div className="flex flex-wrap gap-2">
+        <Link className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-900 hover:bg-slate-50" to={`/work-logs/month?month=${month}`}>
+          月次一括入力
+        </Link>
+        <Link className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-900 hover:bg-slate-50" to={`/reports/planned-vs-actual?month=${month}`}>
+          予定対実績
+        </Link>
+      </div>
 
       {actionData?.error ? (
         <p className="rounded-lg bg-red-50 p-3 text-sm text-red-700" role="alert">
@@ -127,7 +139,7 @@ export default function MonthlyPlansAdmin({ actionData }: Route.ComponentProps) 
         </CardHeader>
         <CardContent>
           <DataTable
-            columns={["メンバー", "稼働可能時間", "操作"]}
+            columns={["担当者", "稼働予定時間", "操作"]}
             emptyMessage="該当データがありません。"
             rows={capacities.map(({ member, capacity }) => [
               member.displayName,
@@ -154,7 +166,7 @@ export default function MonthlyPlansAdmin({ actionData }: Route.ComponentProps) 
 
       <Card>
         <CardHeader>
-          <CardTitle>月次計画追加</CardTitle>
+          <CardTitle>案件別予定工数を追加</CardTitle>
         </CardHeader>
         <CardContent>
           <Form className="flex flex-col gap-4 sm:flex-row sm:items-end" method="post" action="/monthly-plans/admin">
@@ -173,7 +185,7 @@ export default function MonthlyPlansAdmin({ actionData }: Route.ComponentProps) 
               </select>
             </div>
             <div>
-              <label className="text-sm font-medium text-slate-800">ロール</label>
+              <label className="text-sm font-medium text-slate-800">担当ロール</label>
               <input className="mt-1 block rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm" name="assignmentRole" type="text" />
             </div>
             <div>

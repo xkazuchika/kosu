@@ -62,7 +62,7 @@ export default function ResourcePlanning() {
           <Badge tone="neutral">v0.2+ preview</Badge>
         </div>
         <p className="text-sm text-slate-600">
-          この画面は v0.1 の主要機能ではありません。v0.1 では月次キャパシティと月次予定の入力を公開範囲とし、部門・メンバー・ロール・案件で絞り込む本格的なリソース計画は v0.2 以降で整理します。
+          この画面は v0.1 の主要機能ではありません。v0.1 では月次キャパシティと月次予定の入力を公開範囲とし、部門・メンバー・担当ロール・案件で絞り込む本格的なリソース計画は v0.2 以降で整理します。
         </p>
       </div>
 

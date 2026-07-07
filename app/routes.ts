@@ -22,6 +22,7 @@ export default [
     route("monthly-plans/admin", "routes/monthly-plans.admin.tsx"),
     route("period-locks", "routes/period-locks.tsx"),
     route("work-logs", "routes/work-logs.tsx"),
+    route("work-logs/month", "routes/work-logs.month.tsx"),
     route("work-logs/:date", "routes/work-logs.$date.tsx"),
     route("reports", "routes/reports.tsx"),
     route("reports/planned-vs-actual", "routes/reports.planned-vs-actual.tsx"),

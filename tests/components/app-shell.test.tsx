@@ -12,6 +12,8 @@ test("member navigation hides administrator-only links", () => {
 
   expect(screen.getByRole("link", { name: "ダッシュボード" })).toBeInTheDocument();
   expect(screen.getByRole("link", { name: "工数入力" })).toBeInTheDocument();
+  expect(screen.getByRole("link", { name: "自己アサイン" })).toBeInTheDocument();
+  expect(screen.getByRole("link", { name: "予定対実績" })).toBeInTheDocument();
   expect(screen.queryByRole("link", { name: "メンバー" })).not.toBeInTheDocument();
   expect(screen.queryByRole("link", { name: "インポート" })).not.toBeInTheDocument();
 });
@@ -24,9 +26,13 @@ test("administrator navigation shows management links", () => {
   );
 
   expect(screen.getByRole("link", { name: "メンバー" })).toBeInTheDocument();
+  expect(screen.getByRole("link", { name: "月次予定入力" })).toHaveAttribute("href", "/monthly-plans/admin");
+  expect(screen.getByRole("link", { name: "自己アサイン" })).toBeInTheDocument();
+  expect(screen.getByRole("link", { name: "予定対実績" })).toBeInTheDocument();
   expect(screen.getByRole("link", { name: "インポート" })).toBeInTheDocument();
   expect(screen.getByText(/2026-07/)).toBeInTheDocument();
   expect(screen.getByText("管理者")).toBeInTheDocument();
+  expect(screen.getByRole("button", { name: "ログアウト" })).toBeInTheDocument();
 });
 
 test("loading state announces progress", () => {

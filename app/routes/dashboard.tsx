@@ -225,7 +225,7 @@ export default function Dashboard() {
         <SummaryCard label="今月の予定工数" to="/monthly-plans">
           <p className="text-3xl font-semibold">{data.monthlySummary.plannedHours}h</p>
           {data.monthlySummary.capacityHours !== null ? (
-            <p className="mt-1 text-sm text-slate-600">キャパシティ {data.monthlySummary.capacityHours}h</p>
+            <p className="mt-1 text-sm text-slate-600">稼働予定 {data.monthlySummary.capacityHours}h</p>
           ) : null}
         </SummaryCard>
 
