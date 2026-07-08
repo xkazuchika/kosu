@@ -1,8 +1,4 @@
-## Purpose
-
-Define monthly project planning, optional capacity context, and planned-effort visibility.
-
-## Requirements
+## MODIFIED Requirements
 
 ### Requirement: Monthly member capacity
 The system SHALL allow administrators to optionally record each member's available working capacity by month as planning context.
@@ -18,17 +14,6 @@ The system SHALL allow administrators to optionally record each member's availab
 #### Scenario: Monthly planning works without capacity
 - **WHEN** no capacity has been recorded for a member and month
 - **THEN** the system still allows monthly planned effort to be created, edited, displayed, and compared with actual effort
-
-### Requirement: Monthly capacity editing
-The system SHALL allow administrators to update and delete monthly member capacity.
-
-#### Scenario: Administrator updates monthly capacity
-- **WHEN** an administrator changes capacity hours for an existing member and month
-- **THEN** the system persists the updated capacity
-
-#### Scenario: Non-administrator attempts capacity update
-- **WHEN** a non-administrator attempts to create, update, or delete monthly capacity
-- **THEN** the system denies the request
 
 ### Requirement: Monthly planned effort
 The system SHALL allow administrators to record project-level planned effort hours by member, project, month, and optional assignment role as the primary monthly planning input.
@@ -56,13 +41,6 @@ The system SHALL allow administrators to update and delete monthly planned effor
 - **WHEN** a non-administrator attempts to create, update, or delete monthly planned effort
 - **THEN** the system denies the request
 
-### Requirement: Monthly plan cost snapshot
-The system SHALL store the member hourly cost rate snapshot on monthly planned effort.
-
-#### Scenario: Monthly plan captures cost rate snapshot
-- **WHEN** an administrator creates or updates monthly planned effort
-- **THEN** the system stores the member's current hourly cost rate snapshot for administrator-only planned-cost reporting
-
 ### Requirement: Member monthly plan visibility
 The system SHALL allow members to view their own project-level monthly planned hours without financial values, whether or not capacity has been recorded.
 
@@ -73,13 +51,6 @@ The system SHALL allow members to view their own project-level monthly planned h
 #### Scenario: Member views plan without capacity
 - **WHEN** a member opens their monthly plan view and no capacity exists for that month
 - **THEN** the system displays planned project hours and shows capacity context as not set instead of treating it as an error
-
-### Requirement: Monthly plan uniqueness
-The system SHALL keep at most one monthly planned effort value for each member, project, month, and assignment role combination.
-
-#### Scenario: Duplicate monthly plan is submitted
-- **WHEN** an administrator submits a monthly plan for a member, project, month, and assignment role combination that already exists
-- **THEN** the system updates the existing planned effort instead of creating a duplicate row
 
 ### Requirement: Capacity balance
 The system SHALL calculate planned allocation against monthly capacity only when capacity has been recorded for a member and month.

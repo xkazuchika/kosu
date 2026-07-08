@@ -25,9 +25,7 @@ export default function AppLayout() {
 
   return (
     <AppShell
-      currentMonth="2026-07"
       role={member.role}
-      title="ダッシュボード"
       userName={member.displayName}
     >
       <Outlet />

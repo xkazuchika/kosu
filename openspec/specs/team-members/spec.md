@@ -1,3 +1,7 @@
+## Purpose
+
+Define team member account, role, department, and administrator-managed metadata behavior.
+
 ## Requirements
 
 ### Requirement: Local member accounts

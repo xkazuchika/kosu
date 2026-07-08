@@ -1,7 +1,6 @@
 import { Form, Link, useLoaderData } from "react-router";
 import type { Route } from "./+types/reports.planned-vs-actual";
 
-import { Badge } from "~/components/ui/badge";
 import { Button } from "~/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "~/components/ui/card";
 import { EmptyState } from "~/components/ui/empty-state";
@@ -76,7 +75,7 @@ export const loader = async ({ request }: { request: Request }) => {
     const capacityRows = visibleMembers
       .map((visibleMember) => {
         const capacity = findCapacityByMemberAndMonth(db, visibleMember.id, month);
-        const capacityHours = capacity?.capacityHours ?? 0;
+        const capacityHours = capacity?.capacityHours ?? null;
         const totalPlanned = plannedByMember.get(visibleMember.id) ?? 0;
         const totalActual = actualByMember.get(visibleMember.id) ?? 0;
 
@@ -86,11 +85,11 @@ export const loader = async ({ request }: { request: Request }) => {
           capacityHours,
           totalPlanned,
           totalActual,
-          unallocatedCapacity: Math.max(capacityHours - totalPlanned, 0),
-          overplannedHours: Math.max(totalPlanned - capacityHours, 0),
+          unallocatedCapacity: capacityHours === null ? null : Math.max(capacityHours - totalPlanned, 0),
+          overplannedHours: capacityHours === null ? null : Math.max(totalPlanned - capacityHours, 0),
         };
       })
-      .filter((row) => row.capacityHours > 0 || row.totalPlanned > 0 || row.totalActual > 0);
+      .filter((row) => row.capacityHours !== null || row.totalPlanned > 0 || row.totalActual > 0);
 
     return {
       capacityRows,
@@ -113,10 +112,7 @@ export default function PlannedVsActual() {
   return (
     <div className="space-y-6">
       <div className="space-y-2">
-        <div className="flex flex-wrap items-center gap-2">
-          <h1 className="text-2xl font-bold tracking-tight text-slate-950">予定対実績</h1>
-          <Badge tone="success">v0.2</Badge>
-        </div>
+        <h1 className="text-2xl font-bold tracking-tight text-slate-950">予定対実績</h1>
         <p className="text-sm text-slate-600">
           月次予定と実績配賦を比較します。日別の総稼働時間は月次一括入力、案件別の実績は日次詳細の配賦から集計します。
         </p>
@@ -155,11 +151,11 @@ export default function PlannedVsActual() {
 
       <Card>
         <CardHeader>
-          <CardTitle>稼働予定時間との比較</CardTitle>
+          <CardTitle>任意: 稼働予定時間との比較</CardTitle>
         </CardHeader>
         <CardContent>
           {data.capacityRows.length === 0 ? (
-            <EmptyState description="月次稼働予定時間がまだ登録されていません。" title="稼働予定時間がありません" />
+            <EmptyState description="案件別予定工数を登録すると、予定対実績を確認できます。稼働予定時間は任意です。" title="予定データがありません" />
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
@@ -177,11 +173,11 @@ export default function PlannedVsActual() {
                   {data.capacityRows.map((row) => (
                     <tr key={row.memberId} className="border-b border-slate-100">
                       {data.isAdmin ? <td className="py-2 pr-4">{row.memberName}</td> : null}
-                      <td className="py-2 pr-4 text-right">{row.capacityHours}h</td>
+                      <td className="py-2 pr-4 text-right">{row.capacityHours === null ? "未設定" : `${row.capacityHours}h`}</td>
                       <td className="py-2 pr-4 text-right">{row.totalPlanned}h</td>
                       <td className="py-2 pr-4 text-right">{row.totalActual}h</td>
-                      <td className="py-2 pr-4 text-right">{row.unallocatedCapacity}h</td>
-                      <td className={`py-2 text-right ${row.overplannedHours > 0 ? "text-red-700" : ""}`}>{row.overplannedHours}h</td>
+                      <td className="py-2 pr-4 text-right">{row.unallocatedCapacity === null ? "-" : `${row.unallocatedCapacity}h`}</td>
+                      <td className={`py-2 text-right ${row.overplannedHours !== null && row.overplannedHours > 0 ? "text-red-700" : ""}`}>{row.overplannedHours === null ? "-" : `${row.overplannedHours}h`}</td>
                     </tr>
                   ))}
                 </tbody>

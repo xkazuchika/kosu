@@ -238,4 +238,36 @@ describe("reports", () => {
     expect((response as { hasPlans: boolean; planningState: string }).hasPlans).toBe(false);
     expect((response as { hasPlans: boolean; planningState: string }).planningState).toBe("missing-plans");
   });
+
+  test("planned-versus-actual report works without capacity", async () => {
+    const cookie = await setupAndLogin(dataDir, "password123");
+    await createProject(cookie, "PRJ-001", "Website", "internal");
+    const listResponse = await (projectsLoader as unknown as RouteLoaderHandler)({
+      request: new Request("http://localhost/", { headers: { Cookie: cookie } }),
+      context: buildContext(),
+    });
+    const project = (listResponse as { projects: { id: string }[] }).projects[0];
+    const adminMember = await assignAdminToProject(cookie, project.id);
+
+    const connection = createDatabaseConnection(resolveDatabaseConfig().databaseUrl);
+    createMonthlyPlan(connection.db, {
+      memberId: adminMember.id,
+      projectId: project.id,
+      month: "2026-07",
+      assignmentRole: "Engineer",
+      plannedHours: 10,
+    });
+    connection.sqlite.close();
+
+    const response = await (plannedVsActualLoader as unknown as RouteLoaderHandler)({
+      request: new Request("http://localhost/reports/planned-vs-actual?month=2026-07", { headers: { Cookie: cookie } }),
+      context: buildContext(),
+    });
+    expect((response as { hasPlans: boolean; planningState: string }).hasPlans).toBe(true);
+    expect((response as { hasPlans: boolean; planningState: string }).planningState).toBe("ready");
+    const rows = (response as { rows: { plannedHours: number; actualHours: number; variance: number }[] }).rows;
+    expect(rows[0]).toMatchObject({ plannedHours: 10, actualHours: 0, variance: -10 });
+    const capacityRows = (response as { capacityRows: { capacityHours: number | null; overplannedHours: number | null }[] }).capacityRows;
+    expect(capacityRows[0]).toMatchObject({ capacityHours: null, overplannedHours: null });
+  });
 });

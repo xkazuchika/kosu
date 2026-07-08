@@ -1,3 +1,7 @@
+## Purpose
+
+Define monthly period locking behavior for protecting finalized work-log and planning data.
+
 ## Requirements
 
 ### Requirement: Monthly period lock

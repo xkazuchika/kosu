@@ -34,6 +34,15 @@ export function listMonthlyPlansByMemberAndMonth(db: KosuDatabase, memberId: str
     .all();
 }
 
+export function listMonthlyPlansByMonth(db: KosuDatabase, month: string) {
+  return db
+    .select()
+    .from(monthlyPlans)
+    .where(eq(monthlyPlans.month, month))
+    .orderBy(asc(monthlyPlans.memberId), asc(monthlyPlans.projectId))
+    .all();
+}
+
 export function listMonthlyPlansByProject(db: KosuDatabase, projectId: string) {
   return db
     .select()

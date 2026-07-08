@@ -1,3 +1,7 @@
+## Purpose
+
+Define initial workspace setup and first administrator onboarding behavior.
+
 ## Requirements
 
 ### Requirement: Initial setup state

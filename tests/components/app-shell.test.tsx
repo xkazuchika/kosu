@@ -5,7 +5,7 @@ import { LoadingState } from "../../app/components/loading-state";
 
 test("member navigation hides administrator-only links", () => {
   render(
-    <AppShell role="member" currentMonth="2026-07" userName="田中" title="ダッシュボード">
+    <AppShell role="member" userName="田中">
       <p>本文</p>
     </AppShell>,
   );
@@ -20,7 +20,7 @@ test("member navigation hides administrator-only links", () => {
 
 test("administrator navigation shows management links", () => {
   render(
-    <AppShell role="admin" currentMonth="2026-07" userName="管理者" title="管理">
+    <AppShell role="admin" userName="管理者">
       <p>本文</p>
     </AppShell>,
   );
@@ -30,7 +30,8 @@ test("administrator navigation shows management links", () => {
   expect(screen.getByRole("link", { name: "自己アサイン" })).toBeInTheDocument();
   expect(screen.getByRole("link", { name: "予定対実績" })).toBeInTheDocument();
   expect(screen.getByRole("link", { name: "インポート" })).toBeInTheDocument();
-  expect(screen.getByText(/2026-07/)).toBeInTheDocument();
+  expect(screen.queryByText(/2026-07/)).not.toBeInTheDocument();
+  expect(screen.getAllByText("kosu").length).toBeGreaterThan(0);
   expect(screen.getByText("管理者")).toBeInTheDocument();
   expect(screen.getByRole("button", { name: "ログアウト" })).toBeInTheDocument();
 });

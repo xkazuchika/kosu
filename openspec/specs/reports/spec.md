@@ -1,3 +1,7 @@
+## Purpose
+
+Define reporting behavior for effort review, planned-versus-actual comparison, and future profitability boundaries.
+
 ## Requirements
 
 ### Requirement: v0.1 basic effort report
@@ -67,11 +71,26 @@ The system SHALL provide a supported planned-versus-actual effort report by mont
 - **THEN** the system does not display revenue, budget, gross profit, or profitability values
 
 ### Requirement: v0.2 capacity comparison report
-The system SHALL show monthly capacity, total planned hours, total actual allocated hours, unallocated capacity, and overplanned hours where the data is available.
+The system SHALL show monthly capacity, total planned hours, total actual allocated hours, unallocated capacity, and overplanned hours when capacity data is available, while keeping planned-versus-actual reporting useful without capacity.
 
 #### Scenario: Capacity comparison is shown
 - **WHEN** a user opens the planned-versus-actual report for a month with capacity and plan data
 - **THEN** the system displays capacity, planned total, actual total, unallocated capacity, and overplanned hours according to the user's access level
+
+#### Scenario: Capacity comparison is omitted when capacity is missing
+- **WHEN** a user opens the planned-versus-actual report for a month with plans or actuals but no capacity
+- **THEN** the system displays planned and actual totals without showing capacity as required or erroneous
+
+### Requirement: Profitability reporting roadmap boundary
+The system SHALL treat planned cost, actual cost, revenue or budget, gross profit, and variance reporting as future target capabilities for administrator-only project/month reporting.
+
+#### Scenario: Profitability reporting is proposed after v0.3
+- **WHEN** profitability reporting is added to a future change
+- **THEN** the system specifies project/month reports that compare revenue or budget with planned and actual labor cost
+
+#### Scenario: Profitability reporting avoids accounting scope
+- **WHEN** profitability reporting is designed
+- **THEN** the system keeps the scope to project tracking visibility and does not add invoicing, accounting ledger, payment collection, or tax calculation features
 
 ## Future Scope (v0.3+)
 
@@ -81,5 +100,5 @@ The following reporting capabilities are intentionally outside the v0.2 public s
 - Task-level filter UI beyond displaying task names in report rows.
 - Assignment-role-based reporting and filtering.
 - Full resource planning reports with department, member, role, and project filters.
-- Financial reporting, including planned cost, actual cost, project revenue or budget amount, gross profit, and related CSV columns.
+- Financial reporting implementation, including planned cost, actual cost, project revenue or budget amount, gross profit, and related CSV columns.
 - Allocation completeness reports as a dedicated report surface.

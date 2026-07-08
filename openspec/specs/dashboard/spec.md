@@ -1,3 +1,7 @@
+## Purpose
+
+Provide role-aware dashboard summaries for monthly effort, planning, and operational status.
+
 ## Requirements
 
 ### Requirement: Member dashboard

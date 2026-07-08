@@ -4,9 +4,7 @@ type Role = "admin" | "member";
 
 type AppShellProps = {
   children: ReactNode;
-  currentMonth: string;
   role: Role;
-  title: string;
   userName: string;
 };
 
@@ -33,7 +31,7 @@ const administratorNavigation = [
   { href: "/settings", label: "設定" },
 ];
 
-export function AppShell({ children, currentMonth, role, title, userName }: AppShellProps) {
+export function AppShell({ children, role, userName }: AppShellProps) {
   const navigation = role === "admin" ? administratorNavigation : memberNavigation;
 
   return (
@@ -59,8 +57,8 @@ export function AppShell({ children, currentMonth, role, title, userName }: AppS
         <header className="sticky top-0 z-10 border-b border-slate-200 bg-white/90 px-4 py-4 backdrop-blur md:px-8">
           <div className="flex items-center justify-between gap-4">
             <div>
-              <p className="text-xs font-medium text-slate-500">対象月 {currentMonth}</p>
-              <h1 className="text-xl font-semibold tracking-tight">{title}</h1>
+              <p className="text-xs font-medium text-slate-500">セルフホスト工数管理</p>
+              <p className="text-xl font-semibold tracking-tight">kosu</p>
             </div>
             <div className="flex items-center gap-2">
               <div className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-sm font-medium text-slate-700">

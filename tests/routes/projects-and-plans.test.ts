@@ -54,6 +54,27 @@ async function createProject(cookie: string, code: string, name: string, type = 
   });
 }
 
+async function assignAdminToProject(cookie: string, projectId: string) {
+  const assignmentsResponse = await (projectAssignmentsLoader as unknown as RouteLoaderHandler)({
+    request: new Request(`http://localhost/projects/${projectId}/assignments`, { headers: { Cookie: cookie } }),
+    params: { id: projectId },
+    context: buildContext(),
+  });
+  const adminMember = (assignmentsResponse as { members: { id: string }[] }).members[0];
+
+  const assignForm = new FormData();
+  assignForm.append("memberId", adminMember.id);
+  assignForm.append("assignmentRole", "Engineer");
+
+  await (projectAssignmentsAction as unknown as RouteActionHandler)({
+    request: buildRequest(assignForm, cookie),
+    params: { id: projectId },
+    context: buildContext(),
+  });
+
+  return adminMember;
+}
+
 describe("projects, tasks, assignments, and plans routes", () => {
   test("admin creates and archives a project", async () => {
     const cookie = await setupAndLogin(dataDir, "password123");
@@ -196,5 +217,131 @@ describe("projects, tasks, assignments, and plans routes", () => {
       context: buildContext(),
     });
     expect((monthlyPlansResponse as { capacityHours: number }).capacityHours).toBe(160);
+  });
+
+  test("admin creates monthly project plan without capacity", async () => {
+    const cookie = await setupAndLogin(dataDir, "password123");
+    await createProject(cookie, "PRJ-001", "Website", "internal");
+
+    const listResponse = await (projectsLoader as unknown as RouteLoaderHandler)({
+      request: new Request("http://localhost/", { headers: { Cookie: cookie } }),
+      context: buildContext(),
+    });
+    const project = (listResponse as { projects: { id: string }[] }).projects[0];
+    const adminMember = await assignAdminToProject(cookie, project.id);
+
+    const planForm = new FormData();
+    planForm.append("intent", "plan");
+    planForm.append("memberId", adminMember.id);
+    planForm.append("projectId", project.id);
+    planForm.append("month", "2026-07");
+    planForm.append("assignmentRole", "Engineer");
+    planForm.append("plannedHours", "24");
+
+    await (monthlyPlansAdminAction as unknown as RouteActionHandler)({
+      request: buildRequest(planForm, cookie),
+      params: {},
+      context: buildContext(),
+    });
+
+    const monthlyPlansResponse = await (monthlyPlansLoader as unknown as RouteLoaderHandler)({
+      request: new Request("http://localhost/monthly-plans", { headers: { Cookie: cookie } }),
+      context: buildContext(),
+    });
+    expect((monthlyPlansResponse as { capacityHours: number | null }).capacityHours).toBeNull();
+    expect((monthlyPlansResponse as { totalPlanned: number }).totalPlanned).toBe(24);
+  });
+
+  test("monthly planning loaders use selected target month", async () => {
+    const cookie = await setupAndLogin(dataDir, "password123");
+
+    const adminResponse = await (monthlyPlansAdminLoader as unknown as RouteLoaderHandler)({
+      request: new Request("http://localhost/monthly-plans/admin?month=2026-08", { headers: { Cookie: cookie } }),
+      context: buildContext(),
+    });
+    expect((adminResponse as { month: string }).month).toBe("2026-08");
+
+    const memberResponse = await (monthlyPlansLoader as unknown as RouteLoaderHandler)({
+      request: new Request("http://localhost/monthly-plans?month=2026-08", { headers: { Cookie: cookie } }),
+      context: buildContext(),
+    });
+    expect((memberResponse as { currentMonth: string }).currentMonth).toBe("2026-08");
+  });
+
+  test("member monthly plan payload exposes non-admin role for UI link hiding", async () => {
+    const memberCookie = await setupAndLogin(dataDir, "password123", "member");
+
+    const memberResponse = await (monthlyPlansLoader as unknown as RouteLoaderHandler)({
+      request: new Request("http://localhost/monthly-plans?month=2026-07", { headers: { Cookie: memberCookie } }),
+      context: buildContext(),
+    });
+    expect((memberResponse as { isAdmin: boolean }).isAdmin).toBe(false);
+  });
+
+  test("admin updates and deletes monthly project plan rows", async () => {
+    const cookie = await setupAndLogin(dataDir, "password123");
+    await createProject(cookie, "PRJ-001", "Website", "internal");
+
+    const listResponse = await (projectsLoader as unknown as RouteLoaderHandler)({
+      request: new Request("http://localhost/", { headers: { Cookie: cookie } }),
+      context: buildContext(),
+    });
+    const project = (listResponse as { projects: { id: string }[] }).projects[0];
+    const adminMember = await assignAdminToProject(cookie, project.id);
+
+    const planForm = new FormData();
+    planForm.append("intent", "plan");
+    planForm.append("memberId", adminMember.id);
+    planForm.append("projectId", project.id);
+    planForm.append("month", "2026-07");
+    planForm.append("assignmentRole", "Engineer");
+    planForm.append("plannedHours", "24");
+    await (monthlyPlansAdminAction as unknown as RouteActionHandler)({
+      request: buildRequest(planForm, cookie),
+      params: {},
+      context: buildContext(),
+    });
+
+    const adminResponse = await (monthlyPlansAdminLoader as unknown as RouteLoaderHandler)({
+      request: new Request("http://localhost/monthly-plans/admin?month=2026-07", { headers: { Cookie: cookie } }),
+      context: buildContext(),
+    });
+    const planRow = (adminResponse as { planRows: { id: string; memberName: string; projectName: string; plannedHours: number }[] }).planRows[0];
+    expect(planRow).toMatchObject({ memberName: "Admin", projectName: "Website", plannedHours: 24 });
+
+    const updateForm = new FormData();
+    updateForm.append("intent", "updatePlan");
+    updateForm.append("id", planRow.id);
+    updateForm.append("month", "2026-07");
+    updateForm.append("assignmentRole", "Lead");
+    updateForm.append("plannedHours", "32");
+    await (monthlyPlansAdminAction as unknown as RouteActionHandler)({
+      request: buildRequest(updateForm, cookie),
+      params: {},
+      context: buildContext(),
+    });
+
+    const updatedAdminResponse = await (monthlyPlansAdminLoader as unknown as RouteLoaderHandler)({
+      request: new Request("http://localhost/monthly-plans/admin?month=2026-07", { headers: { Cookie: cookie } }),
+      context: buildContext(),
+    });
+    const updatedPlanRow = (updatedAdminResponse as { planRows: { id: string; assignmentRole: string; plannedHours: number }[] }).planRows[0];
+    expect(updatedPlanRow).toMatchObject({ assignmentRole: "Lead", plannedHours: 32 });
+
+    const deleteForm = new FormData();
+    deleteForm.append("intent", "deletePlan");
+    deleteForm.append("id", planRow.id);
+    deleteForm.append("month", "2026-07");
+    await (monthlyPlansAdminAction as unknown as RouteActionHandler)({
+      request: buildRequest(deleteForm, cookie),
+      params: {},
+      context: buildContext(),
+    });
+
+    const deletedAdminResponse = await (monthlyPlansAdminLoader as unknown as RouteLoaderHandler)({
+      request: new Request("http://localhost/monthly-plans/admin?month=2026-07", { headers: { Cookie: cookie } }),
+      context: buildContext(),
+    });
+    expect((deletedAdminResponse as { planRows: unknown[] }).planRows).toHaveLength(0);
   });
 });

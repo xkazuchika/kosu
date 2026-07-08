@@ -1,3 +1,7 @@
+## Purpose
+
+Define self-hosting, deployment, and local data persistence expectations for kosu.
+
 ## Requirements
 
 ### Requirement: Containerized deployment

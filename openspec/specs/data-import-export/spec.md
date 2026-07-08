@@ -1,3 +1,7 @@
+## Purpose
+
+Define CSV import and export behavior for setup, planning, and administrative data operations.
+
 ## Requirements
 
 ### Requirement: CSV templates
