@@ -106,10 +106,12 @@ describe("daily work logs and allocations", () => {
       request: new Request("http://localhost/work-logs/month?month=2026-07", { headers: { Cookie: cookie } }),
       context: buildContext(),
     });
-    const rows = (monthResponse as { rows: { workDate: string; totalWorkingHours: number }[] }).rows;
+    const rows = (monthResponse as { rows: { isSaturday: boolean; isSunday: boolean; totalWorkingHours: number; workDate: string }[] }).rows;
     expect(rows).toHaveLength(31);
     expect(rows.find((row) => row.workDate === "2026-07-01")?.totalWorkingHours).toBe(8);
     expect(rows.find((row) => row.workDate === "2026-07-02")?.totalWorkingHours).toBe(7.5);
+    expect(rows.find((row) => row.workDate === "2026-07-04")).toMatchObject({ isSaturday: true, isSunday: false });
+    expect(rows.find((row) => row.workDate === "2026-07-05")).toMatchObject({ isSaturday: false, isSunday: true });
   });
 
   test("monthly work log rejects invalid bulk hours", async () => {

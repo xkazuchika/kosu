@@ -8,7 +8,7 @@ import { DataTable } from "../../app/components/ui/table";
 import { Toast } from "../../app/components/ui/toast";
 
 test("button exposes variants without losing native button behavior", () => {
-  render(<Button variant="primary">保存する</Button>);
+  render(<Button leadingIcon={<span>i</span>} variant="primary">保存する</Button>);
 
   expect(screen.getByRole("button", { name: "保存する" })).toHaveAttribute("type", "button");
 });

@@ -1,6 +1,7 @@
 import { Form, useLoaderData } from "react-router";
 import type { Route } from "./+types/monthly-plans";
 
+import { Badge } from "~/components/ui/badge";
 import { Button } from "~/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "~/components/ui/card";
 import { Input } from "~/components/ui/form";
@@ -57,16 +58,15 @@ export default function MonthlyPlans() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold tracking-tight text-slate-950">月次予定工数</h1>
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <h1 className="text-2xl font-bold tracking-tight text-slate-950">月次予定工数</h1>
+          <p className="text-sm text-slate-600">今月の案件別予定工数と稼働可能時間の差分を確認します。</p>
+        </div>
         {isLocked ? (
-          <span className="rounded-full border border-amber-200 bg-amber-50 px-3 py-1 text-xs font-medium text-amber-700">
-            ロック中
-          </span>
+          <Badge tone="danger">ロック中</Badge>
         ) : (
-          <span className="rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-xs font-medium text-emerald-700">
-            編集可能
-          </span>
+          <Badge tone="success">編集可能</Badge>
         )}
       </div>
       <Card>

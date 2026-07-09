@@ -107,9 +107,10 @@ describe("daily allocation plans repository", () => {
       { planDate: "2026-07-01", totalPlannedHours: 6 },
       { planDate: "2026-07-02", totalPlannedHours: 3 },
     ]);
-    expect(aggregateDailyAllocationPlanTotalsByProject(db, member.id, "2026-07")).toEqual([
+    const expectedProjectTotals = [
       { projectId: projectA.id, totalPlannedHours: 7 },
       { projectId: projectB.id, totalPlannedHours: 2 },
-    ]);
+    ].sort((left, right) => left.projectId.localeCompare(right.projectId));
+    expect(aggregateDailyAllocationPlanTotalsByProject(db, member.id, "2026-07")).toEqual(expectedProjectTotals);
   });
 });

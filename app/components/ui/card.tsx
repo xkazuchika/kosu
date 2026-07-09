@@ -8,7 +8,7 @@ type ContainerProps = HTMLAttributes<HTMLDivElement> & {
 
 export function Card({ children, className, ...props }: ContainerProps) {
   return (
-    <section className={cn("rounded-2xl border border-slate-200 bg-white shadow-sm", className)} {...props}>
+    <section className={cn("rounded-2xl border border-slate-200/80 bg-white shadow-sm shadow-slate-950/[0.03]", className)} {...props}>
       {children}
     </section>
   );

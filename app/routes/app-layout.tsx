@@ -1,4 +1,4 @@
-import { Outlet, redirect, useLoaderData } from "react-router";
+import { Outlet, redirect, useLoaderData, useLocation } from "react-router";
 
 import { AppShell } from "~/components/app-shell";
 import { createDatabaseConnection } from "~/db/client";
@@ -22,9 +22,11 @@ export const loader = async ({ request }: { request: Request }) => {
 
 export default function AppLayout() {
   const { member } = useLoaderData<typeof loader>();
+  const location = useLocation();
 
   return (
     <AppShell
+      currentPath={location.pathname}
       role={member.role}
       userName={member.displayName}
     >

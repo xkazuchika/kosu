@@ -75,6 +75,9 @@ describe("daily plans route", () => {
     expect((response as { month: string }).month).toBe("2026-07");
     expect((response as { assignedProjects: { id: string }[] }).assignedProjects[0].id).toBe(project.id);
     expect((response as { monthlyTotal: number }).monthlyTotal).toBe(20);
+    const rows = (response as { rows: { isSaturday: boolean; isSunday: boolean; planDate: string }[] }).rows;
+    expect(rows.find((row) => row.planDate === "2026-07-04")).toMatchObject({ isSaturday: true, isSunday: false });
+    expect(rows.find((row) => row.planDate === "2026-07-05")).toMatchObject({ isSaturday: false, isSunday: true });
   });
 
   test("member saves own daily plan and zero deletes it", async () => {

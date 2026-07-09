@@ -31,3 +31,20 @@ export function getWeekdayLabel(dateString: string) {
   const labels = ["日", "月", "火", "水", "木", "金", "土"];
   return labels[new Date(`${dateString}T00:00:00.000Z`).getUTCDay()];
 }
+
+export function getWeekdayIndex(dateString: string) {
+  return new Date(`${dateString}T00:00:00.000Z`).getUTCDay();
+}
+
+export function isWeekendDate(dateString: string) {
+  const day = getWeekdayIndex(dateString);
+  return day === 0 || day === 6;
+}
+
+export function isSundayDate(dateString: string) {
+  return getWeekdayIndex(dateString) === 0;
+}
+
+export function isSaturdayDate(dateString: string) {
+  return getWeekdayIndex(dateString) === 6;
+}

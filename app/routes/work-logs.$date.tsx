@@ -26,7 +26,7 @@ import { findActiveAssignment, listActiveAssignmentsByMember } from "~/db/reposi
 import { findProjectById } from "~/db/repositories/projects";
 import { findTaskById, listActiveTasksByProject } from "~/db/repositories/tasks";
 import { getSessionMember } from "~/services/auth";
-import { isValidQuarterHour } from "~/lib/time";
+import { getWeekdayLabel, isSaturdayDate, isSundayDate, isValidQuarterHour } from "~/lib/time";
 import { isMonthLocked, requireUnlockedMonth } from "~/services/period-lock";
 
 export const loader = async ({ request, params }: { request: Request; params: { date: string } }) => {
@@ -281,6 +281,9 @@ export default function WorkLogEntry({ actionData }: Route.ComponentProps) {
   const nextDate = addDays(workDate, 1);
   const today = new Date().toISOString().slice(0, 10);
   const memberQuery = targetMember.id !== currentMemberId ? `?memberId=${targetMember.id}` : "";
+  const weekday = getWeekdayLabel(workDate);
+  const isSunday = isSundayDate(workDate);
+  const isSaturday = isSaturdayDate(workDate);
 
   return (
     <div className="space-y-6">
@@ -288,14 +291,18 @@ export default function WorkLogEntry({ actionData }: Route.ComponentProps) {
         <div>
           <h1 className="text-2xl font-bold tracking-tight text-slate-950">日別工数実績入力</h1>
           <p className="text-sm text-slate-600">
-            {targetMember.displayName} · {workDate} · {month}
+            {targetMember.displayName} · {workDate}（{weekday}） · {month}
           </p>
         </div>
-        {isLocked ? (
-          <Badge tone="danger">ロック中</Badge>
-        ) : (
-          <Badge tone="success">編集可能</Badge>
-        )}
+        <div className="flex flex-wrap gap-2">
+          {isSunday ? <Badge tone="danger">日曜</Badge> : null}
+          {isSaturday ? <Badge tone="info">土曜</Badge> : null}
+          {isLocked ? (
+            <Badge tone="danger">ロック中</Badge>
+          ) : (
+            <Badge tone="success">編集可能</Badge>
+          )}
+        </div>
       </div>
 
       <div className="flex flex-wrap gap-2">

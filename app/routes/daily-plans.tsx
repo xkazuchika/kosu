@@ -11,7 +11,7 @@ import { listMembers, findMemberById } from "~/db/repositories/members";
 import { listMonthlyPlansByMemberAndMonth } from "~/db/repositories/monthly-plans";
 import { listActiveAssignmentsByMember } from "~/db/repositories/project-assignments";
 import { findProjectById } from "~/db/repositories/projects";
-import { getWeekdayLabel, isValidMonth, listMonthDates } from "~/lib/time";
+import { getWeekdayLabel, isSaturdayDate, isSundayDate, isValidMonth, isWeekendDate, listMonthDates } from "~/lib/time";
 import { DailyAllocationPlanError, copyDailyAllocationPlansToActuals, saveDailyAllocationPlans } from "~/services/daily-allocation-plans";
 import { getSessionMember } from "~/services/auth";
 import { isMonthLocked } from "~/services/period-lock";
@@ -59,6 +59,9 @@ export const loader = async ({ request }: { request: Request }) => {
     }
 
     const rows = listMonthDates(month).map((planDate) => ({
+      isSaturday: isSaturdayDate(planDate),
+      isSunday: isSundayDate(planDate),
+      isWeekend: isWeekendDate(planDate),
       planDate,
       weekday: getWeekdayLabel(planDate),
       totalPlannedHours: rowTotals.get(planDate) ?? 0,
@@ -257,9 +260,9 @@ export default function DailyPlans() {
                   </thead>
                   <tbody>
                     {data.rows.map((row) => (
-                      <tr className="border-b border-slate-100" key={row.planDate}>
-                        <td className="sticky left-0 bg-white px-3 py-2 font-medium">{row.planDate.slice(5)}</td>
-                        <td className="px-3 py-2 text-slate-600">{row.weekday}</td>
+                      <tr className={`border-b border-slate-100 ${row.isSunday ? "bg-rose-50/45" : row.isSaturday ? "bg-indigo-50/35" : ""}`} key={row.planDate}>
+                        <td className={`sticky left-0 px-3 py-2 font-medium ${row.isSunday ? "bg-rose-50 text-rose-900" : row.isSaturday ? "bg-indigo-50 text-indigo-900" : "bg-white"}`}>{row.planDate.slice(5)}</td>
+                        <td className={`px-3 py-2 ${row.isSunday ? "font-medium text-rose-700" : row.isSaturday ? "font-medium text-indigo-700" : "text-slate-600"}`}>{row.weekday}</td>
                         {data.columnProjects.map((project) => {
                           const plan = data.dailyPlanValues[`${row.planDate}|${project.id}`];
 

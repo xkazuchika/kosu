@@ -131,7 +131,7 @@ function escapeCsv(value: string) {
   return value;
 }
 
-export const meta: Route.MetaFunction = () => [{ title: "工数レポート | kosu" }];
+export const meta: Route.MetaFunction = () => [{ title: "工数実績レポート | kosu" }];
 
 export default function Reports() {
   const data = useLoaderData<typeof loader>();
@@ -141,7 +141,10 @@ export default function Reports() {
   return (
     <div className="space-y-6">
       <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-        <h1 className="text-2xl font-bold tracking-tight text-slate-950">工数レポート</h1>
+        <div>
+          <h1 className="text-2xl font-bold tracking-tight text-slate-950">工数実績レポート</h1>
+          <p className="text-sm text-slate-600">案件・メンバー・月ごとの実績工数を確認してCSV出力できます。</p>
+        </div>
         <Form method="post">
           <input name="month" type="hidden" value={data.month} />
           <Button type="submit" variant="outline">

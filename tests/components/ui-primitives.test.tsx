@@ -11,11 +11,11 @@ test("badge renders accessible status text", () => {
 });
 
 test("empty state explains missing setup data", () => {
-  render(<EmptyState actionLabel="案件を作成" description="案件がまだありません" title="案件未登録" />);
+  render(<EmptyState actionHref="/projects/new" actionLabel="案件を作成" description="案件がまだありません" title="案件未登録" />);
 
   expect(screen.getByRole("heading", { name: "案件未登録" })).toBeInTheDocument();
   expect(screen.getByText("案件がまだありません")).toBeInTheDocument();
-  expect(screen.getByText("案件を作成")).toBeInTheDocument();
+  expect(screen.getByRole("link", { name: "案件を作成" })).toHaveAttribute("href", "/projects/new");
 });
 
 test("status message does not rely on color alone", () => {

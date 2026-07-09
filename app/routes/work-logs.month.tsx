@@ -12,7 +12,7 @@ import {
 } from "~/db/repositories/daily-work-logs";
 import { listAllocationsByWorkLog } from "~/db/repositories/effort-allocations";
 import { findMemberById, listMembers } from "~/db/repositories/members";
-import { getWeekdayLabel, isValidMonth, isValidQuarterHour, listMonthDates } from "~/lib/time";
+import { getWeekdayLabel, isSaturdayDate, isSundayDate, isValidMonth, isValidQuarterHour, isWeekendDate, listMonthDates } from "~/lib/time";
 import { getSessionMember } from "~/services/auth";
 import { isMonthLocked } from "~/services/period-lock";
 
@@ -51,6 +51,9 @@ export const loader = async ({ request }: { request: Request }) => {
       const status = getStatus({ allocatedTotal, isLocked, hasLog: Boolean(log), totalWorkingHours, variance });
 
       return {
+        isSaturday: isSaturdayDate(workDate),
+        isSunday: isSundayDate(workDate),
+        isWeekend: isWeekendDate(workDate),
         workDate,
         weekday: getWeekdayLabel(workDate),
         totalWorkingHours,
@@ -221,12 +224,12 @@ export default function WorkLogMonth() {
                 </thead>
                 <tbody>
                   {rows.map((row) => (
-                    <tr className="border-b border-slate-100" key={row.workDate}>
+                    <tr className={`border-b border-slate-100 ${row.isSunday ? "bg-rose-50/45" : row.isSaturday ? "bg-indigo-50/35" : ""}`} key={row.workDate}>
                       <td className="py-2 pr-4 font-medium">
                         <input name="date" type="hidden" value={row.workDate} />
                         {row.workDate.slice(5)}
                       </td>
-                      <td className="py-2 pr-4 text-slate-600">{row.weekday}</td>
+                      <td className={`py-2 pr-4 ${row.isSunday ? "font-medium text-rose-700" : row.isSaturday ? "font-medium text-indigo-700" : "text-slate-600"}`}>{row.weekday}</td>
                       <td className="py-2 pr-4 text-right">
                         <input
                           className="w-24 rounded-lg border border-slate-300 px-3 py-2 text-right text-sm disabled:bg-slate-100"
