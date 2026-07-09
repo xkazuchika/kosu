@@ -20,6 +20,7 @@ export default [
     route("self-assign", "routes/self-assign.tsx"),
     route("monthly-plans", "routes/monthly-plans.tsx"),
     route("monthly-plans/admin", "routes/monthly-plans.admin.tsx"),
+    route("daily-plans", "routes/daily-plans.tsx"),
     route("period-locks", "routes/period-locks.tsx"),
     route("work-logs", "routes/work-logs.tsx"),
     route("work-logs/month", "routes/work-logs.month.tsx"),

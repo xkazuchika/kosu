@@ -1,4 +1,4 @@
-import { Form, Link, useLoaderData } from "react-router";
+import { Form, useLoaderData } from "react-router";
 import type { Route } from "./+types/monthly-plans";
 
 import { Button } from "~/components/ui/button";
@@ -50,15 +50,15 @@ export const loader = async ({ request }: { request: Request }) => {
   }
 };
 
-export const meta: Route.MetaFunction = () => [{ title: "月次予定 | kosu" }];
+export const meta: Route.MetaFunction = () => [{ title: "月次予定工数 | kosu" }];
 
 export default function MonthlyPlans() {
-  const { currentMonth, isAdmin, isLocked, capacityHours, totalPlanned, variance, plans } = useLoaderData<typeof loader>();
+  const { currentMonth, isLocked, capacityHours, totalPlanned, variance, plans } = useLoaderData<typeof loader>();
 
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold tracking-tight text-slate-950">月次予定</h1>
+        <h1 className="text-2xl font-bold tracking-tight text-slate-950">月次予定工数</h1>
         {isLocked ? (
           <span className="rounded-full border border-amber-200 bg-amber-50 px-3 py-1 text-xs font-medium text-amber-700">
             ロック中
@@ -83,19 +83,6 @@ export default function MonthlyPlans() {
           </Form>
         </CardContent>
       </Card>
-      <div className="flex flex-wrap gap-2">
-        <Link className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-900 hover:bg-slate-50" to={`/work-logs/month?month=${currentMonth}`}>
-          月次一括入力
-        </Link>
-        <Link className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-900 hover:bg-slate-50" to={`/reports/planned-vs-actual?month=${currentMonth}`}>
-          予定対実績
-        </Link>
-        {isAdmin ? (
-          <Link className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-900 hover:bg-slate-50" to={`/monthly-plans/admin?month=${currentMonth}`}>
-            月次予定を入力
-          </Link>
-        ) : null}
-      </div>
       <div className="grid gap-4 sm:grid-cols-3">
         <Card>
           <CardHeader>
@@ -107,7 +94,7 @@ export default function MonthlyPlans() {
         </Card>
         <Card>
           <CardHeader>
-            <CardTitle>任意: 稼働予定時間</CardTitle>
+            <CardTitle>任意: 稼働可能時間</CardTitle>
           </CardHeader>
           <CardContent>
             <p className="text-3xl font-semibold">{capacityHours === null ? "未設定" : `${capacityHours}h`}</p>
@@ -115,7 +102,7 @@ export default function MonthlyPlans() {
         </Card>
         <Card>
           <CardHeader>
-            <CardTitle>稼働予定との差分</CardTitle>
+            <CardTitle>稼働可能時間との差分</CardTitle>
           </CardHeader>
           <CardContent>
             <p className={`text-3xl font-semibold ${variance !== null && variance < 0 ? "text-red-700" : "text-emerald-700"}`}>
@@ -127,7 +114,7 @@ export default function MonthlyPlans() {
 
       <DataTable
         columns={["対象月", "案件", "担当ロール", "予定工数"]}
-        emptyMessage={`${currentMonth} の月次予定はまだありません。`}
+        emptyMessage={`${currentMonth} の月次予定工数はまだありません。`}
         rows={plans.map((plan) => [
           plan.month,
           plan.projectName,

@@ -209,7 +209,7 @@ export default function Dashboard() {
         <SummaryCard label="今日の入力" to={`/work-logs/${data.today}`}>
           <div className="flex items-baseline gap-2">
             <span className="text-3xl font-semibold">{data.todayInput.totalWorkingHours}h</span>
-            <span className="text-sm text-slate-600">配賦 {data.todayInput.allocatedHours}h</span>
+            <span className="text-sm text-slate-600">実績工数 {data.todayInput.allocatedHours}h</span>
           </div>
           <div className="mt-2">
             {!data.todayInput.hasEntry ? (
@@ -217,7 +217,7 @@ export default function Dashboard() {
             ) : data.todayInput.totalWorkingHours - data.todayInput.allocatedHours === 0 ? (
               <Badge tone="success">完了</Badge>
             ) : (
-              <Badge tone="warning">未配分</Badge>
+              <Badge tone="warning">未割当</Badge>
             )}
           </div>
         </SummaryCard>
@@ -225,7 +225,7 @@ export default function Dashboard() {
         <SummaryCard label="今月の予定工数" to="/monthly-plans">
           <p className="text-3xl font-semibold">{data.monthlySummary.plannedHours}h</p>
           {data.monthlySummary.capacityHours !== null ? (
-            <p className="mt-1 text-sm text-slate-600">稼働予定 {data.monthlySummary.capacityHours}h</p>
+            <p className="mt-1 text-sm text-slate-600">稼働可能時間 {data.monthlySummary.capacityHours}h</p>
           ) : null}
         </SummaryCard>
 
@@ -242,9 +242,9 @@ export default function Dashboard() {
 
       {data.incompleteAllocationsCount > 0 ? (
         <div className="rounded-lg bg-amber-50 p-4 text-sm text-amber-800">
-          今月の未配分または過配賦の日が {data.incompleteAllocationsCount} 件あります。
+          今月の未割当または超過の日が {data.incompleteAllocationsCount} 件あります。
           <Link className="ml-2 font-medium underline" to="/work-logs">
-            日次工数を確認
+            日別工数実績を確認
           </Link>
         </div>
       ) : null}
@@ -288,7 +288,7 @@ function AdminDashboard({ data }: { data: DashboardLoaderData }) {
           <p className="text-sm text-slate-600">メンバー</p>
         </SummaryCard>
 
-        <SummaryCard label="未配分・過配賦" to="/reports">
+        <SummaryCard label="未割当・超過" to="/reports">
           <p className="text-3xl font-semibold">{data.teamInputStatus?.withIncompleteAllocation}</p>
           <p className="text-sm text-slate-600">メンバー</p>
         </SummaryCard>

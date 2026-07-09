@@ -8,27 +8,71 @@ type AppShellProps = {
   userName: string;
 };
 
-const memberNavigation = [
-  { href: "/dashboard", label: "ダッシュボード" },
-  { href: "/work-logs", label: "工数入力" },
-  { href: "/monthly-plans", label: "月次予定" },
-  { href: "/projects", label: "担当案件" },
-  { href: "/self-assign", label: "自己アサイン" },
-  { href: "/reports", label: "レポート" },
-  { href: "/reports/planned-vs-actual", label: "予定対実績" },
+type NavigationSection = {
+  items: { href: string; label: string }[];
+  label: string;
+};
+
+const memberNavigation: NavigationSection[] = [
+  { label: "ホーム", items: [{ href: "/dashboard", label: "ダッシュボード" }] },
+  {
+    label: "入力",
+    items: [
+      { href: "/work-logs", label: "日別工数実績入力" },
+      { href: "/work-logs/month", label: "月別総稼働時間入力" },
+      { href: "/daily-plans", label: "日別予定工数入力" },
+      { href: "/monthly-plans", label: "月次予定工数" },
+    ],
+  },
+  {
+    label: "レポート",
+    items: [
+      { href: "/reports/planned-vs-actual", label: "予定工数対実績工数" },
+      { href: "/reports", label: "工数実績レポート" },
+    ],
+  },
+  {
+    label: "案件",
+    items: [
+      { href: "/projects", label: "担当案件" },
+      { href: "/self-assign", label: "自己アサイン" },
+    ],
+  },
 ];
 
-const administratorNavigation = [
-  { href: "/dashboard", label: "ダッシュボード" },
-  { href: "/work-logs", label: "工数入力" },
-  { href: "/monthly-plans/admin", label: "月次予定入力" },
-  { href: "/projects", label: "案件" },
-  { href: "/self-assign", label: "自己アサイン" },
-  { href: "/members", label: "メンバー" },
-  { href: "/reports", label: "レポート" },
-  { href: "/reports/planned-vs-actual", label: "予定対実績" },
-  { href: "/imports", label: "インポート" },
-  { href: "/settings", label: "設定" },
+const administratorNavigation: NavigationSection[] = [
+  { label: "ホーム", items: [{ href: "/dashboard", label: "ダッシュボード" }] },
+  {
+    label: "入力",
+    items: [
+      { href: "/work-logs", label: "日別工数実績入力" },
+      { href: "/work-logs/month", label: "月別総稼働時間入力" },
+      { href: "/daily-plans", label: "日別予定工数入力" },
+      { href: "/monthly-plans/admin", label: "月次予定工数入力" },
+    ],
+  },
+  {
+    label: "レポート",
+    items: [
+      { href: "/reports/planned-vs-actual", label: "予定工数対実績工数" },
+      { href: "/reports", label: "工数実績レポート" },
+    ],
+  },
+  {
+    label: "案件",
+    items: [
+      { href: "/projects", label: "案件管理" },
+      { href: "/self-assign", label: "自己アサイン" },
+    ],
+  },
+  {
+    label: "管理",
+    items: [
+      { href: "/members", label: "メンバー" },
+      { href: "/imports", label: "インポート" },
+      { href: "/settings", label: "設定" },
+    ],
+  },
 ];
 
 export function AppShell({ children, role, userName }: AppShellProps) {
@@ -40,15 +84,22 @@ export function AppShell({ children, role, userName }: AppShellProps) {
         <a className="text-lg font-semibold tracking-tight" href="/dashboard">
           kosu
         </a>
-        <nav aria-label="メインナビゲーション" className="mt-8 grid gap-1">
-          {navigation.map((item) => (
-            <a
-              className="rounded-lg px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-100 hover:text-slate-950"
-              href={item.href}
-              key={item.href}
-            >
-              {item.label}
-            </a>
+        <nav aria-label="メインナビゲーション" className="mt-8 space-y-5">
+          {navigation.map((section) => (
+            <section key={section.label}>
+              <p className="px-3 text-xs font-semibold uppercase tracking-wide text-slate-400">{section.label}</p>
+              <div className="mt-1 grid gap-1">
+                {section.items.map((item) => (
+                  <a
+                    className="rounded-lg px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-100 hover:text-slate-950"
+                    href={item.href}
+                    key={item.href}
+                  >
+                    {item.label}
+                  </a>
+                ))}
+              </div>
+            </section>
           ))}
         </nav>
       </aside>

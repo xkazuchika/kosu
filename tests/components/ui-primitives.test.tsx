@@ -5,9 +5,9 @@ import { EmptyState } from "../../app/components/ui/empty-state";
 import { StatusMessage } from "../../app/components/ui/status-message";
 
 test("badge renders accessible status text", () => {
-  render(<Badge tone="warning">未配分あり</Badge>);
+  render(<Badge tone="warning">未割当あり</Badge>);
 
-  expect(screen.getByText("未配分あり")).toBeInTheDocument();
+  expect(screen.getByText("未割当あり")).toBeInTheDocument();
 });
 
 test("empty state explains missing setup data", () => {

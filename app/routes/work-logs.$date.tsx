@@ -142,7 +142,7 @@ export const action = async ({ request, params }: Route.ActionArgs) => {
       }
 
       if (!isValidQuarterHour(allocatedHours)) {
-        return { error: "配賦時間は 0.25h 単位で入力してください。" };
+        return { error: "実績工数は 0.25h 単位で入力してください。" };
       }
 
       const allocationTargetError = validateAllocationTarget(db, targetMemberId, projectId, taskId);
@@ -196,7 +196,7 @@ export const action = async ({ request, params }: Route.ActionArgs) => {
       }
 
       if (!isValidQuarterHour(allocatedHours)) {
-        return { error: "配賦時間は 0.25h 単位で入力してください。" };
+        return { error: "実績工数は 0.25h 単位で入力してください。" };
       }
 
       const allocationTargetError = validateAllocationTarget(db, targetMemberId, projectId, taskId);
@@ -252,7 +252,7 @@ function validateAllocationTarget(db: KosuDatabase, memberId: string, projectId:
   }
 
   if (!findActiveAssignment(db, memberId, projectId)) {
-    return "アサインされていない案件には配賦できません。";
+    return "アサインされていない案件には実績工数を登録できません。";
   }
 
   if (!taskId) {
@@ -268,7 +268,7 @@ function validateAllocationTarget(db: KosuDatabase, memberId: string, projectId:
   return undefined;
 }
 
-export const meta: Route.MetaFunction = () => [{ title: "日次工数入力 | kosu" }];
+export const meta: Route.MetaFunction = () => [{ title: "日別工数実績入力 | kosu" }];
 
 export default function WorkLogEntry({ actionData }: Route.ComponentProps) {
   const { currentMemberId, workDate, month, workLog, allocations, assignedProjects, activeTasks, targetMember, isLocked } =
@@ -281,13 +281,12 @@ export default function WorkLogEntry({ actionData }: Route.ComponentProps) {
   const nextDate = addDays(workDate, 1);
   const today = new Date().toISOString().slice(0, 10);
   const memberQuery = targetMember.id !== currentMemberId ? `?memberId=${targetMember.id}` : "";
-  const monthlyMemberQuery = targetMember.id !== currentMemberId ? `&memberId=${targetMember.id}` : "";
 
   return (
     <div className="space-y-6">
       <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight text-slate-950">日次工数入力</h1>
+          <h1 className="text-2xl font-bold tracking-tight text-slate-950">日別工数実績入力</h1>
           <p className="text-sm text-slate-600">
             {targetMember.displayName} · {workDate} · {month}
           </p>
@@ -309,12 +308,6 @@ export default function WorkLogEntry({ actionData }: Route.ComponentProps) {
         <Link className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-900 hover:bg-slate-50" to={`/work-logs/${nextDate}${memberQuery}`}>
           翌日
         </Link>
-        <Link className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-900 hover:bg-slate-50" to={`/work-logs/month?month=${month}${monthlyMemberQuery}`}>
-          月次一括入力
-        </Link>
-        <Link className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-900 hover:bg-slate-50" to="/work-logs">
-          一覧へ
-        </Link>
       </div>
 
       {actionData?.error ? (
@@ -325,7 +318,7 @@ export default function WorkLogEntry({ actionData }: Route.ComponentProps) {
 
       <Card>
         <CardHeader>
-          <CardTitle>勤務時間</CardTitle>
+          <CardTitle>総稼働時間</CardTitle>
         </CardHeader>
         <CardContent>
           <Form className="flex flex-col gap-4 sm:flex-row sm:items-end" method="post">
@@ -341,7 +334,7 @@ export default function WorkLogEntry({ actionData }: Route.ComponentProps) {
               />
             </Field>
             <Button disabled={isLocked} type="submit" variant="primary">
-              保存
+              総稼働時間を保存
             </Button>
           </Form>
         </CardContent>
@@ -349,20 +342,20 @@ export default function WorkLogEntry({ actionData }: Route.ComponentProps) {
 
       <Card>
         <CardHeader>
-          <CardTitle>配賦</CardTitle>
+          <CardTitle>案件別実績工数</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="flex flex-col justify-between gap-2 rounded-lg bg-slate-50 p-3 text-sm sm:flex-row">
             <span>総稼働: {totalWorkingHours}h</span>
-            <span>配賦合計: {allocatedTotal}h</span>
+            <span>案件別実績工数: {allocatedTotal}h</span>
             <span className={variance === 0 ? "text-emerald-700" : "text-amber-700"}>
               差分: {variance >= 0 ? "+" : ""}{variance}h
             </span>
           </div>
 
           <DataTable
-            columns={["案件", "タスク", "時間", "備考", "操作"]}
-            emptyMessage="配賦はまだありません。"
+            columns={["案件", "タスク", "実績時間", "備考", "操作"]}
+            emptyMessage="案件別実績工数はまだありません。"
             rows={allocations.map((allocation) => {
               const formId = `allocation-${allocation.id}`;
 
@@ -424,7 +417,7 @@ export default function WorkLogEntry({ actionData }: Route.ComponentProps) {
                 <Form className="flex gap-2" id={formId} key={allocation.id} method="post">
                   <input name="allocationId" type="hidden" value={allocation.id} />
                   <Button disabled={isLocked} name="intent" type="submit" value="updateAllocation" variant="primary">
-                    保存
+                    変更を保存
                   </Button>
                   <Button disabled={isLocked} name="intent" type="submit" value="deleteAllocation" variant="outline">
                     削除
@@ -467,7 +460,7 @@ export default function WorkLogEntry({ actionData }: Route.ComponentProps) {
               </select>
             </div>
             <div>
-              <label className="text-sm font-medium text-slate-800">時間</label>
+              <label className="text-sm font-medium text-slate-800">実績時間</label>
               <Input className="mt-1" defaultValue={remainingAllocationHours} disabled={isLocked} name="allocatedHours" step="0.25" type="number" required />
             </div>
             <div>
@@ -476,7 +469,7 @@ export default function WorkLogEntry({ actionData }: Route.ComponentProps) {
             </div>
             <div className="flex items-end">
               <Button className="w-full" disabled={isLocked} type="submit" variant="primary">
-                配賦追加
+                案件別実績工数を追加
               </Button>
             </div>
           </Form>

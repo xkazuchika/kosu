@@ -9,6 +9,7 @@ import { beforeEach, describe, expect, test } from "vitest";
 
 import { createDatabaseConnection } from "../../app/db/client";
 import { resolveDatabaseConfig } from "../../app/db/config";
+import { upsertDailyAllocationPlan } from "../../app/db/repositories/daily-allocation-plans";
 import { createMemberMonthlyCapacity } from "../../app/db/repositories/member-monthly-capacities";
 import { createMonthlyPlan } from "../../app/db/repositories/monthly-plans";
 import { members } from "../../app/db/schema";
@@ -18,6 +19,7 @@ import { loader as projectsLoader } from "../../app/routes/projects";
 import { action as reportsAction, loader as reportsLoader } from "../../app/routes/reports";
 import { loader as plannedVsActualLoader } from "../../app/routes/reports.planned-vs-actual";
 import { action as workLogDateAction } from "../../app/routes/work-logs.$date";
+import { copyDailyAllocationPlansToActuals } from "../../app/services/daily-allocation-plans";
 import { buildContext, buildRequest, setupAndLogin, type RouteActionHandler, type RouteLoaderHandler } from "./helpers";
 
 let dataDir: string;
@@ -269,5 +271,72 @@ describe("reports", () => {
     expect(rows[0]).toMatchObject({ plannedHours: 10, actualHours: 0, variance: -10 });
     const capacityRows = (response as { capacityRows: { capacityHours: number | null; overplannedHours: number | null }[] }).capacityRows;
     expect(capacityRows[0]).toMatchObject({ capacityHours: null, overplannedHours: null });
+  });
+
+  test("planned-versus-actual remains monthly-plan based when daily plans exist", async () => {
+    const cookie = await setupAndLogin(dataDir, "password123");
+    await createProject(cookie, "PRJ-001", "Website", "internal");
+    const listResponse = await (projectsLoader as unknown as RouteLoaderHandler)({
+      request: new Request("http://localhost/", { headers: { Cookie: cookie } }),
+      context: buildContext(),
+    });
+    const project = (listResponse as { projects: { id: string }[] }).projects[0];
+    const adminMember = await assignAdminToProject(cookie, project.id);
+
+    const connection = createDatabaseConnection(resolveDatabaseConfig().databaseUrl);
+    createMonthlyPlan(connection.db, {
+      memberId: adminMember.id,
+      projectId: project.id,
+      month: "2026-07",
+      plannedHours: 10,
+    });
+    upsertDailyAllocationPlan(connection.db, {
+      memberId: adminMember.id,
+      projectId: project.id,
+      planDate: "2026-07-01",
+      plannedHours: 4,
+    });
+    connection.sqlite.close();
+
+    const response = await (plannedVsActualLoader as unknown as RouteLoaderHandler)({
+      request: new Request("http://localhost/reports/planned-vs-actual?month=2026-07", { headers: { Cookie: cookie } }),
+      context: buildContext(),
+    });
+    const rows = (response as { rows: { plannedHours: number; actualHours: number; variance: number }[] }).rows;
+    expect(rows[0]).toMatchObject({ plannedHours: 10, actualHours: 0, variance: -10 });
+  });
+
+  test("actuals copied from daily plans appear as actual effort in planned-versus-actual", async () => {
+    const cookie = await setupAndLogin(dataDir, "password123");
+    await createProject(cookie, "PRJ-001", "Website", "internal");
+    const listResponse = await (projectsLoader as unknown as RouteLoaderHandler)({
+      request: new Request("http://localhost/", { headers: { Cookie: cookie } }),
+      context: buildContext(),
+    });
+    const project = (listResponse as { projects: { id: string }[] }).projects[0];
+    const adminMember = await assignAdminToProject(cookie, project.id);
+
+    const connection = createDatabaseConnection(resolveDatabaseConfig().databaseUrl);
+    createMonthlyPlan(connection.db, {
+      memberId: adminMember.id,
+      projectId: project.id,
+      month: "2026-07",
+      plannedHours: 10,
+    });
+    upsertDailyAllocationPlan(connection.db, {
+      memberId: adminMember.id,
+      projectId: project.id,
+      planDate: "2026-07-01",
+      plannedHours: 4,
+    });
+    copyDailyAllocationPlansToActuals(connection.db, { memberId: adminMember.id, month: "2026-07" });
+    connection.sqlite.close();
+
+    const response = await (plannedVsActualLoader as unknown as RouteLoaderHandler)({
+      request: new Request("http://localhost/reports/planned-vs-actual?month=2026-07", { headers: { Cookie: cookie } }),
+      context: buildContext(),
+    });
+    const rows = (response as { rows: { plannedHours: number; actualHours: number; variance: number }[] }).rows;
+    expect(rows[0]).toMatchObject({ plannedHours: 10, actualHours: 4, variance: -6 });
   });
 });

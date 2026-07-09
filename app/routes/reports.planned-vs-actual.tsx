@@ -1,4 +1,4 @@
-import { Form, Link, useLoaderData } from "react-router";
+import { Form, useLoaderData } from "react-router";
 import type { Route } from "./+types/reports.planned-vs-actual";
 
 import { Button } from "~/components/ui/button";
@@ -104,7 +104,7 @@ export const loader = async ({ request }: { request: Request }) => {
   }
 };
 
-export const meta: Route.MetaFunction = () => [{ title: "予定対実績 | kosu" }];
+export const meta: Route.MetaFunction = () => [{ title: "予定工数対実績工数 | kosu" }];
 
 export default function PlannedVsActual() {
   const data = useLoaderData<typeof loader>();
@@ -112,19 +112,10 @@ export default function PlannedVsActual() {
   return (
     <div className="space-y-6">
       <div className="space-y-2">
-        <h1 className="text-2xl font-bold tracking-tight text-slate-950">予定対実績</h1>
+        <h1 className="text-2xl font-bold tracking-tight text-slate-950">予定工数対実績工数</h1>
         <p className="text-sm text-slate-600">
-          月次予定と実績配賦を比較します。日別の総稼働時間は月次一括入力、案件別の実績は日次詳細の配賦から集計します。
+          月次予定工数と実績工数を比較します。日別の総稼働時間は月別総稼働時間入力、案件別の実績工数は日別詳細から集計します。
         </p>
-      </div>
-
-      <div className="flex flex-wrap gap-2">
-        <Link className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-900 hover:bg-slate-50" to={`/work-logs/month?month=${data.month}`}>
-          月次一括入力
-        </Link>
-        <Link className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-900 hover:bg-slate-50" to="/monthly-plans">
-          月次予定
-        </Link>
       </div>
 
       <Card>
@@ -151,18 +142,18 @@ export default function PlannedVsActual() {
 
       <Card>
         <CardHeader>
-          <CardTitle>任意: 稼働予定時間との比較</CardTitle>
+          <CardTitle>任意: 稼働可能時間との比較</CardTitle>
         </CardHeader>
         <CardContent>
           {data.capacityRows.length === 0 ? (
-            <EmptyState description="案件別予定工数を登録すると、予定対実績を確認できます。稼働予定時間は任意です。" title="予定データがありません" />
+            <EmptyState description="案件別予定工数を登録すると、予定工数対実績工数を確認できます。稼働可能時間は任意です。" title="予定データがありません" />
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead className="border-b border-slate-200 text-left text-slate-600">
                   <tr>
                     {data.isAdmin ? <th className="py-2 pr-4">メンバー</th> : null}
-                    <th className="py-2 pr-4 text-right">稼働予定</th>
+                    <th className="py-2 pr-4 text-right">稼働可能時間</th>
                     <th className="py-2 pr-4 text-right">予定</th>
                     <th className="py-2 pr-4 text-right">実績</th>
                     <th className="py-2 pr-4 text-right">未予定</th>
@@ -189,11 +180,11 @@ export default function PlannedVsActual() {
 
       <Card>
         <CardHeader>
-          <CardTitle>予定対実績</CardTitle>
+          <CardTitle>予定工数対実績工数</CardTitle>
         </CardHeader>
         <CardContent>
           {data.rows.length === 0 ? (
-            <EmptyState description="月次予定を登録すると、案件別の予定対実績を確認できます。" title="月次予定がありません" />
+            <EmptyState description="月次予定工数を登録すると、案件別の予定工数対実績工数を確認できます。" title="月次予定工数がありません" />
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full text-sm">

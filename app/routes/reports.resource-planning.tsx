@@ -62,7 +62,7 @@ export default function ResourcePlanning() {
           <Badge tone="neutral">v0.2+ preview</Badge>
         </div>
         <p className="text-sm text-slate-600">
-          この画面は v0.1 の主要機能ではありません。v0.1 では月次キャパシティと月次予定の入力を公開範囲とし、部門・メンバー・担当ロール・案件で絞り込む本格的なリソース計画は v0.2 以降で整理します。
+          この画面は v0.1 の主要機能ではありません。v0.1 では月次キャパシティと月次予定工数の入力を公開範囲とし、部門・メンバー・担当ロール・案件で絞り込む本格的なリソース計画は v0.2 以降で整理します。
         </p>
       </div>
 
@@ -104,7 +104,7 @@ export default function ResourcePlanning() {
                     {data.isAdmin ? <th className="py-2 pr-4">部署</th> : null}
                     <th className="py-2 pr-4 text-right">キャパシティ</th>
                     <th className="py-2 pr-4 text-right">予定</th>
-                    <th className="py-2 pr-4 text-right">未配分</th>
+                    <th className="py-2 pr-4 text-right">未割当</th>
                     <th className="py-2 text-right">超過</th>
                   </tr>
                 </thead>

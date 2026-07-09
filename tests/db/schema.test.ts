@@ -4,6 +4,7 @@ import { schema } from "../../app/db/schema";
 
 test("database schema exports all MVP tables", () => {
   expect(Object.keys(schema).sort()).toEqual([
+    "dailyAllocationPlans",
     "dailyWorkLogs",
     "effortAllocations",
     "importJobs",

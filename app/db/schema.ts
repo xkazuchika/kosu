@@ -173,6 +173,28 @@ export const dailyWorkLogs = sqliteTable(
   ],
 );
 
+export const dailyAllocationPlans = sqliteTable(
+  "daily_allocation_plans",
+  {
+    id,
+    memberId: text("member_id")
+      .notNull()
+      .references(() => members.id, { onDelete: "cascade" }),
+    projectId: text("project_id")
+      .notNull()
+      .references(() => projects.id, { onDelete: "cascade" }),
+    planDate: text("plan_date").notNull(),
+    plannedHours: real("planned_hours").notNull(),
+    createdAt,
+    updatedAt,
+  },
+  (table) => [
+    unique("daily_allocation_plan_member_date_project_unique").on(table.memberId, table.planDate, table.projectId),
+    index("daily_allocation_plans_member_date_index").on(table.memberId, table.planDate),
+    index("daily_allocation_plans_project_date_index").on(table.projectId, table.planDate),
+  ],
+);
+
 export const effortAllocations = sqliteTable(
   "effort_allocations",
   {
@@ -239,6 +261,7 @@ export const importJobs = sqliteTable(
 );
 
 export const schema = {
+  dailyAllocationPlans,
   dailyWorkLogs,
   effortAllocations,
   importJobs,

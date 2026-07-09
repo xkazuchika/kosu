@@ -26,7 +26,7 @@ const importTypes: { value: ImportType; label: string }[] = [
   { value: "projects", label: "案件" },
   { value: "project_assignments", label: "案件アサイン" },
   { value: "member_monthly_capacities", label: "月次キャパシティ" },
-  { value: "monthly_plans", label: "月次予定" },
+  { value: "monthly_plans", label: "月次予定工数" },
 ];
 
 export const loader = async ({ request }: { request: Request }) => {

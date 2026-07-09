@@ -1,4 +1,4 @@
-import { Form, Link, useLoaderData } from "react-router";
+import { Form, useLoaderData } from "react-router";
 import type { Route } from "./+types/monthly-plans.admin";
 
 import { Button } from "~/components/ui/button";
@@ -125,7 +125,7 @@ export const action = async ({ request }: Route.ActionArgs) => {
   }
 };
 
-export const meta: Route.MetaFunction = () => [{ title: "月次予定入力 | kosu" }];
+export const meta: Route.MetaFunction = () => [{ title: "月次予定工数入力 | kosu" }];
 
 export default function MonthlyPlansAdmin({ actionData }: Route.ComponentProps) {
   const { month, isLocked, members, projects, planRows, capacities } = useLoaderData<typeof loader>();
@@ -133,8 +133,8 @@ export default function MonthlyPlansAdmin({ actionData }: Route.ComponentProps) 
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-bold tracking-tight text-slate-950">月次予定入力</h1>
-        <p className="text-sm text-slate-600">担当者と案件ごとの予定工数を登録します。稼働予定時間は必要なチームだけ使う任意の補足情報です。</p>
+        <h1 className="text-2xl font-bold tracking-tight text-slate-950">月次予定工数入力</h1>
+        <p className="text-sm text-slate-600">担当者と案件ごとの予定工数を登録します。稼働可能時間は必要なチームだけ使う任意の補足情報です。</p>
       </div>
 
       <Card>
@@ -151,15 +151,6 @@ export default function MonthlyPlansAdmin({ actionData }: Route.ComponentProps) 
           </Form>
         </CardContent>
       </Card>
-
-      <div className="flex flex-wrap gap-2">
-        <Link className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-900 hover:bg-slate-50" to={`/work-logs/month?month=${month}`}>
-          月次一括入力
-        </Link>
-        <Link className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-900 hover:bg-slate-50" to={`/reports/planned-vs-actual?month=${month}`}>
-          予定対実績
-        </Link>
-      </div>
 
       {actionData?.error ? (
         <p className="rounded-lg bg-red-50 p-3 text-sm text-red-700" role="alert">
@@ -232,12 +223,12 @@ export default function MonthlyPlansAdmin({ actionData }: Route.ComponentProps) 
 
       <Card>
         <CardHeader>
-          <CardTitle>任意: 稼働予定時間</CardTitle>
+          <CardTitle>任意: 稼働可能時間</CardTitle>
         </CardHeader>
         <CardContent>
-          <p className="mb-4 text-sm text-slate-600">担当者ごとの月次稼働予定時間を入れると、予定工数の不足や超過を確認できます。案件別予定だけで運用する場合は未入力で構いません。</p>
+          <p className="mb-4 text-sm text-slate-600">担当者ごとの月次稼働可能時間を入れると、予定工数の不足や超過を確認できます。案件別予定工数だけで運用する場合は未入力で構いません。</p>
           <DataTable
-            columns={["担当者", "稼働予定時間", "操作"]}
+            columns={["担当者", "稼働可能時間", "操作"]}
             emptyMessage="該当データがありません。"
             rows={capacities.map(({ member, capacity }) => [
               member.displayName,

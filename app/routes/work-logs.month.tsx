@@ -139,7 +139,7 @@ export const action = async ({ request }: { request: Request }) => {
   }
 };
 
-export const meta = () => [{ title: "月次一括工数入力 | kosu" }];
+export const meta = () => [{ title: "月別総稼働時間入力 | kosu" }];
 
 export default function WorkLogMonth() {
   const { currentMemberId, isAdmin, isLocked, members, month, rows, targetMember } = useLoaderData<typeof loader>();
@@ -151,24 +151,12 @@ export default function WorkLogMonth() {
     <div className="space-y-6">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight text-slate-950">月次一括工数入力</h1>
+          <h1 className="text-2xl font-bold tracking-tight text-slate-950">月別総稼働時間入力</h1>
           <p className="text-sm text-slate-600">
-            {targetMember.displayName} · {month} · 日別の総稼働時間をまとめて入力します。配賦は日次詳細で編集します。
+            {targetMember.displayName} · {month} · 日別の総稼働時間をまとめて入力します。案件別実績工数は日別詳細で編集します。
           </p>
         </div>
         {isLocked ? <Badge tone="danger">ロック中</Badge> : <Badge tone="success">編集可能</Badge>}
-      </div>
-
-      <div className="flex flex-wrap gap-2">
-        <Link className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-900 hover:bg-slate-50" to="/work-logs">
-          日次一覧
-        </Link>
-        <Link className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-900 hover:bg-slate-50" to="/monthly-plans">
-          月次予定
-        </Link>
-        <Link className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-900 hover:bg-slate-50" to={`/reports/planned-vs-actual?month=${month}`}>
-          予定対実績
-        </Link>
       </div>
 
       {readOnly ? (
@@ -214,7 +202,7 @@ export default function WorkLogMonth() {
 
       <Card>
         <CardHeader>
-          <CardTitle>日別入力</CardTitle>
+          <CardTitle>日別の総稼働時間</CardTitle>
         </CardHeader>
         <CardContent>
           <Form method="post" action={`/work-logs/month?month=${month}${memberQuery}`}>
@@ -225,10 +213,10 @@ export default function WorkLogMonth() {
                     <th className="py-2 pr-4">日付</th>
                     <th className="py-2 pr-4">曜日</th>
                     <th className="py-2 pr-4 text-right">総稼働</th>
-                    <th className="py-2 pr-4 text-right">配賦合計</th>
+                    <th className="py-2 pr-4 text-right">案件別実績工数</th>
                     <th className="py-2 pr-4 text-right">差分</th>
                     <th className="py-2 pr-4">状態</th>
-                    <th className="py-2">詳細</th>
+                    <th className="py-2">案件別実績工数</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -258,7 +246,7 @@ export default function WorkLogMonth() {
                       </td>
                       <td className="py-2">
                         <Link className="text-sky-700 hover:underline" to={row.dailyDetailUrl}>
-                          詳細
+                          入力
                         </Link>
                       </td>
                     </tr>
@@ -268,7 +256,7 @@ export default function WorkLogMonth() {
             </div>
             <div className="mt-4 flex justify-end">
               <Button disabled={readOnly} type="submit" variant="primary">
-                まとめて保存
+                総稼働時間を保存
               </Button>
             </div>
           </Form>
@@ -292,6 +280,6 @@ function StatusBadge({ status }: { status: string }) {
   if (status === "missing") return <Badge tone="neutral">未入力</Badge>;
   if (status === "complete") return <Badge tone="success">完了</Badge>;
   if (status === "overallocated") return <Badge tone="warning">超過</Badge>;
-  if (status === "unallocated") return <Badge tone="warning">未配分</Badge>;
+  if (status === "unallocated") return <Badge tone="warning">未割当</Badge>;
   return <Badge tone="warning">差分あり</Badge>;
 }

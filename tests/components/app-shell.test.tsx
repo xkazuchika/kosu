@@ -11,9 +11,13 @@ test("member navigation hides administrator-only links", () => {
   );
 
   expect(screen.getByRole("link", { name: "ダッシュボード" })).toBeInTheDocument();
-  expect(screen.getByRole("link", { name: "工数入力" })).toBeInTheDocument();
+  expect(screen.getByText("入力")).toBeInTheDocument();
+  expect(screen.getByText("レポート")).toBeInTheDocument();
+  expect(screen.getByRole("link", { name: "日別工数実績入力" })).toHaveAttribute("href", "/work-logs");
+  expect(screen.getByRole("link", { name: "月別総稼働時間入力" })).toHaveAttribute("href", "/work-logs/month");
+  expect(screen.getByRole("link", { name: "日別予定工数入力" })).toHaveAttribute("href", "/daily-plans");
   expect(screen.getByRole("link", { name: "自己アサイン" })).toBeInTheDocument();
-  expect(screen.getByRole("link", { name: "予定対実績" })).toBeInTheDocument();
+  expect(screen.getByRole("link", { name: "予定工数対実績工数" })).toBeInTheDocument();
   expect(screen.queryByRole("link", { name: "メンバー" })).not.toBeInTheDocument();
   expect(screen.queryByRole("link", { name: "インポート" })).not.toBeInTheDocument();
 });
@@ -26,9 +30,12 @@ test("administrator navigation shows management links", () => {
   );
 
   expect(screen.getByRole("link", { name: "メンバー" })).toBeInTheDocument();
-  expect(screen.getByRole("link", { name: "月次予定入力" })).toHaveAttribute("href", "/monthly-plans/admin");
+  expect(screen.getByRole("link", { name: "月次予定工数入力" })).toHaveAttribute("href", "/monthly-plans/admin");
+  expect(screen.getByText("管理")).toBeInTheDocument();
+  expect(screen.getByRole("link", { name: "日別予定工数入力" })).toHaveAttribute("href", "/daily-plans");
+  expect(screen.getByRole("link", { name: "案件管理" })).toHaveAttribute("href", "/projects");
   expect(screen.getByRole("link", { name: "自己アサイン" })).toBeInTheDocument();
-  expect(screen.getByRole("link", { name: "予定対実績" })).toBeInTheDocument();
+  expect(screen.getByRole("link", { name: "予定工数対実績工数" })).toBeInTheDocument();
   expect(screen.getByRole("link", { name: "インポート" })).toBeInTheDocument();
   expect(screen.queryByText(/2026-07/)).not.toBeInTheDocument();
   expect(screen.getAllByText("kosu").length).toBeGreaterThan(0);

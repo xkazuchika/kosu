@@ -91,7 +91,7 @@ export default function ProjectTasks({ actionData }: Route.ComponentProps) {
             </p>
           ) : null}
           <p className="mb-4 text-sm text-slate-600">
-            タスクは案件内の工数を細かく分けたい場合だけ使います。使わない場合は、日次工数入力で案件だけを選んで配賦できます。
+            タスクは案件内の工数を細かく分けたい場合だけ使います。使わない場合は、日別工数実績入力で案件だけを選んで実績工数を登録できます。
           </p>
           <Form method="post" className="flex gap-2">
             <Field label="">
