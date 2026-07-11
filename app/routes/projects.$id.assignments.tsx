@@ -5,7 +5,7 @@ import { Button } from "~/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "~/components/ui/card";
 import { DataTable } from "~/components/ui/table";
 import { createDatabaseConnection } from "~/db/client";
-import { listMembers } from "~/db/repositories/members";
+import { listMembers, withoutMemberFinancials } from "~/db/repositories/members";
 import {
   createProjectAssignment,
   listAssignmentsByProject,
@@ -28,7 +28,7 @@ export const loader = async ({ request, params }: { request: Request; params: { 
     return {
       project,
       assignments: listAssignmentsByProject(db, params.id),
-      members: listMembers(db),
+      members: listMembers(db).map(withoutMemberFinancials),
     };
   } finally {
     sqlite.close();

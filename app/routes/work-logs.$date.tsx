@@ -21,9 +21,9 @@ import {
   listAllocationsByWorkLog,
   updateEffortAllocation,
 } from "~/db/repositories/effort-allocations";
-import { findMemberById } from "~/db/repositories/members";
+import { findMemberById, withoutMemberFinancials } from "~/db/repositories/members";
 import { findActiveAssignment, listActiveAssignmentsByMember } from "~/db/repositories/project-assignments";
-import { findProjectById } from "~/db/repositories/projects";
+import { findProjectById, withoutProjectFinancials } from "~/db/repositories/projects";
 import { findTaskById, listActiveTasksByProject } from "~/db/repositories/tasks";
 import { getSessionMember } from "~/services/auth";
 import { getWeekdayLabel, isSaturdayDate, isSundayDate, isValidQuarterHour } from "~/lib/time";
@@ -53,12 +53,13 @@ export const loader = async ({ request, params }: { request: Request; params: { 
     const month = workDate.slice(0, 7);
     const workLog = findDailyWorkLogByMemberAndDate(db, targetMemberId, workDate);
     const allocations = workLog ? listAllocationsByWorkLog(db, workLog.id) : [];
-    const assignedProjects = listActiveAssignmentsByMember(db, targetMemberId)
+    const assignedProjectRecords = listActiveAssignmentsByMember(db, targetMemberId)
       .map((a) => findProjectById(db, a.projectId))
       .filter((p): p is NonNullable<typeof p> => p !== undefined && !p.isArchived);
-    const activeTasks = assignedProjects.flatMap((project) =>
+    const activeTasks = assignedProjectRecords.flatMap((project) =>
       listActiveTasksByProject(db, project.id).map((task) => ({ ...task, projectName: project.name })),
     );
+    const assignedProjects = isAdmin ? assignedProjectRecords : assignedProjectRecords.map(withoutProjectFinancials);
 
     return {
       currentMemberId: currentMember.id,
@@ -69,7 +70,7 @@ export const loader = async ({ request, params }: { request: Request; params: { 
       assignedProjects,
       activeTasks,
       isAdmin,
-      targetMember,
+      targetMember: withoutMemberFinancials(targetMember),
       isLocked: isMonthLocked(db, month),
     };
   } finally {

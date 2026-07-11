@@ -35,12 +35,17 @@ describe("projects repository", () => {
       projectType: "billable",
       clientName: "Acme",
       revenueOrBudgetAmount: 1_000_000,
+      contractRevenueAmount: 1_200_000,
+      laborCostBudgetAmount: 600_000,
     });
 
     expect(project.code).toBe("PRJ-001");
 
     const found = findProjectByCode(db, "PRJ-001");
     expect(found?.name).toBe("Website");
+    expect(found?.revenueOrBudgetAmount).toBe(1_000_000);
+    expect(found?.contractRevenueAmount).toBe(1_200_000);
+    expect(found?.laborCostBudgetAmount).toBe(600_000);
   });
 
   test("list projects ordered by code", () => {
@@ -60,8 +65,14 @@ describe("projects repository", () => {
 
   test("update project", () => {
     const project = createProject(db, { code: "PRJ-001", name: "Website", projectType: "billable" });
-    const updated = updateProject(db, project.id, { name: "Website Renewed" });
+    const updated = updateProject(db, project.id, {
+      name: "Website Renewed",
+      contractRevenueAmount: 500_000,
+      laborCostBudgetAmount: 250_000,
+    });
     expect(updated.name).toBe("Website Renewed");
+    expect(updated.contractRevenueAmount).toBe(500_000);
+    expect(updated.laborCostBudgetAmount).toBe(250_000);
   });
 
   test("duplicate code throws", () => {

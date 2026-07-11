@@ -14,6 +14,8 @@ export type ProjectInsert = {
   clientName?: string | null;
   description?: string | null;
   revenueOrBudgetAmount?: number | null;
+  contractRevenueAmount?: number | null;
+  laborCostBudgetAmount?: number | null;
 };
 
 export type ProjectUpdate = Partial<ProjectInsert>;
@@ -41,6 +43,8 @@ export function createProject(db: KosuDatabase, input: ProjectInsert) {
       clientName: input.clientName ?? null,
       description: input.description ?? null,
       revenueOrBudgetAmount: input.revenueOrBudgetAmount ?? null,
+      contractRevenueAmount: input.contractRevenueAmount ?? null,
+      laborCostBudgetAmount: input.laborCostBudgetAmount ?? null,
     })
     .returning()
     .get();
@@ -56,6 +60,8 @@ export function updateProject(db: KosuDatabase, id: string, input: ProjectUpdate
       clientName: input.clientName,
       description: input.description,
       revenueOrBudgetAmount: input.revenueOrBudgetAmount,
+      contractRevenueAmount: input.contractRevenueAmount,
+      laborCostBudgetAmount: input.laborCostBudgetAmount,
     })
     .where(eq(projects.id, id))
     .returning()
@@ -81,4 +87,16 @@ export function listActiveProjects(db: KosuDatabase) {
 
 export function findActiveProjectByCode(db: KosuDatabase, code: string) {
   return db.select().from(projects).where(and(eq(projects.code, code), eq(projects.isArchived, false))).get();
+}
+
+export function withoutProjectFinancials<T extends {
+  contractRevenueAmount?: unknown;
+  laborCostBudgetAmount?: unknown;
+  revenueOrBudgetAmount?: unknown;
+}>(project: T) {
+  const publicProject = { ...project };
+  delete publicProject.contractRevenueAmount;
+  delete publicProject.laborCostBudgetAmount;
+  delete publicProject.revenueOrBudgetAmount;
+  return publicProject;
 }

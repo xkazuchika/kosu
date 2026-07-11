@@ -38,7 +38,7 @@ async function seed() {
   if (!admin) {
     admin = createMember(db, {
       email: adminEmail,
-      displayName: "Demo Admin",
+      displayName: "山田 太郎",
       passwordHash: await hashPassword("password123"),
       role: "admin",
       departmentName: "Engineering",
@@ -54,7 +54,7 @@ async function seed() {
   if (!member) {
     member = createMember(db, {
       email: memberEmail,
-      displayName: "Demo Member",
+      displayName: "佐藤 花子",
       passwordHash: await hashPassword("password123"),
       role: "member",
       departmentName: "Engineering",
@@ -62,18 +62,23 @@ async function seed() {
     });
   }
 
-  const projectCodes = ["INTERNAL", "WEBSITE", "CONSULT"];
+  const projectDefinitions = [
+    { code: "INTERNAL", name: "社内業務", projectType: "internal" as const },
+    { code: "WEBSITE", name: "コーポレートサイト改修", projectType: "billable" as const },
+    { code: "CONSULT", name: "業務改善コンサルティング", projectType: "billable" as const },
+  ];
   const month = new Date().toISOString().slice(0, 7);
   const workDate = `${month}-01`;
 
-  for (const code of projectCodes) {
+  for (const definition of projectDefinitions) {
+    const { code } = definition;
     let project = db.select().from(projects).where(eq(projects.code, code)).get();
 
     if (!project) {
       project = createProject(db, {
         code,
-        name: `${code} Project`,
-        projectType: code === "INTERNAL" ? "internal" : "billable",
+        name: definition.name,
+        projectType: definition.projectType,
         revenueOrBudgetAmount: code === "INTERNAL" ? 0 : 1_000_000,
       });
     }

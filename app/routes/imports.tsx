@@ -160,6 +160,8 @@ function buildExportRows(db: ReturnType<typeof createDatabaseConnection>["db"], 
         project.projectType,
         project.clientName ?? "",
         project.revenueOrBudgetAmount?.toString() ?? "",
+        project.contractRevenueAmount?.toString() ?? "",
+        project.laborCostBudgetAmount?.toString() ?? "",
       ]),
     ];
   }

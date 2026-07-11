@@ -21,6 +21,7 @@ test("member navigation hides administrator-only links", () => {
   expect(screen.getAllByRole("link", { name: "予定工数対実績工数" }).length).toBeGreaterThan(0);
   expect(screen.queryByRole("link", { name: "メンバー" })).not.toBeInTheDocument();
   expect(screen.queryByRole("link", { name: "インポート" })).not.toBeInTheDocument();
+  expect(screen.queryByRole("link", { name: "案件財務レビュー" })).not.toBeInTheDocument();
 });
 
 test("administrator navigation shows management links", () => {
@@ -38,6 +39,7 @@ test("administrator navigation shows management links", () => {
   expect(screen.getAllByRole("link", { name: "案件管理" })[0]).toHaveAttribute("href", "/projects");
   expect(screen.getAllByRole("link", { name: "自己アサイン" }).length).toBeGreaterThan(0);
   expect(screen.getAllByRole("link", { name: "予定工数対実績工数" }).length).toBeGreaterThan(0);
+  expect(screen.getAllByRole("link", { name: "案件財務レビュー" }).length).toBeGreaterThan(0);
   expect(screen.getAllByRole("link", { name: "インポート" }).length).toBeGreaterThan(0);
   expect(screen.getByRole("navigation", { name: "メインナビゲーション" })).toHaveClass("overflow-y-auto");
   expect(screen.getByText("Menu")).toBeInTheDocument();

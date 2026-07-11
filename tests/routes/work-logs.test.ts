@@ -8,6 +8,7 @@ import { eq } from "drizzle-orm";
 import { beforeEach, describe, expect, test } from "vitest";
 
 import { createDatabaseConnection } from "../../app/db/client";
+import { createDailyWorkLog } from "../../app/db/repositories/daily-work-logs";
 import { createMember } from "../../app/db/repositories/members";
 import { archiveProject } from "../../app/db/repositories/projects";
 import { archiveTask, createTask } from "../../app/db/repositories/tasks";
@@ -215,11 +216,90 @@ describe("daily work logs and allocations", () => {
     expect((actionResponse as Response).headers.get("Location")).toBe("/work-logs/2026-07-15");
 
     const listResponse = await (workLogsLoader as unknown as RouteLoaderHandler)({
-      request: new Request("http://localhost/work-logs", { headers: { Cookie: cookie } }),
+      request: new Request("http://localhost/work-logs?month=2026-07", { headers: { Cookie: cookie } }),
       context: buildContext(),
     });
     const logs = (listResponse as { logs: { workDate: string; totalWorkingHours: number }[] }).logs;
     expect(logs.some((log) => log.workDate === "2026-07-15" && log.totalWorkingHours === 8)).toBe(true);
+  });
+
+  test("filters a member's selected month to unbalanced work logs", async () => {
+    const cookie = await setupAndLogin(dataDir, "password123");
+    await createProject(cookie, "PRJ-001", "Website", "internal");
+
+    const projectsResponse = await (projectsLoader as unknown as RouteLoaderHandler)({
+      request: new Request("http://localhost/", { headers: { Cookie: cookie } }),
+      context: buildContext(),
+    });
+    const project = (projectsResponse as { projects: { id: string }[] }).projects[0];
+    await assignAdminToProject(cookie, project.id);
+
+    for (const date of ["2026-07-15", "2026-07-16", "2026-08-01"]) {
+      const formData = new FormData();
+      formData.append("intent", "saveWorkLog");
+      formData.append("totalWorkingHours", "8");
+      await (workLogDateAction as unknown as RouteActionHandler)({
+        request: buildRequest(formData, cookie),
+        params: { date },
+        context: buildContext(),
+      });
+    }
+
+    const balancedAllocation = new FormData();
+    balancedAllocation.append("intent", "addAllocation");
+    balancedAllocation.append("projectId", project.id);
+    balancedAllocation.append("allocatedHours", "8");
+    await (workLogDateAction as unknown as RouteActionHandler)({
+      request: buildRequest(balancedAllocation, cookie),
+      params: { date: "2026-07-16" },
+      context: buildContext(),
+    });
+
+    const listResponse = await (workLogsLoader as unknown as RouteLoaderHandler)({
+      request: new Request("http://localhost/work-logs?month=2026-07&status=unbalanced", { headers: { Cookie: cookie } }),
+      context: buildContext(),
+    });
+    const data = listResponse as { month: string; status: string; logs: { workDate: string; variance: number }[] };
+
+    expect(data.month).toBe("2026-07");
+    expect(data.status).toBe("unbalanced");
+    expect(data.logs).toEqual([expect.objectContaining({ workDate: "2026-07-15", variance: 8 })]);
+  });
+
+  test("admin filters the selected member's unbalanced work logs", async () => {
+    const cookie = await setupAndLogin(dataDir, "password123");
+    const connection = createDatabaseConnection();
+    const targetMember = createMember(connection.db, {
+      displayName: "Member",
+      email: "member@example.com",
+      passwordHash: "unused",
+      role: "member",
+    });
+    createDailyWorkLog(connection.db, { memberId: targetMember.id, workDate: "2026-07-15", totalWorkingHours: 8 });
+    createDailyWorkLog(connection.db, { memberId: targetMember.id, workDate: "2026-08-01", totalWorkingHours: 8 });
+    connection.sqlite.close();
+
+    const listResponse = await (workLogsLoader as unknown as RouteLoaderHandler)({
+      request: new Request(`http://localhost/work-logs?memberId=${targetMember.id}&month=2026-07&status=unbalanced`, {
+        headers: { Cookie: cookie },
+      }),
+      context: buildContext(),
+    });
+    const data = listResponse as { targetMember: { id: string }; logs: { workDate: string }[] };
+
+    expect(data.targetMember.id).toBe(targetMember.id);
+    expect(data.logs).toEqual([expect.objectContaining({ workDate: "2026-07-15" })]);
+  });
+
+  test("work log list falls back to the current month for an invalid month filter", async () => {
+    const cookie = await setupAndLogin(dataDir, "password123");
+
+    const listResponse = await (workLogsLoader as unknown as RouteLoaderHandler)({
+      request: new Request("http://localhost/work-logs?month=2026-13", { headers: { Cookie: cookie } }),
+      context: buildContext(),
+    });
+
+    expect((listResponse as { month: string }).month).toBe(new Date().toISOString().slice(0, 7));
   });
 
   test("work log list redirects date query to daily entry", async () => {

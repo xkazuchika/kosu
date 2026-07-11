@@ -195,6 +195,7 @@ export const meta: Route.MetaFunction = () => [{ title: "ダッシュボード |
 export default function Dashboard() {
   const data = useLoaderData<DashboardLoaderData>();
   const todayVariance = data.todayInput.totalWorkingHours - data.todayInput.allocatedHours;
+  const allocationIssuesHref = `/work-logs?month=${data.currentMonth}&status=unbalanced`;
 
   return (
     <div className="space-y-8">
@@ -266,7 +267,7 @@ export default function Dashboard() {
             ) : null}
           </SummaryCard>
 
-          <SummaryCard icon={<AlertTriangle className="h-4 w-4" />} label="未割当・超過" to="/work-logs">
+          <SummaryCard icon={<AlertTriangle className="h-4 w-4" />} label="未割当・超過" to={allocationIssuesHref}>
             <p className="text-3xl font-semibold">{data.incompleteAllocationsCount}</p>
             <p className="text-sm text-slate-600">日</p>
           </SummaryCard>
@@ -276,7 +277,7 @@ export default function Dashboard() {
       {data.incompleteAllocationsCount > 0 ? (
         <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
           今月の未割当または超過の日が {data.incompleteAllocationsCount} 件あります。
-          <Link className="ml-2 font-semibold underline" to="/work-logs">
+          <Link className="ml-2 font-semibold underline" to={allocationIssuesHref}>
             日別工数実績を確認
           </Link>
         </div>

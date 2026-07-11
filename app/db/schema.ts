@@ -56,6 +56,8 @@ export const projects = sqliteTable(
     clientName: text("client_name"),
     description: text("description"),
     revenueOrBudgetAmount: integer("revenue_or_budget_amount"),
+    contractRevenueAmount: integer("contract_revenue_amount"),
+    laborCostBudgetAmount: integer("labor_cost_budget_amount"),
     isArchived: integer("is_archived", { mode: "boolean" }).notNull().default(false),
     archivedAt: text("archived_at"),
     createdAt,

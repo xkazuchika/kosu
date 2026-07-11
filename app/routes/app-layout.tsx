@@ -2,6 +2,7 @@ import { Outlet, redirect, useLoaderData, useLocation } from "react-router";
 
 import { AppShell } from "~/components/app-shell";
 import { createDatabaseConnection } from "~/db/client";
+import { withoutMemberFinancials } from "~/db/repositories/members";
 import { getSessionMember } from "~/services/auth";
 
 export const loader = async ({ request }: { request: Request }) => {
@@ -14,7 +15,7 @@ export const loader = async ({ request }: { request: Request }) => {
       return redirect("/login");
     }
 
-    return { member };
+    return { member: withoutMemberFinancials(member) };
   } finally {
     sqlite.close();
   }

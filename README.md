@@ -2,7 +2,7 @@
 
 `kosu` は、小さなチームや部門向けの軽量セルフホスト OSS 工数管理アプリです。
 
-現在のアプリバージョンは `v0.5.0` です。
+現在のアプリバージョンは `v0.6.0` です。
 
 重い SaaS や ERP を導入せずに、日々の実績工数入力、案件・タスク別の実績工数、日別・月次の予定工数、月別の総稼働時間、基本的な工数レポートを扱うことを目指しています。初期 UI とドキュメントは日本語ファーストです。
 
@@ -20,19 +20,20 @@
 - 保存済みの日別予定工数から実績工数への反映
 - 日別の総稼働時間と案件・タスク別の実績工数入力
 - 月別総稼働時間の一括入力
-- 未割当・超過の警告表示
+- 対象月・状態で絞り込める未割当・超過の警告と日別修正導線
 - 月次ロックによるレビュー済み期間の保護
 - メンバー向け・管理者向けダッシュボード
 - ワークフロー別サイドバー、モバイルナビゲーション、Today First ダッシュボード
 - 日付の多い入力画面での曜日表示、土曜/日曜の視認性向上
 - 工数実績レポート、予定工数対実績工数レポート、CSV エクスポート
+- 管理者向けの案件別直接人件費、残り人件費予算、労務粗利レビュー
 - メンバー、案件、アサイン、稼働可能時間、月次予定工数の CSV インポート
 
 ## 現在対象外のこと
 
-`kosu` は軽量な工数管理に絞っています。ERP、勤怠管理、給与計算、請求書発行、経費精算、複雑な承認ワークフロー、ガントチャート、チケット管理、自動タイマー、本格的な採算管理や財務レポートは対象外です。
+`kosu` は軽量な工数管理と直接人件費管理に絞っています。ERP、勤怠管理、給与計算、請求書発行、入金管理、経費精算、仕入れ・外注費管理、複雑な承認ワークフロー、ガントチャート、チケット管理、自動タイマー、本格的な会計・財務レポートは対象外です。
 
-日別の予定工数対実績工数レポート、リソース計画、原価・売上・粗利を含む詳細レポートは今後の検討対象です。
+日別の予定工数対実績工数レポート、リソース計画、仕入れ・外注費を含む案件原価、最終利益見込みは今後の検討対象です。
 
 ## 技術スタック
 
@@ -101,6 +102,21 @@ KOSU_DATA_DIR=/var/lib/kosu npm run db:migrate
 - 月次予定工数
 - 工数実績レポート
 - 予定工数対実績工数
+- 案件財務レビュー（管理者のみ）
+
+## 案件別の直接人件費管理
+
+請求対象案件では、管理者が税抜の契約売上と人件費予算を別々に登録できます。保存済みの月次予定工数・実績工数に記録された時間あたり原価から、案件ごとの次の値を確認できます。
+
+- 選択月の予定人件費・実績人件費
+- 累計実績人件費
+- 残り人件費予算・人件費予算消化率
+- 目標労務粗利・目標労務粗利率
+- アーカイブ済み案件の確定労務粗利・確定労務粗利率
+
+これらは直接人件費だけを対象にした管理値です。仕入れ、外注費、経費、税金、請求・入金は含めません。原価スナップショットがない予定・実績工数がある場合、金額は不完全として表示され、残予算や確定労務粗利を確定値として扱いません。
+
+旧「売上または予算」項目の値は自動変換されません。案件編集から、意味を確認したうえで契約売上または人件費予算を設定してください。
 
 ## Docker デプロイ
 
@@ -173,6 +189,7 @@ npm run db:seed:demo
 
 ## バージョン履歴
 
+- `v0.6.0`: 管理者向けの案件別直接人件費、人件費予算、予算消化、労務粗利レビューと、メンバー向けの月別未割当・超過修正導線を追加。
 - `v0.5.0`: ワークフロー別ナビゲーション、Today First ダッシュボード、共有UI刷新、主要画面の構成整理、曜日/土日表示を追加。
 - `v0.4.0`: 日別予定工数入力と予定から実績への反映を追加。
 - `v0.3.0`: 月次予定入力を再設計。
@@ -206,4 +223,4 @@ Issue や Pull Request では、次の情報があると検討しやすくなり
 
 ## English Summary
 
-`kosu` is a lightweight self-hosted OSS effort management web app for small teams. Version `v0.5.0` focuses on daily actual effort entry, daily and monthly planned effort, monthly working-hour totals, planned-vs-actual reporting, CSV import/export, workflow-oriented navigation, a Today First dashboard, and SQLite single-instance deployment. Full financial reporting, resource planning, multi-instance operation, and multi-tenant SaaS use cases are out of scope. The UI and documentation are Japanese-first, and the project is licensed under MIT.
+`kosu` is a lightweight self-hosted OSS effort management web app for small teams. Version `v0.6.0` adds administrator-only direct-labor cost control with project contract revenue, labor cost budgets, budget consumption, and labor-margin review. It also includes daily actual effort entry, daily and monthly planned effort, monthly working-hour totals, planned-vs-actual reporting, CSV import/export, workflow-oriented navigation, a Today First dashboard, and SQLite single-instance deployment. Accounting, invoicing, expense, procurement, full resource planning, multi-instance operation, and multi-tenant SaaS use cases are out of scope. The UI and documentation are Japanese-first, and the project is licensed under MIT.

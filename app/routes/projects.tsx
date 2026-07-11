@@ -4,7 +4,7 @@ import { Badge } from "~/components/ui/badge";
 import { DataTable } from "~/components/ui/table";
 import { createDatabaseConnection } from "~/db/client";
 import { listActiveAssignmentsByMember } from "~/db/repositories/project-assignments";
-import { listActiveProjects, listProjects } from "~/db/repositories/projects";
+import { listActiveProjects, listProjects, withoutProjectFinancials } from "~/db/repositories/projects";
 import { getSessionMember } from "~/services/auth";
 
 import type { Route } from "./+types/projects";
@@ -27,7 +27,7 @@ export const loader = async ({ request }: { request: Request }) => {
     const projectIds = new Set(assignments.map((a) => a.projectId));
     const allActive = listActiveProjects(db);
 
-    return { projects: allActive.filter((p) => projectIds.has(p.id)), isAdmin: false };
+    return { projects: allActive.filter((p) => projectIds.has(p.id)).map(withoutProjectFinancials), isAdmin: false };
   } finally {
     sqlite.close();
   }

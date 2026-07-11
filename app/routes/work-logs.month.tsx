@@ -11,7 +11,7 @@ import {
   updateDailyWorkLog,
 } from "~/db/repositories/daily-work-logs";
 import { listAllocationsByWorkLog } from "~/db/repositories/effort-allocations";
-import { findMemberById, listMembers } from "~/db/repositories/members";
+import { findMemberById, listMembers, withoutMemberFinancials } from "~/db/repositories/members";
 import { getWeekdayLabel, isSaturdayDate, isSundayDate, isValidMonth, isValidQuarterHour, isWeekendDate, listMonthDates } from "~/lib/time";
 import { getSessionMember } from "~/services/auth";
 import { isMonthLocked } from "~/services/period-lock";
@@ -68,10 +68,10 @@ export const loader = async ({ request }: { request: Request }) => {
       currentMemberId: currentMember.id,
       isAdmin,
       isLocked,
-      members: isAdmin ? listMembers(db) : [],
+      members: isAdmin ? listMembers(db).map(withoutMemberFinancials) : [],
       month,
       rows,
-      targetMember,
+      targetMember: withoutMemberFinancials(targetMember),
     };
   } finally {
     sqlite.close();

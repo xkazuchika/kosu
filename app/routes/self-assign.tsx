@@ -7,7 +7,7 @@ import { DataTable } from "~/components/ui/table";
 import { createDatabaseConnection } from "~/db/client";
 import { listActiveAssignmentsByMember } from "~/db/repositories/project-assignments";
 import { createProjectAssignment } from "~/db/repositories/project-assignments";
-import { listActiveProjects } from "~/db/repositories/projects";
+import { listActiveProjects, withoutProjectFinancials } from "~/db/repositories/projects";
 import { getSessionMember } from "~/services/auth";
 
 export const loader = async ({ request }: { request: Request }) => {
@@ -24,7 +24,7 @@ export const loader = async ({ request }: { request: Request }) => {
     const assignedProjectIds = new Set(assignments.map((a) => a.projectId));
     const availableProjects = listActiveProjects(db).filter((p) => !assignedProjectIds.has(p.id));
 
-    return { member, availableProjects };
+    return { availableProjects: member.role === "admin" ? availableProjects : availableProjects.map(withoutProjectFinancials) };
   } finally {
     sqlite.close();
   }

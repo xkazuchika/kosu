@@ -80,3 +80,15 @@ export function isAdministrator(member: { role: MemberRole }) {
 export function findActiveMemberByEmail(db: KosuDatabase, email: string) {
   return db.select().from(members).where(and(eq(members.email, email), eq(members.isActive, true))).get();
 }
+
+export function withoutMemberPasswordHash<T extends { passwordHash?: unknown }>(member: T) {
+  const publicMember = { ...member };
+  delete publicMember.passwordHash;
+  return publicMember;
+}
+
+export function withoutMemberFinancials<T extends { hourlyCostRate?: unknown; passwordHash?: unknown }>(member: T) {
+  const publicMember = withoutMemberPasswordHash(member);
+  delete publicMember.hourlyCostRate;
+  return publicMember;
+}

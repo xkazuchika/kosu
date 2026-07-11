@@ -8,7 +8,7 @@ import { DataTable } from "~/components/ui/table";
 import { createDatabaseConnection } from "~/db/client";
 import { createMemberMonthlyCapacity, deleteMemberMonthlyCapacity, findCapacityByMemberAndMonth, updateMemberMonthlyCapacity } from "~/db/repositories/member-monthly-capacities";
 import { createMonthlyPlan, deleteMonthlyPlan, findMonthlyPlan, listMonthlyPlansByMonth, updateMonthlyPlan } from "~/db/repositories/monthly-plans";
-import { listMembers } from "~/db/repositories/members";
+import { findMemberById, listMembers, withoutMemberFinancials } from "~/db/repositories/members";
 import { findProjectById, listActiveProjects } from "~/db/repositories/projects";
 import { isValidMonth } from "~/lib/time";
 import { requireAdministrator } from "~/services/auth";
@@ -38,7 +38,7 @@ export const loader = async ({ request }: { request: Request }) => {
     return {
       month,
       isLocked: isMonthLocked(db, month),
-      members,
+      members: members.map(withoutMemberFinancials),
       projects,
       planRows,
       capacities: members.map((m) => ({ member: m, capacity: findCapacityByMemberAndMonth(db, m.id, month) })),
@@ -83,7 +83,14 @@ export const action = async ({ request }: Route.ActionArgs) => {
       if (existing) {
         updateMonthlyPlan(db, existing.id, { plannedHours });
       } else {
-        createMonthlyPlan(db, { memberId, projectId, month, assignmentRole, plannedHours });
+        createMonthlyPlan(db, {
+          memberId,
+          projectId,
+          month,
+          assignmentRole,
+          plannedHours,
+          hourlyCostRateSnapshot: findMemberById(db, memberId)?.hourlyCostRate ?? null,
+        });
       }
       return null;
     }

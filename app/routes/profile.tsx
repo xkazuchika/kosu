@@ -5,7 +5,7 @@ import { Button } from "~/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "~/components/ui/card";
 import { Field, Input } from "~/components/ui/form";
 import { createDatabaseConnection } from "~/db/client";
-import { updateMember } from "~/db/repositories/members";
+import { updateMember, withoutMemberFinancials } from "~/db/repositories/members";
 import { requireAuth } from "~/services/auth";
 import { hashPassword } from "~/lib/password";
 
@@ -14,7 +14,7 @@ export const loader = async ({ request }: { request: Request }) => {
 
   try {
     const member = requireAuth(db, request);
-    return { member };
+    return { member: withoutMemberFinancials(member) };
   } finally {
     sqlite.close();
   }

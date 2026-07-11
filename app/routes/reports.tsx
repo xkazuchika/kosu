@@ -6,8 +6,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "~/components/ui/card";
 import { EmptyState } from "~/components/ui/empty-state";
 import { createDatabaseConnection } from "~/db/client";
 import { listEffortReportRows } from "~/db/repositories/effort-allocations";
-import { listMembers } from "~/db/repositories/members";
-import { listActiveProjects } from "~/db/repositories/projects";
+import { listMembers, withoutMemberFinancials } from "~/db/repositories/members";
+import { listActiveProjects, withoutProjectFinancials } from "~/db/repositories/projects";
 import { getSessionMember } from "~/services/auth";
 
 export const loader = async ({ request }: { request: Request }) => {
@@ -38,8 +38,8 @@ export const loader = async ({ request }: { request: Request }) => {
     });
     const rows = reportRows.map((row) => ({ ...row, hourlyCostRateSnapshot: null }));
 
-    const projects = listActiveProjects(db);
-    const members = member.role === "admin" ? listMembers(db) : [];
+    const projects = member.role === "admin" ? listActiveProjects(db) : listActiveProjects(db).map(withoutProjectFinancials);
+    const members = member.role === "admin" ? listMembers(db).map(withoutMemberFinancials) : [];
 
     return {
       isAdmin: member.role === "admin",

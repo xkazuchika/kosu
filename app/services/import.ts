@@ -8,6 +8,7 @@ import { createMember, findMemberByEmail, updateMember } from "~/db/repositories
 import { createMonthlyPlan, findMonthlyPlan, updateMonthlyPlan } from "~/db/repositories/monthly-plans";
 import { createProjectAssignment, findActiveAssignment } from "~/db/repositories/project-assignments";
 import { createProject, findProjectByCode, updateProject } from "~/db/repositories/projects";
+import { parseOptionalYen } from "~/lib/currency";
 import { hashPassword } from "~/lib/password";
 
 export type ImportType = "members" | "projects" | "project_assignments" | "member_monthly_capacities" | "monthly_plans";
@@ -30,7 +31,7 @@ export type ImportPreview = {
 
 const templates: Record<ImportType, string[]> = {
   members: ["email", "displayName", "role", "departmentName", "hourlyCostRate", "isActive"],
-  projects: ["code", "name", "projectType", "clientName", "revenueOrBudgetAmount"],
+  projects: ["code", "name", "projectType", "clientName", "revenueOrBudgetAmount", "contractRevenueAmount", "laborCostBudgetAmount"],
   project_assignments: ["memberEmail", "projectCode", "assignmentRole", "assignmentSource"],
   member_monthly_capacities: ["memberEmail", "month", "capacityHours"],
   monthly_plans: ["memberEmail", "projectCode", "month", "assignmentRole", "plannedHours"],
@@ -168,6 +169,9 @@ function validateRow(db: KosuDatabase, type: ImportType, record: Record<string, 
       if (record.projectType && !["billable", "internal", "non_billable"].includes(record.projectType)) {
         errors.push("種別が不正です");
       }
+      if (parseOptionalYen(record.revenueOrBudgetAmount) === undefined) errors.push("旧売上または予算は0以上の整数です");
+      if (parseOptionalYen(record.contractRevenueAmount) === undefined) errors.push("契約売上は0以上の整数です");
+      if (parseOptionalYen(record.laborCostBudgetAmount) === undefined) errors.push("人件費予算は0以上の整数です");
       break;
     }
     case "project_assignments": {
@@ -227,12 +231,17 @@ async function applyRow(db: KosuDatabase, type: ImportType, record: Record<strin
     }
     case "projects": {
       const existing = findProjectByCode(db, record.code);
+      const legacyRevenueOrBudgetAmount = record.revenueOrBudgetAmount?.trim()
+        ? parseOptionalYen(record.revenueOrBudgetAmount)
+        : existing?.revenueOrBudgetAmount ?? null;
       const payload = {
         code: record.code,
         name: record.name,
         projectType: (record.projectType as "billable" | "internal" | "non_billable") || "internal",
         clientName: record.clientName || null,
-        revenueOrBudgetAmount: record.revenueOrBudgetAmount ? Number(record.revenueOrBudgetAmount) : null,
+        revenueOrBudgetAmount: legacyRevenueOrBudgetAmount,
+        contractRevenueAmount: parseOptionalYen(record.contractRevenueAmount),
+        laborCostBudgetAmount: parseOptionalYen(record.laborCostBudgetAmount),
       };
       if (existing) {
         updateProject(db, existing.id, payload);
@@ -278,6 +287,7 @@ async function applyRow(db: KosuDatabase, type: ImportType, record: Record<strin
           month: record.month,
           assignmentRole: record.assignmentRole || "",
           plannedHours: Number(record.plannedHours),
+          hourlyCostRateSnapshot: member.hourlyCostRate ?? null,
         });
       }
       break;

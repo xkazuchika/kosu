@@ -4,10 +4,14 @@ import { existsSync, mkdirSync, rmSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 
+import { eq } from "drizzle-orm";
 import { beforeEach, describe, expect, test } from "vitest";
 
+import { createDatabaseConnection } from "../../app/db/client";
+import { resolveDatabaseConfig } from "../../app/db/config";
+import { members } from "../../app/db/schema";
 import { loader as projectsLoader } from "../../app/routes/projects";
-import { action as newProjectAction } from "../../app/routes/projects.new";
+import { action as newProjectAction, loader as newProjectLoader } from "../../app/routes/projects.new";
 import { action as projectDetailAction } from "../../app/routes/projects.$id";
 import { action as projectTasksAction, loader as projectTasksLoader } from "../../app/routes/projects.$id.tasks";
 import { action as projectAssignmentsAction, loader as projectAssignmentsLoader } from "../../app/routes/projects.$id.assignments";
@@ -101,6 +105,59 @@ describe("projects, tasks, assignments, and plans routes", () => {
     });
     expect(archiveResponse).toBeInstanceOf(Response);
     expect((archiveResponse as Response).headers.get("Location")).toBe("/projects");
+  });
+
+  test("project financial baseline is admin-only and does not leak through member project data", async () => {
+    const adminCookie = await setupAndLogin(dataDir, "password123");
+    const formData = new FormData();
+    formData.append("code", "PRJ-001");
+    formData.append("name", "Website");
+    formData.append("projectType", "billable");
+    formData.append("contractRevenueAmount", "1000000");
+    formData.append("laborCostBudgetAmount", "600000");
+
+    await (newProjectAction as unknown as RouteActionHandler)({
+      request: buildRequest(formData, adminCookie),
+      params: {},
+      context: buildContext(),
+    });
+
+    const adminProjects = await (projectsLoader as unknown as RouteLoaderHandler)({
+      request: new Request("http://localhost/projects", { headers: { Cookie: adminCookie } }),
+      context: buildContext(),
+    });
+    const project = (adminProjects as { projects: { contractRevenueAmount: number; id: string; laborCostBudgetAmount: number }[] }).projects[0];
+    expect(project.contractRevenueAmount).toBe(1_000_000);
+    expect(project.laborCostBudgetAmount).toBe(600_000);
+
+    const memberCookie = await setupAndLogin(dataDir, "password123", "member");
+    const selfAssignForm = new FormData();
+    selfAssignForm.append("projectId", project.id);
+    await (selfAssignAction as unknown as RouteActionHandler)({
+      request: buildRequest(selfAssignForm, memberCookie),
+      params: {},
+      context: buildContext(),
+    });
+
+    const memberProjects = await (projectsLoader as unknown as RouteLoaderHandler)({
+      request: new Request("http://localhost/projects", { headers: { Cookie: memberCookie } }),
+      context: buildContext(),
+    });
+    const memberProject = (memberProjects as { projects: Record<string, unknown>[] }).projects[0];
+    expect(memberProject).not.toHaveProperty("contractRevenueAmount");
+    expect(memberProject).not.toHaveProperty("laborCostBudgetAmount");
+    expect(memberProject).not.toHaveProperty("revenueOrBudgetAmount");
+  });
+
+  test("member cannot open project creation form with financial inputs", async () => {
+    const memberCookie = await setupAndLogin(dataDir, "password123", "member");
+
+    await expect(
+      (newProjectLoader as unknown as RouteLoaderHandler)({
+        request: new Request("http://localhost/projects/new", { headers: { Cookie: memberCookie } }),
+        context: buildContext(),
+      }),
+    ).rejects.toMatchObject({ status: 403 });
   });
 
   test("admin creates a task under a project", async () => {
@@ -221,6 +278,9 @@ describe("projects, tasks, assignments, and plans routes", () => {
 
   test("admin creates monthly project plan without capacity", async () => {
     const cookie = await setupAndLogin(dataDir, "password123");
+    const connection = createDatabaseConnection(resolveDatabaseConfig().databaseUrl);
+    connection.db.update(members).set({ hourlyCostRate: 5_000 }).where(eq(members.email, "admin@example.com")).run();
+    connection.sqlite.close();
     await createProject(cookie, "PRJ-001", "Website", "internal");
 
     const listResponse = await (projectsLoader as unknown as RouteLoaderHandler)({
@@ -250,6 +310,12 @@ describe("projects, tasks, assignments, and plans routes", () => {
     });
     expect((monthlyPlansResponse as { capacityHours: number | null }).capacityHours).toBeNull();
     expect((monthlyPlansResponse as { totalPlanned: number }).totalPlanned).toBe(24);
+
+    const adminResponse = await (monthlyPlansAdminLoader as unknown as RouteLoaderHandler)({
+      request: new Request("http://localhost/monthly-plans/admin?month=2026-07", { headers: { Cookie: cookie } }),
+      context: buildContext(),
+    });
+    expect((adminResponse as { planRows: { hourlyCostRateSnapshot: number | null }[] }).planRows[0].hourlyCostRateSnapshot).toBe(5_000);
   });
 
   test("monthly planning loaders use selected target month", async () => {

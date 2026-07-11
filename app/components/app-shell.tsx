@@ -2,6 +2,7 @@ import type { ReactNode } from "react";
 import type { LucideIcon } from "lucide-react";
 import {
   BarChart3,
+  Banknote,
   CalendarClock,
   ChartNoAxesCombined,
   ClipboardList,
@@ -84,6 +85,7 @@ const administratorNavigation: NavigationSection[] = [
     items: [
       { href: "/reports/planned-vs-actual", icon: BarChart3, label: "予定工数対実績工数" },
       { href: "/reports", icon: ChartNoAxesCombined, label: "工数実績レポート" },
+      { href: "/reports/project-financials", icon: Banknote, label: "案件財務レビュー" },
     ],
   },
   {

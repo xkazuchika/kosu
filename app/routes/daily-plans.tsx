@@ -7,10 +7,10 @@ import { Card, CardContent, CardHeader, CardTitle } from "~/components/ui/card";
 import { Input } from "~/components/ui/form";
 import { createDatabaseConnection } from "~/db/client";
 import { listDailyAllocationPlansByMemberAndMonth } from "~/db/repositories/daily-allocation-plans";
-import { listMembers, findMemberById } from "~/db/repositories/members";
+import { listMembers, findMemberById, withoutMemberFinancials } from "~/db/repositories/members";
 import { listMonthlyPlansByMemberAndMonth } from "~/db/repositories/monthly-plans";
 import { listActiveAssignmentsByMember } from "~/db/repositories/project-assignments";
-import { findProjectById } from "~/db/repositories/projects";
+import { findProjectById, withoutProjectFinancials } from "~/db/repositories/projects";
 import { getWeekdayLabel, isSaturdayDate, isSundayDate, isValidMonth, isWeekendDate, listMonthDates } from "~/lib/time";
 import { DailyAllocationPlanError, copyDailyAllocationPlansToActuals, saveDailyAllocationPlans } from "~/services/daily-allocation-plans";
 import { getSessionMember } from "~/services/auth";
@@ -38,9 +38,10 @@ export const loader = async ({ request }: { request: Request }) => {
       throw new Response("Not found", { status: 404 });
     }
 
-    const assignedProjects = listActiveAssignmentsByMember(db, targetMemberId)
+    const assignedProjectRecords = listActiveAssignmentsByMember(db, targetMemberId)
       .map((assignment) => findProjectById(db, assignment.projectId))
       .filter((project): project is NonNullable<typeof project> => project !== undefined && !project.isArchived);
+    const assignedProjects = isAdmin ? assignedProjectRecords : assignedProjectRecords.map(withoutProjectFinancials);
     const monthlyPlans = listMonthlyPlansByMemberAndMonth(db, targetMemberId, month);
     const dailyPlans = listDailyAllocationPlansByMemberAndMonth(db, targetMemberId, month);
     const requestedProjectIds = url.searchParams.getAll("projectId");
@@ -78,11 +79,11 @@ export const loader = async ({ request }: { request: Request }) => {
       difference: dailyTotal - monthlyTotal,
       isAdmin,
       isLocked: isMonthLocked(db, month),
-      members: isAdmin ? listMembers(db) : [],
+      members: isAdmin ? listMembers(db).map(withoutMemberFinancials) : [],
       month,
       monthlyTotal,
       rows,
-      targetMember,
+      targetMember: withoutMemberFinancials(targetMember),
     };
   } finally {
     sqlite.close();

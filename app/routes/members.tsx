@@ -3,7 +3,7 @@ import type { Route } from "./+types/members";
 
 import { DataTable } from "~/components/ui/table";
 import { createDatabaseConnection } from "~/db/client";
-import { listMembers } from "~/db/repositories/members";
+import { listMembers, withoutMemberPasswordHash } from "~/db/repositories/members";
 import { requireAdministrator } from "~/services/auth";
 
 export const loader = async ({ request }: { request: Request }) => {
@@ -11,7 +11,7 @@ export const loader = async ({ request }: { request: Request }) => {
 
   try {
     requireAdministrator(db, request);
-    const members = listMembers(db);
+    const members = listMembers(db).map(withoutMemberPasswordHash);
     return { members };
   } finally {
     sqlite.close();

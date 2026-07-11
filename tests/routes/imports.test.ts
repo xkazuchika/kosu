@@ -10,6 +10,7 @@ import { createDatabaseConnection } from "../../app/db/client";
 import { resolveDatabaseConfig } from "../../app/db/config";
 import { listImportJobs } from "../../app/db/repositories/import-jobs";
 import { findMemberByEmail } from "../../app/db/repositories/members";
+import { projects } from "../../app/db/schema";
 import { verifyPassword } from "../../app/lib/password";
 import { action as importsAction, loader as importsLoader } from "../../app/routes/imports";
 import { buildContext, setupAndLogin, type RouteActionHandler, type RouteLoaderHandler } from "./helpers";
@@ -216,6 +217,49 @@ describe("imports", () => {
       invalidRows: 0,
     });
     connection.sqlite.close();
+  });
+
+  test("project import keeps legacy amount separate from financial baseline", async () => {
+    const cookie = await setupAndLogin(dataDir, "password123");
+    const csv = "code,name,projectType,clientName,revenueOrBudgetAmount,contractRevenueAmount,laborCostBudgetAmount\nPRJ-001,Website,billable,,100000,1200000,600000\n";
+    const file = new File([csv], "projects.csv", { type: "text/csv" });
+    const formData = new FormData();
+    formData.append("intent", "commit");
+    formData.append("type", "projects");
+    formData.append("file", file);
+
+    await (importsAction as unknown as RouteActionHandler)({
+      request: buildMultipartRequest(formData, cookie),
+      params: {},
+      context: buildContext(),
+    });
+
+    const connection = createDatabaseConnection(resolveDatabaseConfig().databaseUrl);
+    const project = connection.db.select().from(projects).get()!;
+    expect(project.revenueOrBudgetAmount).toBe(100_000);
+    expect(project.contractRevenueAmount).toBe(1_200_000);
+    expect(project.laborCostBudgetAmount).toBe(600_000);
+    connection.sqlite.close();
+
+    const updateCsv = "code,name,projectType,clientName,revenueOrBudgetAmount,contractRevenueAmount,laborCostBudgetAmount\nPRJ-001,Website,billable,,,1300000,650000\n";
+    const updateFile = new File([updateCsv], "projects-update.csv", { type: "text/csv" });
+    const updateFormData = new FormData();
+    updateFormData.append("intent", "commit");
+    updateFormData.append("type", "projects");
+    updateFormData.append("file", updateFile);
+
+    await (importsAction as unknown as RouteActionHandler)({
+      request: buildMultipartRequest(updateFormData, cookie),
+      params: {},
+      context: buildContext(),
+    });
+
+    const updatedConnection = createDatabaseConnection(resolveDatabaseConfig().databaseUrl);
+    const updatedProject = updatedConnection.db.select().from(projects).get()!;
+    expect(updatedProject.revenueOrBudgetAmount).toBe(100_000);
+    expect(updatedProject.contractRevenueAmount).toBe(1_300_000);
+    expect(updatedProject.laborCostBudgetAmount).toBe(650_000);
+    updatedConnection.sqlite.close();
   });
 
   test("admin exports master data csv", async () => {

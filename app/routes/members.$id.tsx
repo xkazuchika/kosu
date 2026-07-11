@@ -5,7 +5,7 @@ import { Button } from "~/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "~/components/ui/card";
 import { Field, Input } from "~/components/ui/form";
 import { createDatabaseConnection } from "~/db/client";
-import { activateMember, deactivateMember, findMemberById, updateMember } from "~/db/repositories/members";
+import { activateMember, deactivateMember, findMemberById, updateMember, withoutMemberPasswordHash } from "~/db/repositories/members";
 import { requireAdministrator } from "~/services/auth";
 import { hashPassword } from "~/lib/password";
 
@@ -20,7 +20,7 @@ export const loader = async ({ request, params }: { request: Request; params: { 
       throw new Response("Not found", { status: 404 });
     }
 
-    return { member };
+    return { member: withoutMemberPasswordHash(member) };
   } finally {
     sqlite.close();
   }
