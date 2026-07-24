@@ -72,7 +72,10 @@ npm run test
 npm run typecheck
 npm run lint
 npm run build
+npm run test:e2e
 ```
+
+`npm run test:e2e` は、隔離された一時SQLiteデータベースで初期セットアップ、ログイン、主要レポートへの到達をChromiumで確認します。Pull RequestではGitHub Actionsが単体テスト、型、Lint、build、browser smokeを自動実行します。
 
 Drizzle マイグレーション用コマンド:
 
@@ -103,6 +106,8 @@ KOSU_DATA_DIR=/var/lib/kosu npm run db:migrate
 - 工数実績レポート
 - 予定工数対実績工数
 - 案件財務レビュー（管理者のみ）
+
+サポート対象のレポートは上記3系統です。月次キャパシティ比較は予定工数対実績工数に含まれます。本格的なリソース計画は現在の公開範囲に含みません。
 
 ## 案件別の直接人件費管理
 
@@ -205,6 +210,7 @@ npm run db:seed:demo
 - 本番投入前に、環境変数、永続化ボリューム、バックアップ、HTTPS 終端、Cookie 設定を確認してください。
 - `KOSU_SESSION_SECRET` は本番環境で必須です（32文字以上）。
 - 公開前の確認項目は `docs/release-checklist.md` を参照してください。
+- 「今日」「今月」の既定値は、ワークスペース設定のタイムゾーンを基準にします。
 
 ## OpenSpec
 

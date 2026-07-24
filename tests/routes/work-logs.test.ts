@@ -13,6 +13,7 @@ import { createMember } from "../../app/db/repositories/members";
 import { archiveProject } from "../../app/db/repositories/projects";
 import { archiveTask, createTask } from "../../app/db/repositories/tasks";
 import { members } from "../../app/db/schema";
+import { getCalendarMonth } from "../../app/lib/time";
 import { action as periodLocksAction } from "../../app/routes/period-locks";
 import { action as projectAssignmentsAction, loader as projectAssignmentsLoader } from "../../app/routes/projects.$id.assignments";
 import { action as newProjectAction } from "../../app/routes/projects.new";
@@ -299,7 +300,7 @@ describe("daily work logs and allocations", () => {
       context: buildContext(),
     });
 
-    expect((listResponse as { month: string }).month).toBe(new Date().toISOString().slice(0, 7));
+    expect((listResponse as { month: string }).month).toBe(getCalendarMonth(new Date(), "Asia/Tokyo"));
   });
 
   test("work log list redirects date query to daily entry", async () => {

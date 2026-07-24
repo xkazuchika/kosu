@@ -48,6 +48,10 @@ The system SHALL link dashboard summaries to the related operational pages.
 - **WHEN** a member selects today's input status
 - **THEN** the system opens that member's daily work-log entry page for today
 
+#### Scenario: Member follows current-month allocation warning
+- **WHEN** a member selects the current-month incomplete allocation summary or warning
+- **THEN** the system opens that member's work-log list filtered to the current month and unbalanced entries
+
 ### Requirement: Dashboard next-action guidance
 The system SHALL present the dashboard as a role-aware starting point that highlights what the user should do next.
 

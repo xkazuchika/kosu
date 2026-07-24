@@ -4,6 +4,7 @@ import { createMember, findActiveMemberByEmail, findMemberById } from "~/db/repo
 import { createSession, deleteSession, findSessionById } from "~/db/repositories/sessions";
 import { findWorkspace, createWorkspace } from "~/db/repositories/workspace";
 import { hashPassword, verifyPassword } from "~/lib/password";
+import { normalizeTimeZone } from "~/lib/time";
 
 import { clearSessionCookie, getSessionCookie, setSessionCookie } from "./session";
 
@@ -25,6 +26,12 @@ export function isSetupComplete(db: KosuDatabase) {
 }
 
 export async function setupWorkspace(db: KosuDatabase, input: SetupInput) {
+  const defaultTimezone = normalizeTimeZone(input.defaultTimezone);
+
+  if (!defaultTimezone) {
+    throw new Error("Invalid workspace timezone");
+  }
+
   const passwordHash = await hashPassword(input.administratorPassword);
 
   try {
@@ -37,7 +44,7 @@ export async function setupWorkspace(db: KosuDatabase, input: SetupInput) {
 
       const workspace = createWorkspace(transactionDb, {
         displayName: input.workspaceName,
-        defaultTimezone: input.defaultTimezone,
+        defaultTimezone,
       });
 
       const administrator = createMember(transactionDb, {

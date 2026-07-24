@@ -9,7 +9,9 @@ import { listPlannedVsActualByMonth } from "~/db/repositories/effort-allocations
 import { findCapacityByMemberAndMonth } from "~/db/repositories/member-monthly-capacities";
 import { findMemberById, listMembers } from "~/db/repositories/members";
 import { findProjectById } from "~/db/repositories/projects";
+import { isValidMonth } from "~/lib/time";
 import { getSessionMember } from "~/services/auth";
+import { getWorkspaceCalendarContext } from "~/services/workspace-calendar";
 
 export const loader = async ({ request }: { request: Request }) => {
   const { db, sqlite } = createDatabaseConnection();
@@ -22,7 +24,9 @@ export const loader = async ({ request }: { request: Request }) => {
     }
 
     const url = new URL(request.url);
-    const month = url.searchParams.get("month") ?? new Date().toISOString().slice(0, 7);
+    const { currentMonth } = getWorkspaceCalendarContext(db);
+    const requestedMonth = url.searchParams.get("month");
+    const month = requestedMonth && isValidMonth(requestedMonth) ? requestedMonth : currentMonth;
 
     const { allocations, plans } = listPlannedVsActualByMonth(db, month);
     const visibleMembers = listMembers(db).filter((item) => member.role === "admin" || item.id === member.id);

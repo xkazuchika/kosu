@@ -28,7 +28,6 @@ export default [
     route("reports", "routes/reports.tsx"),
     route("reports/planned-vs-actual", "routes/reports.planned-vs-actual.tsx"),
     route("reports/project-financials", "routes/reports.project-financials.tsx"),
-    route("reports/resource-planning", "routes/reports.resource-planning.tsx"),
     route("imports", "routes/imports.tsx"),
   ]),
 ] satisfies RouteConfig;

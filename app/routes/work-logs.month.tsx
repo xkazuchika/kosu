@@ -15,6 +15,7 @@ import { findMemberById, listMembers, withoutMemberFinancials } from "~/db/repos
 import { getWeekdayLabel, isSaturdayDate, isSundayDate, isValidMonth, isValidQuarterHour, isWeekendDate, listMonthDates } from "~/lib/time";
 import { getSessionMember } from "~/services/auth";
 import { isMonthLocked } from "~/services/period-lock";
+import { getWorkspaceCalendarContext } from "~/services/workspace-calendar";
 
 export const loader = async ({ request }: { request: Request }) => {
   const { db, sqlite } = createDatabaseConnection();
@@ -27,8 +28,9 @@ export const loader = async ({ request }: { request: Request }) => {
     }
 
     const url = new URL(request.url);
-    const requestedMonth = url.searchParams.get("month") ?? new Date().toISOString().slice(0, 7);
-    const month = isValidMonth(requestedMonth) ? requestedMonth : new Date().toISOString().slice(0, 7);
+    const { currentMonth } = getWorkspaceCalendarContext(db);
+    const requestedMonth = url.searchParams.get("month");
+    const month = requestedMonth && isValidMonth(requestedMonth) ? requestedMonth : currentMonth;
     const requestedMemberId = url.searchParams.get("memberId");
     const isAdmin = currentMember.role === "admin";
     const targetMemberId = isAdmin && requestedMemberId ? requestedMemberId : currentMember.id;
@@ -89,8 +91,9 @@ export const action = async ({ request }: { request: Request }) => {
     }
 
     const url = new URL(request.url);
-    const requestedMonth = url.searchParams.get("month") ?? new Date().toISOString().slice(0, 7);
-    const month = isValidMonth(requestedMonth) ? requestedMonth : new Date().toISOString().slice(0, 7);
+    const { currentMonth } = getWorkspaceCalendarContext(db);
+    const requestedMonth = url.searchParams.get("month");
+    const month = requestedMonth && isValidMonth(requestedMonth) ? requestedMonth : currentMonth;
     const requestedMemberId = url.searchParams.get("memberId");
     const isAdmin = currentMember.role === "admin";
     const targetMemberId = isAdmin && requestedMemberId ? requestedMemberId : currentMember.id;

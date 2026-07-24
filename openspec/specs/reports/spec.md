@@ -1,6 +1,6 @@
 ## Purpose
 
-Define reporting behavior for effort review, planned-versus-actual comparison, and future profitability boundaries.
+Define reporting behavior for effort review, planned-versus-actual comparison, and administrator-only project financial review.
 
 ## Requirements
 
@@ -93,14 +93,18 @@ The system SHALL keep the existing planned-versus-actual report based on monthly
 - **THEN** the system shows that comparison in the daily allocation planning workflow rather than changing the existing planned-versus-actual report semantics
 
 ### Requirement: Profitability reporting roadmap boundary
-The system SHALL treat planned cost, actual cost, revenue or budget, gross profit, and variance reporting as future target capabilities for administrator-only project/month reporting.
+The system SHALL provide administrator-only project financial review that compares contract revenue and labor cost budget with planned and actual direct-labor cost, while preserving the existing planned-versus-actual effort report as a non-financial report.
 
-#### Scenario: Profitability reporting is proposed after v0.3
-- **WHEN** profitability reporting is added to a future change
-- **THEN** the system specifies project/month reports that compare revenue or budget with planned and actual labor cost
+#### Scenario: Administrator views project financial review
+- **WHEN** an administrator opens project financial review for a selected month
+- **THEN** the system displays project/month planned and actual labor cost together with project-level contract revenue, labor cost budget, cumulative actual labor cost, and applicable labor-margin metrics
 
-#### Scenario: Profitability reporting avoids accounting scope
-- **WHEN** profitability reporting is designed
+#### Scenario: Existing planned-versus-actual remains non-financial
+- **WHEN** a user opens the existing planned-versus-actual effort report
+- **THEN** the system does not display revenue, budget, cost, gross profit, or profitability values
+
+#### Scenario: Project financial review avoids accounting scope
+- **WHEN** an administrator uses project financial review
 - **THEN** the system keeps the scope to project tracking visibility and does not add invoicing, accounting ledger, payment collection, or tax calculation features
 
 ## Future Scope (v0.3+)
@@ -111,5 +115,4 @@ The following reporting capabilities are intentionally outside the v0.2 public s
 - Task-level filter UI beyond displaying task names in report rows.
 - Assignment-role-based reporting and filtering.
 - Full resource planning reports with department, member, role, and project filters.
-- Financial reporting implementation, including planned cost, actual cost, project revenue or budget amount, gross profit, and related CSV columns.
 - Allocation completeness reports as a dedicated report surface.

@@ -15,6 +15,7 @@ import { findPeriodLockByMonth } from "~/db/repositories/period-locks";
 import { listActiveAssignmentsByMember } from "~/db/repositories/project-assignments";
 import { findProjectById, listActiveProjects } from "~/db/repositories/projects";
 import { getSessionMember } from "~/services/auth";
+import { getWorkspaceCalendarContext } from "~/services/workspace-calendar";
 
 type DashboardLoaderData = {
   isAdmin: boolean;
@@ -57,8 +58,7 @@ export const loader = async ({ request }: { request: Request }): Promise<Dashboa
       throw new Response("Unauthorized", { status: 401 });
     }
 
-    const today = new Date().toISOString().slice(0, 10);
-    const currentMonth = today.slice(0, 7);
+    const { today, currentMonth } = getWorkspaceCalendarContext(db);
     const isAdmin = member.role === "admin";
 
     const todayLog = findDailyWorkLogByMemberAndDate(db, member.id, today);

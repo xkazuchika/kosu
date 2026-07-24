@@ -13,6 +13,7 @@ import { findProjectById } from "~/db/repositories/projects";
 import { isValidMonth } from "~/lib/time";
 import { getSessionMember } from "~/services/auth";
 import { isMonthLocked } from "~/services/period-lock";
+import { getWorkspaceCalendarContext } from "~/services/workspace-calendar";
 
 export const loader = async ({ request }: { request: Request }) => {
   const { db, sqlite } = createDatabaseConnection();
@@ -25,8 +26,10 @@ export const loader = async ({ request }: { request: Request }) => {
     }
 
     const url = new URL(request.url);
-    const requestedMonth = url.searchParams.get("month") ?? new Date().toISOString().slice(0, 7);
-    const currentMonth = isValidMonth(requestedMonth) ? requestedMonth : new Date().toISOString().slice(0, 7);
+    const workspaceCalendar = getWorkspaceCalendarContext(db);
+    const requestedMonth = url.searchParams.get("month");
+    const currentMonth =
+      requestedMonth && isValidMonth(requestedMonth) ? requestedMonth : workspaceCalendar.currentMonth;
     const capacity = findCapacityByMemberAndMonth(db, member.id, currentMonth);
     const plans = listMonthlyPlansByMemberAndMonth(db, member.id, currentMonth).map((plan) => ({
       ...plan,

@@ -7,7 +7,9 @@ import { createDatabaseConnection } from "~/db/client";
 import { listDailyWorkLogsByMemberAndMonth } from "~/db/repositories/daily-work-logs";
 import { listAllocationsByWorkLog } from "~/db/repositories/effort-allocations";
 import { findMemberById, listMembers, withoutMemberFinancials } from "~/db/repositories/members";
+import { isValidMonth } from "~/lib/time";
 import { getSessionMember } from "~/services/auth";
+import { getWorkspaceCalendarContext } from "~/services/workspace-calendar";
 
 export const loader = async ({ request }: { request: Request }) => {
   const { db, sqlite } = createDatabaseConnection();
@@ -28,10 +30,9 @@ export const loader = async ({ request }: { request: Request }) => {
       throw new Response("Not found", { status: 404 });
     }
 
-    const today = new Date().toISOString().slice(0, 10);
-    const currentMonth = today.slice(0, 7);
+    const { today, currentMonth } = getWorkspaceCalendarContext(db);
     const requestedMonth = url.searchParams.get("month");
-    const month = requestedMonth && /^\d{4}-(0[1-9]|1[0-2])$/.test(requestedMonth) ? requestedMonth : currentMonth;
+    const month = requestedMonth && isValidMonth(requestedMonth) ? requestedMonth : currentMonth;
     const status = url.searchParams.get("status") === "unbalanced" ? "unbalanced" : "all";
     const date = url.searchParams.get("date");
 

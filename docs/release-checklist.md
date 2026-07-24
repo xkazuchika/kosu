@@ -1,50 +1,63 @@
-# Kosu v0.1 Release Checklist
+# Release Checklist
 
-Use this checklist before publishing a v0.1 release.
+Use this checklist for each release candidate. Record the version and commit, and mark an item complete only after running it against that candidate.
 
-## Required Verification
+## Candidate
 
-- [x] Run `npm run typecheck`. Verified on 2026-07-06.
-- [x] Run `npm run lint`. Verified on 2026-07-06.
-- [x] Run `npm run test`. Verified on 2026-07-06: 32 files / 115 tests passed.
-- [x] Run `npm run build`. Verified on 2026-07-06.
-- [x] Run Docker build/start in an environment with Docker available. Verified on 2026-07-06 with Colima and `docker-compose up --build -d`.
-- [x] Confirm the Docker container serves the setup or login screen. Verified on 2026-07-06 with `GET /setup` returning `200 OK`.
-- [x] Confirm the Docker volume preserves SQLite data after container restart. Verified on 2026-07-06 by completing setup, restarting the container, and confirming `/setup` redirects to `/login`.
+- Version:
+- Commit:
+- Verification date:
+- Verifier:
 
-## Documentation Checks
+## Automated Quality Gates
 
-- [x] Confirm `README.md` describes v0.1 as a lightweight self-hosted effort management tool.
-- [x] Confirm `README.md` does not present financial reporting, gross profit reporting, full resource planning, or complete planned-vs-actual reporting as v0.1 features.
-- [x] Confirm the SQLite single-instance self-host limitation is clearly documented.
-- [x] Confirm high concurrency, multi-instance, and multi-tenant SaaS use cases are documented as out of scope for v0.1.
-- [x] Confirm Docker instructions do not claim verification unless a Docker smoke test has been run.
+- [ ] `npm ci` succeeds from the committed lockfile on Node.js 22.22 or newer.
+- [ ] `npm test` passes.
+- [ ] `npm run typecheck` passes.
+- [ ] `npm run lint` passes.
+- [ ] `npm run build` passes.
+- [ ] `npm run test:e2e` discovers and passes the Playwright browser smoke.
+- [ ] The GitHub Actions quality and browser-smoke jobs pass for the candidate commit.
 
-## OpenSpec Scope Checks
+## Database And Container Smoke
 
-- [x] Confirm v0.1 specs keep basic effort reports and CSV export in scope.
-- [x] Confirm financial reporting is listed as v0.2+ or future scope.
-- [x] Confirm full resource planning is listed as v0.2+ or future scope.
-- [x] Confirm full planned-versus-actual reporting is listed as v0.2+ or future scope.
+- [ ] `npm run db:migrate` succeeds against a fresh SQLite data directory.
+- [ ] Existing data upgrades without unexpected loss; review the migrations included since the previous release.
+- [ ] `docker compose up --build -d` starts with a unique 32+ character `KOSU_SESSION_SECRET`.
+- [ ] The container serves the setup screen for fresh data or the login screen for initialized data.
+- [ ] Setup/login and dashboard access work through the container.
+- [ ] Restarting the container with the same volume preserves workspace and login state.
+- [ ] Backup and restore guidance has been reviewed against the current data layout.
 
-## Known Issues To Review
+## Security And Dependency Review
 
-- [x] Review `npm audit --audit-level=moderate` output. Current known moderate advisories are from the dev/build toolchain path through `drizzle-kit` and `esbuild`; avoid forced breaking updates unless validated.
-- [x] Review npm install allow-scripts warnings for native/build dependencies such as `better-sqlite3` and `esbuild`.
-- [x] Decide whether to pin or update dependencies before tagging v0.1. Decision: do not force-update for v0.1; keep the lockfile and revisit when `drizzle-kit` removes the vulnerable transitive `@esbuild-kit/*` path or a non-breaking update is available.
-- [x] Confirm no screenshots or placeholder image paths in README point to missing files.
+- [ ] `npm audit --omit=dev` has been reviewed for production dependency vulnerabilities.
+- [ ] Full `npm audit` findings have been reviewed separately for development-toolchain exposure.
+- [ ] No forced incompatible audit fix or dependency downgrade has been applied without migration testing.
+- [ ] Production startup fails clearly when `KOSU_SESSION_SECRET` is missing or shorter than 32 characters.
 
-## Release Decision
+## Scope, Documentation, And Rollback
 
-- [x] Confirm no v0.1 page promises ERP, payroll, invoicing, expense management, complex approvals, Gantt charts, ticket management, auto timers, or full profitability management.
-- [x] Confirm admin/member two-role authorization is acceptable for v0.1.
-- [x] Confirm remaining report preview routes are clearly marked as v0.2+ preview or are hidden from primary navigation.
+- [ ] README, user guide, OpenSpec main specs, and application version describe the same supported scope.
+- [ ] Supported reports are limited to effort, planned-versus-actual, and administrator-only project financial review.
+- [ ] Full resource planning, accounting, invoicing, payroll, expenses, procurement, and multi-instance operation remain clearly out of scope.
+- [ ] Rollback preserves the SQLite volume and does not require reversing a destructive migration.
+- [ ] Release notes identify new migrations, configuration changes, accepted risks, and rollback limits.
 
-## Latest Verification Notes
+## Current Dependency Review
 
-- 2026-07-06: `npm run typecheck`, `npm run lint`, `npm run test`, and `npm run build` passed.
-- 2026-07-06: Docker build/start smoke test passed with Colima using `docker-compose up --build -d`; `GET /setup` returned `200 OK`.
-- 2026-07-06: Docker volume persistence smoke test passed. After setup, container restart preserved workspace state and `GET /setup` returned a `302` redirect to `/login`.
-- 2026-07-06: `npm audit --json`, `npm outdated`, and `npm ls drizzle-kit @esbuild-kit/esm-loader @esbuild-kit/core-utils esbuild` were reviewed.
-- 2026-07-06: `npm audit --audit-level=moderate` still reports 4 moderate advisories through `drizzle-kit@0.31.10` -> `@esbuild-kit/*` -> `esbuild@0.18.20`. Runtime `vite` and `tsx` use newer `esbuild@0.28.1`; `drizzle-kit` also has `esbuild@0.25.12`, but its deprecated transitive loader path remains vulnerable.
-- 2026-07-06: `npm audit fix --force` would install `drizzle-kit@0.18.1` and introduce a breaking downgrade path, so it was not applied. v0.1 accepts this as a dev/build-toolchain advisory and tracks it for follow-up.
+- 2026-07-24: `npm audit --omit=dev --json` reported 0 production vulnerabilities.
+- 2026-07-24: Full `npm audit --json` reported 4 moderate development-toolchain advisories through `drizzle-kit@0.31.10` → `@esbuild-kit/*` → `esbuild@0.18.20`.
+- npm currently proposes `drizzle-kit@0.18.1` as the automatic fix, which is an incompatible downgrade. Do not apply `npm audit fix --force`; revisit when a compatible dependency path removes the deprecated loader.
+
+## Verification Record
+
+### 2026-07-24 — v0.6 stabilization working tree
+
+- Candidate state: uncommitted local working tree; no release candidate commit has been pushed.
+- `npm test` passed 38 files and 166 tests; typecheck, ESLint, and the production build passed.
+- Playwright discovered and passed 1 Chromium smoke covering setup, logout/login, dashboard access, the supported planned-versus-actual report, browser console health, and the removed preview URL.
+- Strict OpenSpec validation passed all 13 current specs and changes.
+- A clean Compose build completed `npm ci`, the production build, and SQLite migrations. Setup redirected to the dashboard, and `/setup` continued redirecting to `/login` after a container restart with the same volume.
+- The disposable validation container, network, and volume were removed after the persistence check.
+- GitHub Actions has not run for this working tree. Keep the candidate checklist unchecked until a commit is pushed and the remote jobs pass.

@@ -133,6 +133,28 @@ describe("admin routes authorization", () => {
     expect((response as Response).headers.get("Location")).toBe("/settings");
   });
 
+  test("settings action rejects an invalid timezone without updating workspace", async () => {
+    const cookie = await setupAndLogin("password123");
+    const formData = new FormData();
+    formData.append("displayName", "Acme Updated");
+    formData.append("defaultTimezone", "Not/A_Timezone");
+
+    const response = await (settingsAction as unknown as RouteActionHandler)({
+      request: buildRequest(formData, cookie),
+      params: {},
+      context: buildContext(),
+    });
+
+    expect(response).toEqual({ error: "有効なタイムゾーンを入力してください（例: Asia/Tokyo）。" });
+
+    const loaded = await (settingsLoader as unknown as RouteLoaderHandler)({
+      request: new Request("http://localhost/", { headers: { Cookie: cookie } }),
+      params: {},
+      context: buildContext(),
+    });
+    expect((loaded as { workspace: { defaultTimezone: string } }).workspace.defaultTimezone).toBe("Asia/Tokyo");
+  });
+
   test("members loader allows admin", async () => {
     const cookie = await setupAndLogin("password123");
     const response = await (membersLoader as unknown as RouteLoaderHandler)({

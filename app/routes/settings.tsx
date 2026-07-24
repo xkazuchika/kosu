@@ -6,7 +6,9 @@ import { Card, CardContent, CardHeader, CardTitle } from "~/components/ui/card";
 import { Field, Input } from "~/components/ui/form";
 import { createDatabaseConnection } from "~/db/client";
 import { updateWorkspace, findWorkspace } from "~/db/repositories/workspace";
+import { normalizeTimeZone } from "~/lib/time";
 import { requireAdministrator } from "~/services/auth";
+import { getWorkspaceCalendarContext } from "~/services/workspace-calendar";
 
 export const loader = async ({ request }: { request: Request }) => {
   const { db, sqlite } = createDatabaseConnection();
@@ -19,7 +21,9 @@ export const loader = async ({ request }: { request: Request }) => {
       return redirect("/setup");
     }
 
-    return { workspace };
+    const calendar = getWorkspaceCalendarContext(db);
+
+    return { workspace, timezoneWarning: calendar.timezoneWarning };
   } finally {
     sqlite.close();
   }
@@ -34,9 +38,14 @@ export const action = async ({ request }: Route.ActionArgs) => {
     const formData = await request.formData();
     const displayName = String(formData.get("displayName") ?? "").trim();
     const defaultTimezone = String(formData.get("defaultTimezone") ?? "").trim();
+    const normalizedTimezone = normalizeTimeZone(defaultTimezone);
 
     if (!displayName || !defaultTimezone) {
       return { error: "ワークスペース名とタイムゾーンは必須です。" };
+    }
+
+    if (!normalizedTimezone) {
+      return { error: "有効なタイムゾーンを入力してください（例: Asia/Tokyo）。" };
     }
 
     const workspace = findWorkspace(db);
@@ -45,7 +54,7 @@ export const action = async ({ request }: Route.ActionArgs) => {
       return redirect("/setup");
     }
 
-    updateWorkspace(db, workspace.id, { displayName, defaultTimezone });
+    updateWorkspace(db, workspace.id, { displayName, defaultTimezone: normalizedTimezone });
 
     return redirect("/settings");
   } finally {
@@ -55,8 +64,8 @@ export const action = async ({ request }: Route.ActionArgs) => {
 
 export const meta: Route.MetaFunction = () => [{ title: "設定 | kosu" }];
 
-export default function Settings() {
-  const { workspace } = useLoaderData<typeof loader>();
+export default function Settings({ actionData }: Route.ComponentProps) {
+  const { workspace, timezoneWarning } = useLoaderData<typeof loader>();
 
   return (
     <div className="mx-auto max-w-2xl">
@@ -65,6 +74,16 @@ export default function Settings() {
           <CardTitle>ワークスペース設定</CardTitle>
         </CardHeader>
         <CardContent>
+          {timezoneWarning ? (
+            <p className="mb-4 rounded-lg bg-amber-50 p-3 text-sm text-amber-800" role="alert">
+              {timezoneWarning}
+            </p>
+          ) : null}
+          {actionData?.error ? (
+            <p className="mb-4 rounded-lg bg-red-50 p-3 text-sm text-red-700" role="alert">
+              {actionData.error}
+            </p>
+          ) : null}
           <Form method="post" className="space-y-4">
             <Field label="ワークスペース名">
               <Input name="displayName" defaultValue={workspace.displayName} required />

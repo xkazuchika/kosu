@@ -4,7 +4,7 @@ import { existsSync, mkdirSync, rmSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 
-import { beforeEach, describe, expect, test } from "vitest";
+import { beforeEach, describe, expect, test, vi } from "vitest";
 
 import { loader as dashboardLoader } from "../../app/routes/dashboard";
 import { buildContext, setupAndLogin, type RouteLoaderHandler } from "./helpers";
@@ -35,6 +35,26 @@ afterEach(() => {
 });
 
 describe("dashboard", () => {
+  test("uses the workspace timezone for today and current month", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-07-31T15:30:00.000Z"));
+
+    try {
+      const cookie = await setupAndLogin(dataDir, "password123");
+      const response = await (dashboardLoader as unknown as RouteLoaderHandler)({
+        request: new Request("http://localhost/dashboard", { headers: { Cookie: cookie } }),
+        context: buildContext(),
+      });
+
+      expect(response).toMatchObject({
+        today: "2026-08-01",
+        currentMonth: "2026-08",
+      });
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   test("admin dashboard shows monthly summary and assigned projects", async () => {
     const cookie = await setupAndLogin(dataDir, "password123");
 

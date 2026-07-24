@@ -5,6 +5,7 @@ import { Button } from "~/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "~/components/ui/card";
 import { Field, Input } from "~/components/ui/form";
 import { createDatabaseConnection } from "~/db/client";
+import { normalizeTimeZone } from "~/lib/time";
 import { setupWorkspace, isSetupComplete, createMemberSession } from "~/services/auth";
 import { setSessionCookie } from "~/services/session";
 
@@ -36,10 +37,10 @@ export const action = async ({ request }: Route.ActionArgs) => {
     const administratorName = String(formData.get("administratorName") ?? "").trim();
     const administratorEmail = String(formData.get("administratorEmail") ?? "").trim();
     const administratorPassword = String(formData.get("administratorPassword") ?? "");
+    const normalizedTimezone = normalizeTimeZone(defaultTimezone);
 
     if (
       !workspaceName ||
-      !defaultTimezone ||
       !administratorName ||
       !administratorEmail ||
       administratorPassword.length < 8
@@ -47,9 +48,13 @@ export const action = async ({ request }: Route.ActionArgs) => {
       return { error: "すべての必須項目を入力してください。パスワードは8文字以上です。" };
     }
 
+    if (!normalizedTimezone) {
+      return { error: "有効なタイムゾーンを入力してください（例: Asia/Tokyo）。" };
+    }
+
     const { administrator } = await setupWorkspace(db, {
       workspaceName,
-      defaultTimezone,
+      defaultTimezone: normalizedTimezone,
       administratorName,
       administratorEmail,
       administratorPassword,

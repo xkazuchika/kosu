@@ -28,6 +28,7 @@ import { findTaskById, listActiveTasksByProject } from "~/db/repositories/tasks"
 import { getSessionMember } from "~/services/auth";
 import { getWeekdayLabel, isSaturdayDate, isSundayDate, isValidQuarterHour } from "~/lib/time";
 import { isMonthLocked, requireUnlockedMonth } from "~/services/period-lock";
+import { getWorkspaceCalendarContext } from "~/services/workspace-calendar";
 
 export const loader = async ({ request, params }: { request: Request; params: { date: string } }) => {
   const { db, sqlite } = createDatabaseConnection();
@@ -42,6 +43,7 @@ export const loader = async ({ request, params }: { request: Request; params: { 
     }
 
     const isAdmin = currentMember.role === "admin";
+    const { today } = getWorkspaceCalendarContext(db);
     const targetMemberId = memberIdParam && isAdmin ? memberIdParam : currentMember.id;
     const targetMember = findMemberById(db, targetMemberId);
 
@@ -63,6 +65,7 @@ export const loader = async ({ request, params }: { request: Request; params: { 
 
     return {
       currentMemberId: currentMember.id,
+      today,
       workDate,
       month,
       workLog,
@@ -272,7 +275,7 @@ function validateAllocationTarget(db: KosuDatabase, memberId: string, projectId:
 export const meta: Route.MetaFunction = () => [{ title: "日別工数実績入力 | kosu" }];
 
 export default function WorkLogEntry({ actionData }: Route.ComponentProps) {
-  const { currentMemberId, workDate, month, workLog, allocations, assignedProjects, activeTasks, targetMember, isLocked } =
+  const { currentMemberId, today, workDate, month, workLog, allocations, assignedProjects, activeTasks, targetMember, isLocked } =
     useLoaderData<typeof loader>();
   const allocatedTotal = allocations.reduce((sum, a) => sum + a.allocatedHours, 0);
   const totalWorkingHours = workLog?.totalWorkingHours ?? 0;
@@ -280,7 +283,6 @@ export default function WorkLogEntry({ actionData }: Route.ComponentProps) {
   const remainingAllocationHours = variance > 0 ? variance : "";
   const previousDate = addDays(workDate, -1);
   const nextDate = addDays(workDate, 1);
-  const today = new Date().toISOString().slice(0, 10);
   const memberQuery = targetMember.id !== currentMemberId ? `?memberId=${targetMember.id}` : "";
   const weekday = getWeekdayLabel(workDate);
   const isSunday = isSundayDate(workDate);

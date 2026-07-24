@@ -7,7 +7,41 @@ export function formatHours(value: number) {
 }
 
 export function isValidMonth(value: string) {
-  return /^\d{4}-\d{2}$/.test(value);
+  return /^\d{4}-(0[1-9]|1[0-2])$/.test(value);
+}
+
+export function normalizeTimeZone(value: string) {
+  const timeZone = value.trim();
+
+  if (!timeZone) {
+    return null;
+  }
+
+  try {
+    return new Intl.DateTimeFormat("en-US", { timeZone }).resolvedOptions().timeZone;
+  } catch {
+    return null;
+  }
+}
+
+export function isValidTimeZone(value: string) {
+  return normalizeTimeZone(value) !== null;
+}
+
+export function getCalendarDate(referenceTime: Date, timeZone: string) {
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(referenceTime);
+  const values = new Map(parts.map((part) => [part.type, part.value]));
+
+  return `${values.get("year")}-${values.get("month")}-${values.get("day")}`;
+}
+
+export function getCalendarMonth(referenceTime: Date, timeZone: string) {
+  return getCalendarDate(referenceTime, timeZone).slice(0, 7);
 }
 
 export function listMonthDates(month: string) {

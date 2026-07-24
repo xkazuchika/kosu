@@ -1,6 +1,6 @@
 ## Purpose
 
-Define project, assignment, task, and future project-financial planning boundaries.
+Define project, assignment, task, and lightweight project-financial planning boundaries.
 
 ## Requirements
 
@@ -105,17 +105,12 @@ The system SHALL require each effort allocation to reference an active assigned 
 - **THEN** the system accepts the entry as project-level effort
 
 ### Requirement: Project financial planning roadmap boundary
-The system SHALL treat project/month revenue, cost budget, planned labor cost, actual labor cost, and gross-profit visibility as future target capabilities for software-development project tracking.
+The system SHALL support administrator-managed project contract revenue, labor cost budget, planned labor cost, actual labor cost, and direct-labor margin visibility for project tracking.
 
-#### Scenario: Project financial planning is proposed after v0.3
-- **WHEN** financial planning is added to a future change
-- **THEN** the system specifies project/month revenue or budget records before broader accounting or billing features
+#### Scenario: Administrator configures project financial baseline
+- **WHEN** an administrator creates or updates a project
+- **THEN** the system allows separate optional contract revenue and labor cost budget records before financial review
 
 #### Scenario: Project financial scope stays lightweight
-- **WHEN** project financial planning is designed
-- **THEN** the system excludes invoicing, receivables, expense reimbursement, payroll, and ERP workflow from the near-term scope
-
-## Future Scope (v0.3+)
-
-- Project revenue or budget implementation remains future scope.
-- Project profitability, cost, revenue, budget, and gross-profit reporting implementation remains future scope.
+- **WHEN** project financial planning is used
+- **THEN** the system excludes invoicing, receivables, expense reimbursement, payroll, tax calculation, procurement, subcontractor cost, and ERP workflow from the scope

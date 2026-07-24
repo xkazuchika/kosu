@@ -1,6 +1,18 @@
 import { test, expect } from "vitest";
 
-import { getWeekdayLabel, isSaturdayDate, isSundayDate, isValidQuarterHour, isWeekendDate, listMonthDates } from "../../app/lib/time";
+import {
+  getCalendarDate,
+  getCalendarMonth,
+  getWeekdayLabel,
+  isSaturdayDate,
+  isSundayDate,
+  isValidMonth,
+  isValidQuarterHour,
+  isValidTimeZone,
+  isWeekendDate,
+  listMonthDates,
+  normalizeTimeZone,
+} from "../../app/lib/time";
 
 test("isValidQuarterHour accepts 0.25 increments", () => {
   expect(isValidQuarterHour(0.25)).toBe(true);
@@ -23,6 +35,23 @@ test("listMonthDates returns UTC-safe month dates", () => {
   expect(dates).toHaveLength(31);
   expect(dates[0]).toBe("2026-07-01");
   expect(dates[30]).toBe("2026-07-31");
+});
+
+test("month and timezone validation rejects invalid calendar configuration", () => {
+  expect(isValidMonth("2026-07")).toBe(true);
+  expect(isValidMonth("2026-13")).toBe(false);
+  expect(isValidTimeZone("Asia/Tokyo")).toBe(true);
+  expect(isValidTimeZone("Not/A_Timezone")).toBe(false);
+  expect(normalizeTimeZone(" UTC ")).toBe("UTC");
+});
+
+test("workspace calendar follows timezone day and month boundaries", () => {
+  const referenceTime = new Date("2026-07-31T15:30:00.000Z");
+
+  expect(getCalendarDate(referenceTime, "UTC")).toBe("2026-07-31");
+  expect(getCalendarMonth(referenceTime, "UTC")).toBe("2026-07");
+  expect(getCalendarDate(referenceTime, "Asia/Tokyo")).toBe("2026-08-01");
+  expect(getCalendarMonth(referenceTime, "Asia/Tokyo")).toBe("2026-08");
 });
 
 test("weekday helpers label weekends", () => {

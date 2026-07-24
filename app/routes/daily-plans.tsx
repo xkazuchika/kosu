@@ -15,6 +15,7 @@ import { getWeekdayLabel, isSaturdayDate, isSundayDate, isValidMonth, isWeekendD
 import { DailyAllocationPlanError, copyDailyAllocationPlansToActuals, saveDailyAllocationPlans } from "~/services/daily-allocation-plans";
 import { getSessionMember } from "~/services/auth";
 import { isMonthLocked } from "~/services/period-lock";
+import { getWorkspaceCalendarContext } from "~/services/workspace-calendar";
 
 export const loader = async ({ request }: { request: Request }) => {
   const { db, sqlite } = createDatabaseConnection();
@@ -27,8 +28,9 @@ export const loader = async ({ request }: { request: Request }) => {
     }
 
     const url = new URL(request.url);
-    const requestedMonth = url.searchParams.get("month") ?? new Date().toISOString().slice(0, 7);
-    const month = isValidMonth(requestedMonth) ? requestedMonth : new Date().toISOString().slice(0, 7);
+    const { currentMonth } = getWorkspaceCalendarContext(db);
+    const requestedMonth = url.searchParams.get("month");
+    const month = requestedMonth && isValidMonth(requestedMonth) ? requestedMonth : currentMonth;
     const isAdmin = currentMember.role === "admin";
     const requestedMemberId = url.searchParams.get("memberId");
     const targetMemberId = isAdmin && requestedMemberId ? requestedMemberId : currentMember.id;
@@ -102,8 +104,9 @@ export const action = async ({ request }: Route.ActionArgs) => {
 
     const url = new URL(request.url);
     const formData = await request.formData();
-    const requestedMonth = String(formData.get("month") ?? url.searchParams.get("month") ?? new Date().toISOString().slice(0, 7));
-    const month = isValidMonth(requestedMonth) ? requestedMonth : new Date().toISOString().slice(0, 7);
+    const { currentMonth } = getWorkspaceCalendarContext(db);
+    const requestedMonth = String(formData.get("month") ?? url.searchParams.get("month") ?? "");
+    const month = isValidMonth(requestedMonth) ? requestedMonth : currentMonth;
     const isAdmin = currentMember.role === "admin";
     const requestedMemberId = String(formData.get("memberId") ?? url.searchParams.get("memberId") ?? "");
     const targetMemberId = isAdmin && requestedMemberId ? requestedMemberId : currentMember.id;

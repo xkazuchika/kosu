@@ -10,6 +10,7 @@ import { listProjects } from "~/db/repositories/projects";
 import { isValidMonth } from "~/lib/time";
 import { requireAdministrator } from "~/services/auth";
 import { listProjectFinancialReview, type ProjectFinancialReviewRow } from "~/services/project-financials";
+import { getWorkspaceCalendarContext } from "~/services/workspace-calendar";
 
 function formatYen(value: number) {
   return `${value.toLocaleString()}円`;
@@ -25,8 +26,9 @@ export const loader = async ({ request }: Route.LoaderArgs) => {
   try {
     requireAdministrator(db, request);
     const url = new URL(request.url);
-    const requestedMonth = url.searchParams.get("month") ?? new Date().toISOString().slice(0, 7);
-    const month = isValidMonth(requestedMonth) ? requestedMonth : new Date().toISOString().slice(0, 7);
+    const { currentMonth } = getWorkspaceCalendarContext(db);
+    const requestedMonth = url.searchParams.get("month");
+    const month = requestedMonth && isValidMonth(requestedMonth) ? requestedMonth : currentMonth;
     const requestedProjectId = url.searchParams.get("projectId") ?? "";
     const projects = listProjects(db);
     const projectId = projects.some((project) => project.id === requestedProjectId) ? requestedProjectId : "";
