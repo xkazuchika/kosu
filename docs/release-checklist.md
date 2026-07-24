@@ -17,7 +17,7 @@ Use this checklist for each release candidate. Record the version and commit, an
 - [ ] `npm run lint` passes.
 - [ ] `npm run build` passes.
 - [ ] `npm run test:e2e` discovers and passes the Playwright browser smoke.
-- [ ] The GitHub Actions quality and browser-smoke jobs pass for the candidate commit.
+- [x] The GitHub Actions quality and browser-smoke jobs pass for the candidate commit.
 
 ## Database And Container Smoke
 
@@ -54,10 +54,10 @@ Use this checklist for each release candidate. Record the version and commit, an
 
 ### 2026-07-24 — v0.6 stabilization working tree
 
-- Candidate state: uncommitted local working tree; no release candidate commit has been pushed.
+- Candidate state: pushed `main` commit; GitHub Actions completed successfully for the candidate.
 - `npm test` passed 38 files and 166 tests; typecheck, ESLint, and the production build passed.
 - Playwright discovered and passed 1 Chromium smoke covering setup, logout/login, dashboard access, the supported planned-versus-actual report, browser console health, and the removed preview URL.
 - Strict OpenSpec validation passed all 13 current specs and changes.
 - A clean Compose build completed `npm ci`, the production build, and SQLite migrations. Setup redirected to the dashboard, and `/setup` continued redirecting to `/login` after a container restart with the same volume.
 - The disposable validation container, network, and volume were removed after the persistence check.
-- GitHub Actions has not run for this working tree. Keep the candidate checklist unchecked until a commit is pushed and the remote jobs pass.
+- GitHub Actions `CI` workflow completed successfully for the pushed candidate, including quality and browser-smoke jobs.
