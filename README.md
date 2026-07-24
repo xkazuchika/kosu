@@ -2,7 +2,7 @@
 
 `kosu` は、小さなチームや部門向けの軽量セルフホスト OSS 工数管理アプリです。
 
-現在のアプリバージョンは `v0.6.0` です。
+現在のアプリバージョンは `v0.6.1` です。
 
 重い SaaS や ERP を導入せずに、日々の実績工数入力、案件・タスク別の実績工数、日別・月次の予定工数、月別の総稼働時間、基本的な工数レポートを扱うことを目指しています。初期 UI とドキュメントは日本語ファーストです。
 
@@ -194,6 +194,7 @@ npm run db:seed:demo
 
 ## バージョン履歴
 
+- `v0.6.1`: ワークスペースのタイムゾーンに基づく日付初期値、リリース検証、GitHub Actions CI、Playwright smoke test を追加し、未対応のリソース計画プレビューを削除。
 - `v0.6.0`: 管理者向けの案件別直接人件費、人件費予算、予算消化、労務粗利レビューと、メンバー向けの月別未割当・超過修正導線を追加。
 - `v0.5.0`: ワークフロー別ナビゲーション、Today First ダッシュボード、共有UI刷新、主要画面の構成整理、曜日/土日表示を追加。
 - `v0.4.0`: 日別予定工数入力と予定から実績への反映を追加。
@@ -229,4 +230,4 @@ Issue や Pull Request では、次の情報があると検討しやすくなり
 
 ## English Summary
 
-`kosu` is a lightweight self-hosted OSS effort management web app for small teams. Version `v0.6.0` adds administrator-only direct-labor cost control with project contract revenue, labor cost budgets, budget consumption, and labor-margin review. It also includes daily actual effort entry, daily and monthly planned effort, monthly working-hour totals, planned-vs-actual reporting, CSV import/export, workflow-oriented navigation, a Today First dashboard, and SQLite single-instance deployment. Accounting, invoicing, expense, procurement, full resource planning, multi-instance operation, and multi-tenant SaaS use cases are out of scope. The UI and documentation are Japanese-first, and the project is licensed under MIT.
+`kosu` is a lightweight self-hosted OSS effort management web app for small teams. Version `v0.6.1` adds workspace-timezone-aware date defaults, release verification, GitHub Actions CI, and a Playwright browser smoke test while removing the unsupported resource-planning preview. It also includes administrator-only direct-labor cost control, daily actual effort entry, daily and monthly planned effort, monthly working-hour totals, planned-vs-actual reporting, CSV import/export, workflow-oriented navigation, a Today First dashboard, and SQLite single-instance deployment. Accounting, invoicing, expense, procurement, full resource planning, multi-instance operation, and multi-tenant SaaS use cases are out of scope. The UI and documentation are Japanese-first, and the project is licensed under MIT.
