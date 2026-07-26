@@ -30,6 +30,10 @@ export function findCapacityByMemberAndMonth(db: KosuDatabase, memberId: string,
     .get();
 }
 
+export function findMemberMonthlyCapacityById(db: KosuDatabase, id: string) {
+  return db.select().from(memberMonthlyCapacities).where(eq(memberMonthlyCapacities.id, id)).get();
+}
+
 export function createMemberMonthlyCapacity(db: KosuDatabase, input: MemberMonthlyCapacityInsert) {
   return db
     .insert(memberMonthlyCapacities)

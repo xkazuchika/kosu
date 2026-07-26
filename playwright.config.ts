@@ -14,13 +14,14 @@ export default defineConfig({
   globalTeardown: "./tests/e2e/global-teardown.ts",
   retries: process.env.CI ? 1 : 0,
   webServer: {
-    command: "npm run dev -- --host 127.0.0.1",
+    command: "npm run db:migrate && npm run build && npm start",
     env: {
       KOSU_DATA_DIR: e2eDataDir,
       KOSU_SESSION_SECRET: "kosu-e2e-session-secret-32-characters",
+      PORT: "5173",
     },
     url: "http://127.0.0.1:5173",
-    reuseExistingServer: !process.env.CI,
+    reuseExistingServer: false,
     timeout: 120_000,
   },
   use: {

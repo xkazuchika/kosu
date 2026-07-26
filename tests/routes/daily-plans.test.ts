@@ -14,11 +14,11 @@ import { findDailyWorkLogByMemberAndDate } from "../../app/db/repositories/daily
 import { listAllocationsByWorkLog } from "../../app/db/repositories/effort-allocations";
 import { createMember } from "../../app/db/repositories/members";
 import { createMonthlyPlan, listMonthlyPlansByMemberAndMonth } from "../../app/db/repositories/monthly-plans";
-import { createPeriodLock } from "../../app/db/repositories/period-locks";
 import { createProjectAssignment } from "../../app/db/repositories/project-assignments";
 import { createProject } from "../../app/db/repositories/projects";
 import { members } from "../../app/db/schema";
 import { action as dailyPlansAction, loader as dailyPlansLoader } from "../../app/routes/daily-plans";
+import { startMonthlyCostReview } from "../../app/services/monthly-cost-close";
 import { buildContext, setupAndLogin, type RouteActionHandler, type RouteLoaderHandler } from "./helpers";
 
 let dataDir: string;
@@ -188,7 +188,7 @@ describe("daily plans route", () => {
 
     const lockConnection = createDatabaseConnection(resolveDatabaseConfig().databaseUrl);
     createProjectAssignment(lockConnection.db, { memberId: admin.id, projectId: project.id });
-    createPeriodLock(lockConnection.db, { month: "2026-07", isLocked: true });
+    startMonthlyCostReview(lockConnection.db, { month: "2026-07", actorMemberId: admin.id });
     lockConnection.sqlite.close();
 
     await expect(

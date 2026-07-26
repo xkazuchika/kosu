@@ -1,7 +1,7 @@
 import { Form, useLoaderData } from "react-router";
 import type { Route } from "./+types/monthly-plans";
 
-import { Badge } from "~/components/ui/badge";
+import { MonthlyCloseStatusBadge } from "~/components/monthly-close-status";
 import { Button } from "~/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "~/components/ui/card";
 import { Input } from "~/components/ui/form";
@@ -12,7 +12,7 @@ import { listMonthlyPlansByMemberAndMonth } from "~/db/repositories/monthly-plan
 import { findProjectById } from "~/db/repositories/projects";
 import { isValidMonth } from "~/lib/time";
 import { getSessionMember } from "~/services/auth";
-import { isMonthLocked } from "~/services/period-lock";
+import { getMonthlyCostCloseState } from "~/services/monthly-cost-close";
 import { getWorkspaceCalendarContext } from "~/services/workspace-calendar";
 
 export const loader = async ({ request }: { request: Request }) => {
@@ -39,11 +39,13 @@ export const loader = async ({ request }: { request: Request }) => {
     const capacityHours = capacity?.capacityHours ?? null;
     const variance = capacityHours === null ? null : capacityHours - totalPlanned;
 
+    const closeState = getMonthlyCostCloseState(db, currentMonth);
+
     return {
       member,
       isAdmin: member.role === "admin",
       currentMonth,
-      isLocked: isMonthLocked(db, currentMonth),
+      closeStatus: closeState.status,
       capacityHours,
       totalPlanned,
       variance,
@@ -57,7 +59,7 @@ export const loader = async ({ request }: { request: Request }) => {
 export const meta: Route.MetaFunction = () => [{ title: "月次予定工数 | kosu" }];
 
 export default function MonthlyPlans() {
-  const { currentMonth, isLocked, capacityHours, totalPlanned, variance, plans } = useLoaderData<typeof loader>();
+  const { closeStatus, currentMonth, capacityHours, totalPlanned, variance, plans } = useLoaderData<typeof loader>();
 
   return (
     <div className="space-y-6">
@@ -66,11 +68,7 @@ export default function MonthlyPlans() {
           <h1 className="text-2xl font-bold tracking-tight text-slate-950">月次予定工数</h1>
           <p className="text-sm text-slate-600">今月の案件別予定工数と稼働可能時間の差分を確認します。</p>
         </div>
-        {isLocked ? (
-          <Badge tone="danger">ロック中</Badge>
-        ) : (
-          <Badge tone="success">編集可能</Badge>
-        )}
+        <MonthlyCloseStatusBadge status={closeStatus} />
       </div>
       <Card>
         <CardHeader>

@@ -1,5 +1,6 @@
 import { Form, Link, redirect, useActionData, useLoaderData } from "react-router";
 
+import { MonthlyCloseReadOnlyNotice, MonthlyCloseStatusBadge } from "~/components/monthly-close-status";
 import { Badge } from "~/components/ui/badge";
 import { Button } from "~/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "~/components/ui/card";
@@ -14,7 +15,8 @@ import { listAllocationsByWorkLog } from "~/db/repositories/effort-allocations";
 import { findMemberById, listMembers, withoutMemberFinancials } from "~/db/repositories/members";
 import { getWeekdayLabel, isSaturdayDate, isSundayDate, isValidMonth, isValidQuarterHour, isWeekendDate, listMonthDates } from "~/lib/time";
 import { getSessionMember } from "~/services/auth";
-import { isMonthLocked } from "~/services/period-lock";
+import { getMonthlyCostCloseState } from "~/services/monthly-cost-close";
+import { requireUnlockedMonth } from "~/services/period-lock";
 import { getWorkspaceCalendarContext } from "~/services/workspace-calendar";
 
 export const loader = async ({ request }: { request: Request }) => {
@@ -43,7 +45,8 @@ export const loader = async ({ request }: { request: Request }) => {
     const logs = listDailyWorkLogsByMemberAndMonth(db, targetMemberId, month);
     const logsByDate = new Map(logs.map((log) => [log.workDate, log]));
     const memberQuery = isAdmin && targetMemberId !== currentMember.id ? `&memberId=${targetMemberId}` : "";
-    const isLocked = isMonthLocked(db, month);
+    const closeState = getMonthlyCostCloseState(db, month);
+    const isLocked = closeState.isProtected;
     const rows = listMonthDates(month).map((workDate) => {
       const log = logsByDate.get(workDate);
       const allocations = log ? listAllocationsByWorkLog(db, log.id) : [];
@@ -70,6 +73,7 @@ export const loader = async ({ request }: { request: Request }) => {
       currentMemberId: currentMember.id,
       isAdmin,
       isLocked,
+      closeStatus: closeState.status,
       members: isAdmin ? listMembers(db).map(withoutMemberFinancials) : [],
       month,
       rows,
@@ -103,9 +107,7 @@ export const action = async ({ request }: { request: Request }) => {
       throw new Response("Not found", { status: 404 });
     }
 
-    if (isMonthLocked(db, month) && !isAdmin) {
-      throw new Response("月次ロックにより編集できません", { status: 423 });
-    }
+    requireUnlockedMonth(db, month);
 
     const formData = await request.formData();
     const dates = formData.getAll("date").map(String);
@@ -148,10 +150,10 @@ export const action = async ({ request }: { request: Request }) => {
 export const meta = () => [{ title: "月別総稼働時間入力 | kosu" }];
 
 export default function WorkLogMonth() {
-  const { currentMemberId, isAdmin, isLocked, members, month, rows, targetMember } = useLoaderData<typeof loader>();
+  const { closeStatus, currentMemberId, isAdmin, isLocked, members, month, rows, targetMember } = useLoaderData<typeof loader>();
   const actionData = useActionData() as { error?: string } | undefined;
   const memberQuery = isAdmin && targetMember.id !== currentMemberId ? `&memberId=${targetMember.id}` : "";
-  const readOnly = isLocked && !isAdmin;
+  const readOnly = isLocked;
 
   return (
     <div className="space-y-6">
@@ -162,14 +164,10 @@ export default function WorkLogMonth() {
             {targetMember.displayName} · {month} · 日別の総稼働時間をまとめて入力します。案件別実績工数は日別詳細で編集します。
           </p>
         </div>
-        {isLocked ? <Badge tone="danger">ロック中</Badge> : <Badge tone="success">編集可能</Badge>}
+        <MonthlyCloseStatusBadge status={closeStatus} />
       </div>
 
-      {readOnly ? (
-        <p className="rounded-lg bg-amber-50 p-3 text-sm text-amber-800" role="alert">
-          {month} はロックされています。閲覧のみ可能です。
-        </p>
-      ) : null}
+      <MonthlyCloseReadOnlyNotice month={month} status={closeStatus} />
 
       {actionData?.error ? (
         <p className="rounded-lg bg-red-50 p-3 text-sm text-red-700" role="alert">

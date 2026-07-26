@@ -1,6 +1,7 @@
 import { Form, Link, redirect, useLoaderData } from "react-router";
 import type { Route } from "./+types/work-logs.$date";
 
+import { MonthlyCloseReadOnlyNotice, MonthlyCloseStatusBadge } from "~/components/monthly-close-status";
 import { Badge } from "~/components/ui/badge";
 import { Button } from "~/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "~/components/ui/card";
@@ -27,7 +28,8 @@ import { findProjectById, withoutProjectFinancials } from "~/db/repositories/pro
 import { findTaskById, listActiveTasksByProject } from "~/db/repositories/tasks";
 import { getSessionMember } from "~/services/auth";
 import { getWeekdayLabel, isSaturdayDate, isSundayDate, isValidQuarterHour } from "~/lib/time";
-import { isMonthLocked, requireUnlockedMonth } from "~/services/period-lock";
+import { getMonthlyCostCloseState } from "~/services/monthly-cost-close";
+import { requireUnlockedMonth } from "~/services/period-lock";
 import { getWorkspaceCalendarContext } from "~/services/workspace-calendar";
 
 export const loader = async ({ request, params }: { request: Request; params: { date: string } }) => {
@@ -63,6 +65,8 @@ export const loader = async ({ request, params }: { request: Request; params: { 
     );
     const assignedProjects = isAdmin ? assignedProjectRecords : assignedProjectRecords.map(withoutProjectFinancials);
 
+    const closeState = getMonthlyCostCloseState(db, month);
+
     return {
       currentMemberId: currentMember.id,
       today,
@@ -74,7 +78,8 @@ export const loader = async ({ request, params }: { request: Request; params: { 
       activeTasks,
       isAdmin,
       targetMember: withoutMemberFinancials(targetMember),
-      isLocked: isMonthLocked(db, month),
+      isLocked: closeState.isProtected,
+      closeStatus: closeState.status,
     };
   } finally {
     sqlite.close();
@@ -275,7 +280,7 @@ function validateAllocationTarget(db: KosuDatabase, memberId: string, projectId:
 export const meta: Route.MetaFunction = () => [{ title: "日別工数実績入力 | kosu" }];
 
 export default function WorkLogEntry({ actionData }: Route.ComponentProps) {
-  const { currentMemberId, today, workDate, month, workLog, allocations, assignedProjects, activeTasks, targetMember, isLocked } =
+  const { closeStatus, currentMemberId, today, workDate, month, workLog, allocations, assignedProjects, activeTasks, targetMember, isLocked } =
     useLoaderData<typeof loader>();
   const allocatedTotal = allocations.reduce((sum, a) => sum + a.allocatedHours, 0);
   const totalWorkingHours = workLog?.totalWorkingHours ?? 0;
@@ -300,13 +305,11 @@ export default function WorkLogEntry({ actionData }: Route.ComponentProps) {
         <div className="flex flex-wrap gap-2">
           {isSunday ? <Badge tone="danger">日曜</Badge> : null}
           {isSaturday ? <Badge tone="info">土曜</Badge> : null}
-          {isLocked ? (
-            <Badge tone="danger">ロック中</Badge>
-          ) : (
-            <Badge tone="success">編集可能</Badge>
-          )}
+          <MonthlyCloseStatusBadge status={closeStatus} />
         </div>
       </div>
+
+      <MonthlyCloseReadOnlyNotice month={month} status={closeStatus} />
 
       <div className="flex flex-wrap gap-2">
         <Link className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-900 hover:bg-slate-50" to={`/work-logs/${previousDate}${memberQuery}`}>

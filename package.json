@@ -1,6 +1,6 @@
 {
   "name": "kosu",
-  "version": "0.6.1",
+  "version": "0.7.0",
   "private": true,
   "type": "module",
   "license": "MIT",
@@ -18,22 +18,22 @@
     "db:seed:demo": "tsx scripts/seed-demo.ts"
   },
   "dependencies": {
-    "@react-router/node": "latest",
-    "@react-router/serve": "latest",
+    "@react-router/node": "8.3.0",
+    "@react-router/serve": "8.3.0",
     "bcryptjs": "^3.0.3",
-    "better-sqlite3": "latest",
+    "better-sqlite3": "12.11.1",
     "cookie": "^2.0.1",
     "drizzle-orm": "latest",
     "isbot": "latest",
     "lucide-react": "^1.23.0",
     "react": "latest",
     "react-dom": "latest",
-    "react-router": "latest"
+    "react-router": "8.3.0"
   },
   "devDependencies": {
     "@eslint/js": "latest",
     "@playwright/test": "latest",
-    "@react-router/dev": "latest",
+    "@react-router/dev": "8.3.0",
     "@tailwindcss/vite": "latest",
     "@testing-library/jest-dom": "latest",
     "@testing-library/react": "latest",

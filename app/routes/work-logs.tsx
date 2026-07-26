@@ -1,6 +1,7 @@
 import { Form, Link, redirect, useLoaderData } from "react-router";
 import type { Route } from "./+types/work-logs";
 
+import { MonthlyCloseStatusBadge } from "~/components/monthly-close-status";
 import { Badge } from "~/components/ui/badge";
 import { DataTable } from "~/components/ui/table";
 import { createDatabaseConnection } from "~/db/client";
@@ -9,6 +10,7 @@ import { listAllocationsByWorkLog } from "~/db/repositories/effort-allocations";
 import { findMemberById, listMembers, withoutMemberFinancials } from "~/db/repositories/members";
 import { isValidMonth } from "~/lib/time";
 import { getSessionMember } from "~/services/auth";
+import { getMonthlyCostCloseState } from "~/services/monthly-cost-close";
 import { getWorkspaceCalendarContext } from "~/services/workspace-calendar";
 
 export const loader = async ({ request }: { request: Request }) => {
@@ -52,6 +54,7 @@ export const loader = async ({ request }: { request: Request }) => {
       .filter((log) => status !== "unbalanced" || log.variance !== 0);
 
     return {
+      closeStatus: getMonthlyCostCloseState(db, month).status,
       currentMemberId: member.id,
       isAdmin: member.role === "admin",
       members: member.role === "admin" ? listMembers(db).map(withoutMemberFinancials) : [],
@@ -69,7 +72,7 @@ export const loader = async ({ request }: { request: Request }) => {
 export const meta: Route.MetaFunction = () => [{ title: "日別工数実績入力 | kosu" }];
 
 export default function WorkLogs() {
-  const { currentMemberId, isAdmin, logs, members, month, status, targetMember, today } = useLoaderData<typeof loader>();
+  const { closeStatus, currentMemberId, isAdmin, logs, members, month, status, targetMember, today } = useLoaderData<typeof loader>();
   const memberQuery = isAdmin && targetMember.id !== currentMemberId ? `?memberId=${targetMember.id}` : "";
 
   return (
@@ -80,6 +83,7 @@ export default function WorkLogs() {
           <p className="text-sm text-slate-600">対象: {targetMember.displayName} · 日別の総稼働時間と案件別実績工数を入力します。</p>
         </div>
         <div className="flex flex-wrap gap-2">
+          <MonthlyCloseStatusBadge status={closeStatus} />
           <Link
             className="inline-flex items-center justify-center rounded-lg bg-sky-700 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-sky-800"
             to={`/work-logs/${today}${memberQuery}`}

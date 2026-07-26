@@ -1,7 +1,11 @@
 import type { KosuDatabase } from "~/db/client";
 import { listEffortReportRows } from "~/db/repositories/effort-allocations";
+import {
+  listMonthlyCostCloseProjectSnapshots,
+} from "~/db/repositories/monthly-cost-closes";
 import { listMonthlyPlansByMonth } from "~/db/repositories/monthly-plans";
 import { listProjects } from "~/db/repositories/projects";
+import { getMonthlyCostCloseState } from "~/services/monthly-cost-close";
 
 type CostSummary = {
   knownCost: number;
@@ -19,8 +23,12 @@ export type ProjectFinancialReviewRow = {
   legacyRevenueOrBudgetAmount: number | null;
   monthlyActual: CostSummary;
   monthlyPlanned: CostSummary;
-  project: ReturnType<typeof listProjects>[number];
+  project: Pick<
+    ReturnType<typeof listProjects>[number],
+    "id" | "code" | "name" | "projectType" | "isArchived"
+  >;
   remainingLaborCostBudget: number | null;
+  source: "live" | "approved_snapshot";
   targetLaborGrossProfit: number | null;
   targetLaborGrossProfitRate: number | null;
 };
@@ -51,10 +59,51 @@ export function listProjectFinancialReview(
   db: KosuDatabase,
   { month, projectId }: { month: string; projectId?: string },
 ): ProjectFinancialReviewRow[] {
+  const state = getMonthlyCostCloseState(db, month);
+
+  if (state.status === "approved" && state.close) {
+    return listMonthlyCostCloseProjectSnapshots(db, state.close.id)
+      .filter((snapshot) => !projectId || snapshot.projectId === projectId)
+      .map((snapshot) => ({
+        project: {
+          id: snapshot.projectId,
+          code: snapshot.projectCode,
+          name: snapshot.projectName,
+          projectType: snapshot.projectType,
+          isArchived: snapshot.projectIsArchived,
+        },
+        contractRevenueAmount: snapshot.contractRevenueAmount,
+        laborCostBudgetAmount: snapshot.laborCostBudgetAmount,
+        legacyRevenueOrBudgetAmount: snapshot.legacyRevenueOrBudgetAmount,
+        monthlyPlanned: {
+          knownCost: snapshot.monthlyPlannedCost,
+          missingCostHours: 0,
+          missingCostRows: 0,
+        },
+        monthlyActual: {
+          knownCost: snapshot.monthlyActualCost,
+          missingCostHours: 0,
+          missingCostRows: 0,
+        },
+        cumulativeActual: {
+          knownCost: snapshot.cumulativeActualCost,
+          missingCostHours: 0,
+          missingCostRows: 0,
+        },
+        remainingLaborCostBudget: snapshot.remainingLaborCostBudget,
+        laborBudgetConsumption: snapshot.laborBudgetConsumption,
+        targetLaborGrossProfit: snapshot.targetLaborGrossProfit,
+        targetLaborGrossProfitRate: snapshot.targetLaborGrossProfitRate,
+        finalLaborGrossProfit: snapshot.finalLaborGrossProfit,
+        finalLaborGrossProfitRate: snapshot.finalLaborGrossProfitRate,
+        source: "approved_snapshot",
+      }));
+  }
+
   const projects = listProjects(db).filter((project) => !projectId || project.id === projectId);
   const monthlyPlans = listMonthlyPlansByMonth(db, month);
   const monthlyActuals = listEffortReportRows(db, { month });
-  const cumulativeActuals = listEffortReportRows(db, {});
+  const cumulativeActuals = listEffortReportRows(db, { endDate: `${month}-31` });
   const monthlyPlannedByProject = new Map<string, CostSummary>();
   const monthlyActualByProject = new Map<string, CostSummary>();
   const cumulativeActualByProject = new Map<string, CostSummary>();
@@ -117,6 +166,7 @@ export function listProjectFinancialReview(
       targetLaborGrossProfitRate,
       finalLaborGrossProfit,
       finalLaborGrossProfitRate,
+      source: "live",
     };
   });
 }

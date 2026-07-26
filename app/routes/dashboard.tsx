@@ -2,6 +2,7 @@ import { Link, useLoaderData } from "react-router";
 import type { Route } from "./+types/dashboard";
 import { AlertTriangle, ArrowRight, BarChart3, CalendarClock, CheckCircle2, ClipboardList, FolderKanban, Route as RouteIcon, Sparkles } from "lucide-react";
 
+import { MonthlyCloseStatusBadge } from "~/components/monthly-close-status";
 import { Badge } from "~/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "~/components/ui/card";
 import { EmptyState } from "~/components/ui/empty-state";
@@ -11,10 +12,10 @@ import { listAllocationsByProject, listAllocationsByWorkLog } from "~/db/reposit
 import { findCapacityByMemberAndMonth } from "~/db/repositories/member-monthly-capacities";
 import { listMembers } from "~/db/repositories/members";
 import { listMonthlyPlansByMemberAndMonth, listMonthlyPlansByProject } from "~/db/repositories/monthly-plans";
-import { findPeriodLockByMonth } from "~/db/repositories/period-locks";
 import { listActiveAssignmentsByMember } from "~/db/repositories/project-assignments";
 import { findProjectById, listActiveProjects } from "~/db/repositories/projects";
 import { getSessionMember } from "~/services/auth";
+import { getMonthlyCostCloseState } from "~/services/monthly-cost-close";
 import { getWorkspaceCalendarContext } from "~/services/workspace-calendar";
 
 type DashboardLoaderData = {
@@ -34,7 +35,7 @@ type DashboardLoaderData = {
   };
   assignedProjects: { id: string; name: string; code: string }[];
   incompleteAllocationsCount: number;
-  isLocked: boolean;
+  closeStatus: "open" | "in_review" | "approved";
   teamInputStatus: { total: number; withEntry: number; withIncompleteAllocation: number } | null;
   memberTodayStatuses: { memberId: string; displayName: string; hasEntry: boolean; hasIncompleteAllocation: boolean }[] | null;
   projectSummaries: {
@@ -76,6 +77,7 @@ export const loader = async ({ request }: { request: Request }): Promise<Dashboa
       return log.totalWorkingHours - allocated !== 0;
     }).length;
 
+    const closeState = getMonthlyCostCloseState(db, currentMonth);
     const base: DashboardLoaderData = {
       isAdmin,
       today,
@@ -95,7 +97,7 @@ export const loader = async ({ request }: { request: Request }): Promise<Dashboa
       },
       assignedProjects: assignedProjects.map((p) => ({ id: p.id, name: p.name, code: p.code })),
       incompleteAllocationsCount,
-      isLocked: !!findPeriodLockByMonth(db, currentMonth)?.isLocked,
+      closeStatus: closeState.status,
       teamInputStatus: null,
       memberTodayStatuses: null,
       projectSummaries: null,
@@ -206,11 +208,7 @@ export default function Dashboard() {
           <p className="mt-1 text-sm text-slate-600">今日の入力、今月の状態、次に見るべきことを確認します。</p>
         </div>
         <div className="flex flex-wrap gap-2">
-          {data.isLocked ? (
-            <Badge tone="danger">{data.currentMonth} ロック中</Badge>
-          ) : (
-            <Badge tone="success">{data.currentMonth} 編集可能</Badge>
-          )}
+          <MonthlyCloseStatusBadge month={data.currentMonth} status={data.closeStatus} />
         </div>
       </div>
 

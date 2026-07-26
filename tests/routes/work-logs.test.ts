@@ -172,7 +172,7 @@ describe("daily work logs and allocations", () => {
   test("locked month prevents member monthly bulk edit", async () => {
     const cookie = await setupAndLogin(dataDir, "password123");
     const lockForm = new FormData();
-    lockForm.append("intent", "lock");
+    lockForm.append("intent", "startReview");
     lockForm.append("month", "2026-07");
     await (periodLocksAction as unknown as RouteActionHandler)({
       request: buildRequest(lockForm, cookie),
@@ -661,7 +661,7 @@ describe("daily work logs and allocations", () => {
     const cookie = await setupAndLogin(dataDir, "password123");
 
     const lockForm = new FormData();
-    lockForm.append("intent", "lock");
+    lockForm.append("intent", "startReview");
     lockForm.append("month", "2026-07");
     await (periodLocksAction as unknown as RouteActionHandler)({
       request: buildRequest(lockForm, cookie),

@@ -1,7 +1,7 @@
 import { Form, useActionData, useLoaderData } from "react-router";
 import type { Route } from "./+types/daily-plans";
 
-import { Badge } from "~/components/ui/badge";
+import { MonthlyCloseReadOnlyNotice, MonthlyCloseStatusBadge } from "~/components/monthly-close-status";
 import { Button } from "~/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "~/components/ui/card";
 import { Input } from "~/components/ui/form";
@@ -14,7 +14,7 @@ import { findProjectById, withoutProjectFinancials } from "~/db/repositories/pro
 import { getWeekdayLabel, isSaturdayDate, isSundayDate, isValidMonth, isWeekendDate, listMonthDates } from "~/lib/time";
 import { DailyAllocationPlanError, copyDailyAllocationPlansToActuals, saveDailyAllocationPlans } from "~/services/daily-allocation-plans";
 import { getSessionMember } from "~/services/auth";
-import { isMonthLocked } from "~/services/period-lock";
+import { getMonthlyCostCloseState } from "~/services/monthly-cost-close";
 import { getWorkspaceCalendarContext } from "~/services/workspace-calendar";
 
 export const loader = async ({ request }: { request: Request }) => {
@@ -72,6 +72,8 @@ export const loader = async ({ request }: { request: Request }) => {
     const monthlyTotal = monthlyPlans.reduce((sum, plan) => sum + plan.plannedHours, 0);
     const dailyTotal = dailyPlans.reduce((sum, plan) => sum + plan.plannedHours, 0);
 
+    const closeState = getMonthlyCostCloseState(db, month);
+
     return {
       assignedProjects,
       columnProjects,
@@ -80,7 +82,8 @@ export const loader = async ({ request }: { request: Request }) => {
       dailyTotal,
       difference: dailyTotal - monthlyTotal,
       isAdmin,
-      isLocked: isMonthLocked(db, month),
+      isLocked: closeState.isProtected,
+      closeStatus: closeState.status,
       members: isAdmin ? listMembers(db).map(withoutMemberFinancials) : [],
       month,
       monthlyTotal,
@@ -166,7 +169,7 @@ export default function DailyPlans() {
             {data.targetMember.displayName} · {data.month} · いつ、どの案件に、何時間入る予定かを入力します。空欄または0は予定なしです。
           </p>
         </div>
-        {data.isLocked ? <Badge tone="danger">ロック中</Badge> : <Badge tone="success">編集可能</Badge>}
+        <MonthlyCloseStatusBadge status={data.closeStatus} />
       </div>
 
       {actionData?.error ? (
@@ -184,11 +187,7 @@ export default function DailyPlans() {
           実績工数へ反映しました（反映日 {actionData.copySummary.copiedDates} 日 / 作成実績工数 {actionData.copySummary.createdAllocations} 件 / 実績工数ありスキップ {actionData.copySummary.skippedExistingActualDates} 日 / 予定工数なし {actionData.copySummary.skippedNoPlanDates} 日）。
         </p>
       ) : null}
-      {data.isLocked ? (
-        <p className="rounded-lg bg-amber-50 p-3 text-sm text-amber-800" role="alert">
-          {data.month} はロックされています。日別予定工数の保存と実績工数への反映はできません。
-        </p>
-      ) : null}
+      <MonthlyCloseReadOnlyNotice month={data.month} status={data.closeStatus} />
 
       <Card>
         <CardHeader>

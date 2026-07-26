@@ -73,6 +73,10 @@ export function findMonthlyPlan(
     .get();
 }
 
+export function findMonthlyPlanById(db: KosuDatabase, id: string) {
+  return db.select().from(monthlyPlans).where(eq(monthlyPlans.id, id)).get();
+}
+
 export function createMonthlyPlan(db: KosuDatabase, input: MonthlyPlanInsert) {
   return db
     .insert(monthlyPlans)

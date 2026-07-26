@@ -1,6 +1,7 @@
 import { Form, Link, useLoaderData } from "react-router";
 import type { Route } from "./+types/reports.project-financials";
 
+import { MonthlyCloseStatusBadge } from "~/components/monthly-close-status";
 import { Badge } from "~/components/ui/badge";
 import { Button } from "~/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "~/components/ui/card";
@@ -9,6 +10,7 @@ import { createDatabaseConnection } from "~/db/client";
 import { listProjects } from "~/db/repositories/projects";
 import { isValidMonth } from "~/lib/time";
 import { requireAdministrator } from "~/services/auth";
+import { getMonthlyCostCloseState } from "~/services/monthly-cost-close";
 import { listProjectFinancialReview, type ProjectFinancialReviewRow } from "~/services/project-financials";
 import { getWorkspaceCalendarContext } from "~/services/workspace-calendar";
 
@@ -33,8 +35,11 @@ export const loader = async ({ request }: Route.LoaderArgs) => {
     const projects = listProjects(db);
     const projectId = projects.some((project) => project.id === requestedProjectId) ? requestedProjectId : "";
 
+    const closeState = getMonthlyCostCloseState(db, month);
+
     return {
       month,
+      closeStatus: closeState.status,
       projectId,
       projects,
       rows: listProjectFinancialReview(db, { month, projectId: projectId || undefined }),
@@ -47,16 +52,28 @@ export const loader = async ({ request }: Route.LoaderArgs) => {
 export const meta: Route.MetaFunction = () => [{ title: "案件財務レビュー | kosu" }];
 
 export default function ProjectFinancialReview() {
-  const { month, projectId, projects, rows } = useLoaderData<typeof loader>();
+  const { closeStatus, month, projectId, projects, rows } = useLoaderData<typeof loader>();
   const activeRows = rows.filter((row) => !row.project.isArchived);
   const archivedRows = rows.filter((row) => row.project.isArchived);
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold tracking-tight text-slate-950">案件財務レビュー</h1>
-        <p className="text-sm text-slate-600">税抜の契約売上と直接人件費だけを確認します。仕入れ、外注費、経費、税金は含みません。</p>
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <div>
+          <h1 className="text-2xl font-bold tracking-tight text-slate-950">案件財務レビュー</h1>
+          <p className="text-sm text-slate-600">税抜の契約売上と直接人件費だけを確認します。仕入れ、外注費、経費、税金は含みません。</p>
+        </div>
+        <div className="flex items-center gap-3">
+          <MonthlyCloseStatusBadge status={closeStatus} />
+          <Link className="text-sm font-semibold text-indigo-700 hover:underline" to={`/period-locks?month=${month}`}>月次締めを確認</Link>
+        </div>
       </div>
+
+      {closeStatus === "approved" ? (
+        <p className="rounded-lg bg-indigo-50 p-3 text-sm text-indigo-900">
+          この月は承認済みです。案件名、基準額、当月・月末累計原価は承認時のスナップショットを表示しています。
+        </p>
+      ) : null}
 
       <Card>
         <CardHeader>

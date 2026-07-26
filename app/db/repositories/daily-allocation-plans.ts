@@ -23,6 +23,15 @@ export function listDailyAllocationPlansByMemberAndMonth(db: KosuDatabase, membe
     .all();
 }
 
+export function listDailyAllocationPlansByMonth(db: KosuDatabase, month: string) {
+  return db
+    .select()
+    .from(dailyAllocationPlans)
+    .where(like(dailyAllocationPlans.planDate, `${month}%`))
+    .orderBy(asc(dailyAllocationPlans.memberId), asc(dailyAllocationPlans.planDate), asc(dailyAllocationPlans.projectId))
+    .all();
+}
+
 export function listDailyAllocationPlansByMemberAndDate(db: KosuDatabase, memberId: string, planDate: string) {
   return db
     .select()

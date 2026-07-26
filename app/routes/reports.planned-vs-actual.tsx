@@ -1,6 +1,7 @@
 import { Form, useLoaderData } from "react-router";
 import type { Route } from "./+types/reports.planned-vs-actual";
 
+import { MonthlyCloseStatusBadge } from "~/components/monthly-close-status";
 import { Button } from "~/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "~/components/ui/card";
 import { EmptyState } from "~/components/ui/empty-state";
@@ -11,6 +12,7 @@ import { findMemberById, listMembers } from "~/db/repositories/members";
 import { findProjectById } from "~/db/repositories/projects";
 import { isValidMonth } from "~/lib/time";
 import { getSessionMember } from "~/services/auth";
+import { getMonthlyCostCloseState } from "~/services/monthly-cost-close";
 import { getWorkspaceCalendarContext } from "~/services/workspace-calendar";
 
 export const loader = async ({ request }: { request: Request }) => {
@@ -97,6 +99,7 @@ export const loader = async ({ request }: { request: Request }) => {
 
     return {
       capacityRows,
+      closeStatus: getMonthlyCostCloseState(db, month).status,
       hasPlans: planMap.size > 0,
       isAdmin: member.role === "admin",
       month,
@@ -115,11 +118,14 @@ export default function PlannedVsActual() {
 
   return (
     <div className="space-y-6">
-      <div className="space-y-2">
-        <h1 className="text-2xl font-bold tracking-tight text-slate-950">予定工数対実績工数</h1>
-        <p className="text-sm text-slate-600">
-          月次予定工数と実績工数を比較します。日別の総稼働時間は月別総稼働時間入力、案件別の実績工数は日別詳細から集計します。
-        </p>
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <div>
+          <h1 className="text-2xl font-bold tracking-tight text-slate-950">予定工数対実績工数</h1>
+          <p className="text-sm text-slate-600">
+            月次予定工数と実績工数を比較します。日別の総稼働時間は月別総稼働時間入力、案件別の実績工数は日別詳細から集計します。
+          </p>
+        </div>
+        <MonthlyCloseStatusBadge status={data.closeStatus} />
       </div>
 
       <Card>

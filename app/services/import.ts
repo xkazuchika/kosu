@@ -10,6 +10,7 @@ import { createProjectAssignment, findActiveAssignment } from "~/db/repositories
 import { createProject, findProjectByCode, updateProject } from "~/db/repositories/projects";
 import { parseOptionalYen } from "~/lib/currency";
 import { hashPassword } from "~/lib/password";
+import { requireOpenMonth } from "~/services/monthly-cost-close";
 
 export type ImportType = "members" | "projects" | "project_assignments" | "member_monthly_capacities" | "monthly_plans";
 
@@ -84,6 +85,17 @@ export async function commitImport(
   createdByMemberId: string,
 ) {
   const preview = previewImport(db, type, rows);
+  if (type === "member_monthly_capacities" || type === "monthly_plans") {
+    const months = new Set(
+      preview.rows
+        .map((row) => row.parsed?.month)
+        .filter((month): month is string => Boolean(month)),
+    );
+
+    for (const month of months) {
+      requireOpenMonth(db, month);
+    }
+  }
   let imported = 0;
   let failed = preview.invalidRows;
 

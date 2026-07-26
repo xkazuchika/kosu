@@ -7,10 +7,10 @@ import { listDailyAllocationPlansByMemberAndDate, upsertDailyAllocationPlan } fr
 import { createDailyWorkLog, findDailyWorkLogByMemberAndDate } from "../../app/db/repositories/daily-work-logs";
 import { createEffortAllocation, listAllocationsByWorkLog } from "../../app/db/repositories/effort-allocations";
 import { createMember } from "../../app/db/repositories/members";
-import { createPeriodLock } from "../../app/db/repositories/period-locks";
 import { createProjectAssignment } from "../../app/db/repositories/project-assignments";
 import { createProject } from "../../app/db/repositories/projects";
 import { DailyAllocationPlanError, copyDailyAllocationPlansToActuals, saveDailyAllocationPlans } from "../../app/services/daily-allocation-plans";
+import { startMonthlyCostReview } from "../../app/services/monthly-cost-close";
 import { createTestDatabase } from "../db/helpers";
 
 let db: KosuDatabase;
@@ -102,7 +102,7 @@ describe("daily allocation plan service", () => {
       }),
     ).toThrow(DailyAllocationPlanError);
 
-    createPeriodLock(db, { month: "2026-07", isLocked: true });
+    startMonthlyCostReview(db, { month: "2026-07", actorMemberId: member.id });
     expect(() =>
       saveDailyAllocationPlans(db, {
         memberId: member.id,

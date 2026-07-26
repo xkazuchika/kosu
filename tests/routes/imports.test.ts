@@ -13,6 +13,7 @@ import { findMemberByEmail } from "../../app/db/repositories/members";
 import { projects } from "../../app/db/schema";
 import { verifyPassword } from "../../app/lib/password";
 import { action as importsAction, loader as importsLoader } from "../../app/routes/imports";
+import { startMonthlyCostReview } from "../../app/services/monthly-cost-close";
 import { buildContext, setupAndLogin, type RouteActionHandler, type RouteLoaderHandler } from "./helpers";
 
 let dataDir: string;
@@ -217,6 +218,29 @@ describe("imports", () => {
       invalidRows: 0,
     });
     connection.sqlite.close();
+  });
+
+  test("monthly import commit cannot bypass a protected month", async () => {
+    const cookie = await setupAndLogin(dataDir, "password123");
+    const connection = createDatabaseConnection(resolveDatabaseConfig().databaseUrl);
+    const admin = findMemberByEmail(connection.db, "admin@example.com")!;
+    startMonthlyCostReview(connection.db, { month: "2026-07", actorMemberId: admin.id });
+    connection.sqlite.close();
+
+    const csv = "memberEmail,month,capacityHours\nadmin@example.com,2026-07,160\n";
+    const file = new File([csv], "capacities.csv", { type: "text/csv" });
+    const formData = new FormData();
+    formData.append("intent", "commit");
+    formData.append("type", "member_monthly_capacities");
+    formData.append("file", file);
+
+    await expect(
+      (importsAction as unknown as RouteActionHandler)({
+        request: buildMultipartRequest(formData, cookie),
+        params: {},
+        context: buildContext(),
+      }),
+    ).rejects.toMatchObject({ status: 423 });
   });
 
   test("project import keeps legacy amount separate from financial baseline", async () => {

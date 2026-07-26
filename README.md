@@ -2,7 +2,7 @@
 
 `kosu` は、小さなチームや部門向けの軽量セルフホスト OSS 工数管理アプリです。
 
-現在のアプリバージョンは `v0.6.1` です。
+現在のアプリバージョンは `v0.7.0` です。
 
 重い SaaS や ERP を導入せずに、日々の実績工数入力、案件・タスク別の実績工数、日別・月次の予定工数、月別の総稼働時間、基本的な工数レポートを扱うことを目指しています。初期 UI とドキュメントは日本語ファーストです。
 
@@ -21,7 +21,7 @@
 - 日別の総稼働時間と案件・タスク別の実績工数入力
 - 月別総稼働時間の一括入力
 - 対象月・状態で絞り込める未割当・超過の警告と日別修正導線
-- 月次ロックによるレビュー済み期間の保護
+- 月次原価締めによる完全性確認、全更新経路の保護、承認済み案件財務スナップショット
 - メンバー向け・管理者向けダッシュボード
 - ワークフロー別サイドバー、モバイルナビゲーション、Today First ダッシュボード
 - 日付の多い入力画面での曜日表示、土曜/日曜の視認性向上
@@ -106,6 +106,7 @@ KOSU_DATA_DIR=/var/lib/kosu npm run db:migrate
 - 工数実績レポート
 - 予定工数対実績工数
 - 案件財務レビュー（管理者のみ）
+- 月次原価締め（管理者のみ）
 
 サポート対象のレポートは上記3系統です。月次キャパシティ比較は予定工数対実績工数に含まれます。本格的なリソース計画は現在の公開範囲に含みません。
 
@@ -122,6 +123,14 @@ KOSU_DATA_DIR=/var/lib/kosu npm run db:migrate
 これらは直接人件費だけを対象にした管理値です。仕入れ、外注費、経費、税金、請求・入金は含めません。原価スナップショットがない予定・実績工数がある場合、金額は不完全として表示され、残予算や確定労務粗利を確定値として扱いません。
 
 旧「売上または予算」項目の値は自動変換されません。案件編集から、意味を確認したうえで契約売上または人件費予算を設定してください。
+
+## 月次原価締め
+
+管理者は `/period-locks` で対象月をレビュー中にして編集を止め、完全性チェック後に承認できます。勤務時間と配賦時間の不一致、原価スナップショット欠損、活動中の請求対象案件に必要な契約売上・人件費予算の欠損は承認をブロックします。日次予定と月次予定の差は警告ですが、承認は妨げません。
+
+レビュー中・承認済みの月は、管理者を含む全員について実績、配賦、日次・月次予定、キャパシティ、予定から実績への反映、対象月のCSV取り込みが読み取り専用になります。修正時は理由を記録して再オープンします。承認済み案件財務は承認時のスナップショットを表示するため、その後の案件名・基準額・メンバー原価率・アーカイブ状態・将来実績の変更では変わりません。
+
+旧バージョンの有効な月次ロックは、アップグレード時に「レビュー中」として移行されます。旧ロックテーブルはロールバック互換性のため残りますが、承認済みとはみなしません。
 
 ## Docker デプロイ
 
@@ -194,6 +203,7 @@ npm run db:seed:demo
 
 ## バージョン履歴
 
+- `v0.7.0`: 月次原価締め、締め前完全性チェック、全更新経路の保護、理由付き再オープン、承認済み案件財務スナップショットを追加。
 - `v0.6.1`: ワークスペースのタイムゾーンに基づく日付初期値、リリース検証、GitHub Actions CI、Playwright smoke test を追加し、未対応のリソース計画プレビューを削除。
 - `v0.6.0`: 管理者向けの案件別直接人件費、人件費予算、予算消化、労務粗利レビューと、メンバー向けの月別未割当・超過修正導線を追加。
 - `v0.5.0`: ワークフロー別ナビゲーション、Today First ダッシュボード、共有UI刷新、主要画面の構成整理、曜日/土日表示を追加。
@@ -230,4 +240,4 @@ Issue や Pull Request では、次の情報があると検討しやすくなり
 
 ## English Summary
 
-`kosu` is a lightweight self-hosted OSS effort management web app for small teams. Version `v0.6.1` adds workspace-timezone-aware date defaults, release verification, GitHub Actions CI, and a Playwright browser smoke test while removing the unsupported resource-planning preview. It also includes administrator-only direct-labor cost control, daily actual effort entry, daily and monthly planned effort, monthly working-hour totals, planned-vs-actual reporting, CSV import/export, workflow-oriented navigation, a Today First dashboard, and SQLite single-instance deployment. Accounting, invoicing, expense, procurement, full resource planning, multi-instance operation, and multi-tenant SaaS use cases are out of scope. The UI and documentation are Japanese-first, and the project is licensed under MIT.
+`kosu` is a lightweight self-hosted OSS effort management web app for small teams. Version `v0.7.0` adds monthly direct-labor cost closing, completeness checks, protected review and approval states, reason-required reopening, and immutable approved project-financial snapshots. It also includes administrator-only direct-labor cost control, daily actual effort entry, daily and monthly planned effort, monthly working-hour totals, planned-vs-actual reporting, CSV import/export, workflow-oriented navigation, a Today First dashboard, GitHub Actions CI, Playwright production smoke testing, and SQLite single-instance deployment. Accounting, invoicing, expense, procurement, full resource planning, multi-instance operation, and multi-tenant SaaS use cases are out of scope. The UI and documentation are Japanese-first, and the project is licensed under MIT.

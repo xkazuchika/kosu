@@ -242,6 +242,89 @@ export const periodLocks = sqliteTable(
   (table) => [index("period_locks_month_index").on(table.month)],
 );
 
+export const monthlyCostCloses = sqliteTable(
+  "monthly_cost_closes",
+  {
+    id,
+    month: text("month").notNull().unique(),
+    status: text("status", { enum: ["open", "in_review", "approved"] }).notNull().default("open"),
+    enteredReviewByMemberId: text("entered_review_by_member_id").references(() => members.id, {
+      onDelete: "set null",
+    }),
+    enteredReviewAt: text("entered_review_at"),
+    approvedByMemberId: text("approved_by_member_id").references(() => members.id, { onDelete: "set null" }),
+    approvedAt: text("approved_at"),
+    createdAt,
+    updatedAt,
+  },
+  (table) => [
+    index("monthly_cost_closes_month_index").on(table.month),
+    index("monthly_cost_closes_status_month_index").on(table.status, table.month),
+  ],
+);
+
+export const monthlyCostCloseEvents = sqliteTable(
+  "monthly_cost_close_events",
+  {
+    id,
+    closeId: text("close_id")
+      .notNull()
+      .references(() => monthlyCostCloses.id, { onDelete: "cascade" }),
+    eventType: text("event_type", {
+      enum: ["migration", "entered_review", "approved", "reopened", "cost_snapshot_corrected"],
+    }).notNull(),
+    actorMemberId: text("actor_member_id").references(() => members.id, { onDelete: "set null" }),
+    previousStatus: text("previous_status", { enum: ["open", "in_review", "approved"] }),
+    nextStatus: text("next_status", { enum: ["open", "in_review", "approved"] }),
+    reason: text("reason"),
+    targetType: text("target_type", { enum: ["monthly_plan", "effort_allocation"] }),
+    targetId: text("target_id"),
+    previousHourlyCostRate: integer("previous_hourly_cost_rate"),
+    nextHourlyCostRate: integer("next_hourly_cost_rate"),
+    occurredAt: text("occurred_at").notNull(),
+    createdAt,
+  },
+  (table) => [
+    index("monthly_cost_close_events_close_occurred_index").on(table.closeId, table.occurredAt),
+    index("monthly_cost_close_events_actor_index").on(table.actorMemberId),
+  ],
+);
+
+export const monthlyCostCloseProjectSnapshots = sqliteTable(
+  "monthly_cost_close_project_snapshots",
+  {
+    id,
+    closeId: text("close_id")
+      .notNull()
+      .references(() => monthlyCostCloses.id, { onDelete: "cascade" }),
+    projectId: text("project_id")
+      .notNull()
+      .references(() => projects.id, { onDelete: "restrict" }),
+    projectCode: text("project_code").notNull(),
+    projectName: text("project_name").notNull(),
+    projectType: text("project_type", { enum: ["billable", "internal", "non_billable"] }).notNull(),
+    projectIsArchived: integer("project_is_archived", { mode: "boolean" }).notNull(),
+    legacyRevenueOrBudgetAmount: integer("legacy_revenue_or_budget_amount"),
+    contractRevenueAmount: integer("contract_revenue_amount"),
+    laborCostBudgetAmount: integer("labor_cost_budget_amount"),
+    monthlyPlannedCost: integer("monthly_planned_cost").notNull(),
+    monthlyActualCost: integer("monthly_actual_cost").notNull(),
+    cumulativeActualCost: integer("cumulative_actual_cost").notNull(),
+    remainingLaborCostBudget: integer("remaining_labor_cost_budget"),
+    laborBudgetConsumption: real("labor_budget_consumption"),
+    targetLaborGrossProfit: integer("target_labor_gross_profit"),
+    targetLaborGrossProfitRate: real("target_labor_gross_profit_rate"),
+    finalLaborGrossProfit: integer("final_labor_gross_profit"),
+    finalLaborGrossProfitRate: real("final_labor_gross_profit_rate"),
+    createdAt,
+  },
+  (table) => [
+    unique("monthly_cost_close_project_snapshot_close_project_unique").on(table.closeId, table.projectId),
+    index("monthly_cost_close_project_snapshots_close_index").on(table.closeId),
+    index("monthly_cost_close_project_snapshots_project_index").on(table.projectId),
+  ],
+);
+
 export const importJobs = sqliteTable(
   "import_jobs",
   {
@@ -269,6 +352,9 @@ export const schema = {
   importJobs,
   memberMonthlyCapacities,
   members,
+  monthlyCostCloseEvents,
+  monthlyCostCloseProjectSnapshots,
+  monthlyCostCloses,
   monthlyPlans,
   periodLocks,
   projectAssignments,

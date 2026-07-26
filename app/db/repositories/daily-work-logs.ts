@@ -37,6 +37,15 @@ export function listDailyWorkLogsByMemberAndMonth(db: KosuDatabase, memberId: st
     .all();
 }
 
+export function listDailyWorkLogsByMonth(db: KosuDatabase, month: string) {
+  return db
+    .select()
+    .from(dailyWorkLogs)
+    .where(and(like(dailyWorkLogs.workDate, `${month}%`), isNull(dailyWorkLogs.deletedAt)))
+    .orderBy(asc(dailyWorkLogs.workDate), asc(dailyWorkLogs.memberId))
+    .all();
+}
+
 export function findDailyWorkLogById(db: KosuDatabase, id: string) {
   return db.select().from(dailyWorkLogs).where(eq(dailyWorkLogs.id, id)).get();
 }

@@ -1,6 +1,7 @@
 import { Form, Link, useLoaderData } from "react-router";
 import type { Route } from "./+types/reports";
 
+import { MonthlyCloseStatusBadge } from "~/components/monthly-close-status";
 import { Button } from "~/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "~/components/ui/card";
 import { EmptyState } from "~/components/ui/empty-state";
@@ -10,6 +11,7 @@ import { listMembers, withoutMemberFinancials } from "~/db/repositories/members"
 import { listActiveProjects, withoutProjectFinancials } from "~/db/repositories/projects";
 import { isValidMonth } from "~/lib/time";
 import { getSessionMember } from "~/services/auth";
+import { getMonthlyCostCloseState } from "~/services/monthly-cost-close";
 import { getWorkspaceCalendarContext } from "~/services/workspace-calendar";
 
 export const loader = async ({ request }: { request: Request }) => {
@@ -46,6 +48,7 @@ export const loader = async ({ request }: { request: Request }) => {
     const members = member.role === "admin" ? listMembers(db).map(withoutMemberFinancials) : [];
 
     return {
+      closeStatus: getMonthlyCostCloseState(db, month).status,
       isAdmin: member.role === "admin",
       month,
       departmentName: departmentName ?? "",
@@ -151,12 +154,15 @@ export default function Reports() {
           <h1 className="text-2xl font-bold tracking-tight text-slate-950">工数実績レポート</h1>
           <p className="text-sm text-slate-600">案件・メンバー・月ごとの実績工数を確認してCSV出力できます。</p>
         </div>
-        <Form method="post">
-          <input name="month" type="hidden" value={data.month} />
-          <Button type="submit" variant="outline">
-            CSV エクスポート
-          </Button>
-        </Form>
+        <div className="flex flex-wrap items-center gap-3">
+          <MonthlyCloseStatusBadge status={data.closeStatus} />
+          <Form method="post">
+            <input name="month" type="hidden" value={data.month} />
+            <Button type="submit" variant="outline">
+              CSV エクスポート
+            </Button>
+          </Form>
+        </div>
       </div>
 
       <Card>
