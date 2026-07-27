@@ -69,10 +69,10 @@ Use this checklist for each release candidate. Record the version and commit, an
 - The disposable validation container, network, and volume were removed after the persistence check.
 - GitHub Actions `CI` workflow completed successfully for the pushed candidate, including quality and browser-smoke jobs.
 
-### 2026-07-26 — monthly-close working tree
+### 2026-07-27 — v0.7.0 candidate
 
 - OpenSpec reports 21 of 21 tasks complete, and strict validation passes all 13 current specs and changes.
 - `npm test` passes 40 files and 178 tests; typecheck, ESLint, the production build, and the production-server Playwright smoke pass.
 - A clean Compose build completes `npm ci`, the production build, and migrations. Setup and login succeed, and the initialized workspace remains available after a container restart with the same volume.
 - The production dependency audit reports 0 vulnerabilities. Four moderate development-only Drizzle toolchain advisories remain accepted pending a compatible upstream fix.
-- GitHub Actions remains to be confirmed after the candidate is committed and pushed.
+- GitHub Actions run `30225449957` passed both the Quality gate and Browser smoke jobs for the monthly-close implementation commit.
