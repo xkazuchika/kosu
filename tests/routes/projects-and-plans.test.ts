@@ -270,7 +270,7 @@ describe("projects, tasks, assignments, and plans routes", () => {
     });
 
     const monthlyPlansResponse = await (monthlyPlansLoader as unknown as RouteLoaderHandler)({
-      request: new Request("http://localhost/monthly-plans", { headers: { Cookie: cookie } }),
+      request: new Request("http://localhost/monthly-plans?month=2026-07", { headers: { Cookie: cookie } }),
       context: buildContext(),
     });
     expect((monthlyPlansResponse as { capacityHours: number }).capacityHours).toBe(160);
@@ -305,7 +305,7 @@ describe("projects, tasks, assignments, and plans routes", () => {
     });
 
     const monthlyPlansResponse = await (monthlyPlansLoader as unknown as RouteLoaderHandler)({
-      request: new Request("http://localhost/monthly-plans", { headers: { Cookie: cookie } }),
+      request: new Request("http://localhost/monthly-plans?month=2026-07", { headers: { Cookie: cookie } }),
       context: buildContext(),
     });
     expect((monthlyPlansResponse as { capacityHours: number | null }).capacityHours).toBeNull();
