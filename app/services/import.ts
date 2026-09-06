@@ -25,6 +25,7 @@ export type ImportPreviewRow = {
 
 export type ImportPreview = {
   type: ImportType;
+  missingColumns: string[];
   totalRows: number;
   validRows: number;
   invalidRows: number;
@@ -39,6 +40,14 @@ const templates: Record<ImportType, string[]> = {
   monthly_plans: ["memberEmail", "projectCode", "month", "assignmentRole", "plannedHours"],
 };
 
+const requiredColumns: Record<ImportType, string[]> = {
+  members: ["email", "displayName"],
+  projects: ["code", "name"],
+  project_assignments: ["memberEmail", "projectCode"],
+  member_monthly_capacities: ["memberEmail", "month", "capacityHours"],
+  monthly_plans: ["memberEmail", "projectCode", "month", "plannedHours"],
+};
+
 export function isImportType(value: string): value is ImportType {
   return Object.prototype.hasOwnProperty.call(templates, value);
 }
@@ -47,9 +56,16 @@ export function getImportTemplate(type: ImportType): string {
   return templates[type].join(",");
 }
 
+export function findMissingColumns(type: ImportType, headers: string[]): string[] {
+  const present = new Set(headers.map((header) => header.trim()));
+
+  return requiredColumns[type].filter((column) => !present.has(column));
+}
+
 export function previewImport(db: KosuDatabase, type: ImportType, rows: string[][]): ImportPreview {
   const headers = rows[0] ?? [];
   const dataRows = rows.slice(1).filter((row) => row.some((cell) => cell.trim() !== ""));
+  const missingColumns = findMissingColumns(type, headers);
   const duplicateLineNumbers = collectDuplicateLineNumbers(type, headers, dataRows);
   const previewRows: ImportPreviewRow[] = [];
   let validCount = 0;
@@ -58,10 +74,15 @@ export function previewImport(db: KosuDatabase, type: ImportType, rows: string[]
     const lineNumber = i + 2;
     const row = dataRows[i];
     const record: Record<string, string> = Object.fromEntries(headers.map((h, idx) => [h, row[idx] ?? ""]));
-    const errors = validateRow(db, type, record);
-    if (duplicateLineNumbers.has(lineNumber)) {
+    const errors =
+      missingColumns.length > 0
+        ? missingColumns.map((column) => `必須列「${column}」が CSV に存在しません`)
+        : validateRow(db, type, record);
+
+    if (missingColumns.length === 0 && duplicateLineNumbers.has(lineNumber)) {
       errors.push("CSV 内でキーが重複しています");
     }
+
     const isValid = errors.length === 0;
 
     if (isValid) validCount++;
@@ -71,6 +92,7 @@ export function previewImport(db: KosuDatabase, type: ImportType, rows: string[]
 
   return {
     type,
+    missingColumns,
     totalRows: dataRows.length,
     validRows: validCount,
     invalidRows: dataRows.length - validCount,
@@ -206,7 +228,9 @@ function validateRow(db: KosuDatabase, type: ImportType, record: Record<string, 
     case "member_monthly_capacities": {
       if (!record.memberEmail) errors.push("メンバーメールが必要です");
       if (!isValidMonth(record.month ?? "")) errors.push("月の形式は YYYY-MM で実在する月にしてください");
-      if (record.capacityHours !== undefined && record.capacityHours !== "" && !isNonNegativeQuarterHour(Number(record.capacityHours))) {
+      if (!record.capacityHours?.trim()) {
+        errors.push("キャパシティを入力してください");
+      } else if (!isNonNegativeQuarterHour(Number(record.capacityHours))) {
         errors.push("キャパシティは 0.25h 単位の 0 以上の値です");
       }
       if (record.memberEmail && !findMemberByEmail(db, record.memberEmail)) errors.push("メンバーが存在しません");
@@ -216,7 +240,9 @@ function validateRow(db: KosuDatabase, type: ImportType, record: Record<string, 
       if (!record.memberEmail) errors.push("メンバーメールが必要です");
       if (!record.projectCode) errors.push("案件コードが必要です");
       if (!isValidMonth(record.month ?? "")) errors.push("月の形式は YYYY-MM で実在する月にしてください");
-      if (record.plannedHours !== undefined && record.plannedHours !== "" && !isNonNegativeQuarterHour(Number(record.plannedHours))) {
+      if (!record.plannedHours?.trim()) {
+        errors.push("予定時間を入力してください");
+      } else if (!isNonNegativeQuarterHour(Number(record.plannedHours))) {
         errors.push("予定時間は 0.25h 単位の 0 以上の値です");
       }
       if (record.memberEmail && !findMemberByEmail(db, record.memberEmail)) errors.push("メンバーが存在しません");

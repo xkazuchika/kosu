@@ -123,6 +123,31 @@ describe("imports", () => {
     expect(preview.invalidRows).toBe(1);
   });
 
+  test("preview reports a missing required column instead of failing the whole import", async () => {
+    const cookie = await setupAndLogin(dataDir, "password123");
+
+    const csv = "memberEmail,month\nadmin@example.com,2026-01\nadmin@example.com,2026-02\n";
+    const file = new File([csv], "capacities.csv", { type: "text/csv" });
+    const formData = new FormData();
+    formData.append("intent", "preview");
+    formData.append("type", "member_monthly_capacities");
+    formData.append("file", file);
+
+    const response = await (importsAction as unknown as RouteActionHandler)({
+      request: buildMultipartRequest(formData, cookie),
+      params: {},
+      context: buildContext(),
+    });
+
+    const preview = (response as {
+      preview: { validRows: number; invalidRows: number; missingColumns: string[]; rows: { errors: string[] }[] };
+    }).preview;
+    expect(preview.validRows).toBe(0);
+    expect(preview.invalidRows).toBe(2);
+    expect(preview.missingColumns).toEqual(["capacityHours"]);
+    expect(preview.rows[0].errors.join(" ")).toContain("必須列「capacityHours」が CSV に存在しません");
+  });
+
   test("preview rejects duplicate keys in the csv", async () => {
     const cookie = await setupAndLogin(dataDir, "password123");
 

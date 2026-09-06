@@ -291,6 +291,13 @@ export default function Imports() {
             </CardTitle>
           </CardHeader>
           <CardContent>
+            {preview.missingColumns.length > 0 ? (
+              <p className="mb-4 rounded-lg bg-red-50 p-3 text-sm text-red-700" role="alert">
+                テンプレートの必須列が不足しています: {preview.missingColumns.join(", ")}
+                <br />
+                テンプレートをダウンロードして列を見直してください。
+              </p>
+            ) : null}
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead className="border-b border-slate-200 text-left text-slate-600">

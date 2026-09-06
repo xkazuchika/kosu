@@ -27,6 +27,7 @@ import { findActiveAssignment, listActiveAssignmentsByMember } from "~/db/reposi
 import { findProjectById, withoutProjectFinancials } from "~/db/repositories/projects";
 import { findTaskById, listActiveTasksByProject } from "~/db/repositories/tasks";
 import { getSessionMember } from "~/services/auth";
+import { logRouteError } from "~/lib/log";
 import { getWeekdayLabel, isSaturdayDate, isSundayDate, isValidQuarterHour } from "~/lib/time";
 import { getMonthlyCostCloseState } from "~/services/monthly-cost-close";
 import { requireUnlockedMonth } from "~/services/period-lock";
@@ -60,10 +61,25 @@ export const loader = async ({ request, params }: { request: Request; params: { 
     const assignedProjectRecords = listActiveAssignmentsByMember(db, targetMemberId)
       .map((a) => findProjectById(db, a.projectId))
       .filter((p): p is NonNullable<typeof p> => p !== undefined && !p.isArchived);
-    const activeTasks = assignedProjectRecords.flatMap((project) =>
+    const assignableProjectIds = new Set(assignedProjectRecords.map((project) => project.id));
+    const referencedProjectRecords = [...new Set(allocations.map((allocation) => allocation.projectId))]
+      .filter((projectId) => !assignableProjectIds.has(projectId))
+      .map((projectId) => findProjectById(db, projectId))
+      .filter((p): p is NonNullable<typeof p> => p !== undefined);
+    const selectableProjectRecords = [...assignedProjectRecords, ...referencedProjectRecords];
+    const activeTasks = selectableProjectRecords.flatMap((project) =>
       listActiveTasksByProject(db, project.id).map((task) => ({ ...task, projectName: project.name })),
     );
-    const assignedProjects = isAdmin ? assignedProjectRecords : assignedProjectRecords.map(withoutProjectFinancials);
+    const activeTaskIds = new Set(activeTasks.map((task) => task.id));
+    const projectNameById = new Map(selectableProjectRecords.map((project) => [project.id, project.name]));
+    const referencedTasks = [...new Set(allocations.map((allocation) => allocation.taskId))]
+      .filter((taskId): taskId is string => taskId !== null && !activeTaskIds.has(taskId))
+      .map((taskId) => findTaskById(db, taskId))
+      .filter((t): t is NonNullable<typeof t> => t !== undefined)
+      .map((task) => ({ ...task, projectName: projectNameById.get(task.projectId) ?? "" }));
+    const selectableTasks = [...activeTasks, ...referencedTasks];
+    const assignedProjects = isAdmin ? selectableProjectRecords : selectableProjectRecords.map(withoutProjectFinancials);
+    const referencedOnlyProjectIds = referencedProjectRecords.map((project) => project.id);
 
     const closeState = getMonthlyCostCloseState(db, month);
 
@@ -75,7 +91,8 @@ export const loader = async ({ request, params }: { request: Request; params: { 
       workLog,
       allocations,
       assignedProjects,
-      activeTasks,
+      activeTasks: selectableTasks,
+      referencedOnlyProjectIds,
       isAdmin,
       targetMember: withoutMemberFinancials(targetMember),
       isLocked: closeState.isProtected,
@@ -208,13 +225,22 @@ export const action = async ({ request, params }: Route.ActionArgs) => {
         return { error: "実績工数は 0.25h 単位で入力してください。" };
       }
 
-      const allocationTargetError = validateAllocationTarget(db, targetMemberId, projectId, taskId);
+      const resolvedTaskId = taskId ?? allocation.taskId ?? undefined;
+      const allocationTargetError = validateAllocationTarget(db, targetMemberId, projectId, resolvedTaskId, {
+        projectId: allocation.projectId,
+        taskId: allocation.taskId,
+      });
 
       if (allocationTargetError) {
         return { error: allocationTargetError };
       }
 
-      updateEffortAllocation(db, allocationId, { projectId, taskId: taskId ?? null, allocatedHours, note });
+      updateEffortAllocation(db, allocationId, {
+        projectId,
+        taskId: resolvedTaskId ?? null,
+        allocatedHours,
+        note,
+      });
       const adminQuery = isAdmin && memberIdParam ? `?memberId=${targetMemberId}` : "";
       return redirect(`/work-logs/${workDate}${adminQuery}`);
     }
@@ -247,21 +273,36 @@ export const action = async ({ request, params }: Route.ActionArgs) => {
     if (error instanceof Response) {
       throw error;
     }
+    logRouteError("work-logs.$date", error);
     return { error: "保存に失敗しました。" };
   } finally {
     sqlite.close();
   }
 };
 
-function validateAllocationTarget(db: KosuDatabase, memberId: string, projectId: string, taskId?: string) {
+function validateAllocationTarget(
+  db: KosuDatabase,
+  memberId: string,
+  projectId: string,
+  taskId?: string,
+  existing?: { projectId: string; taskId: string | null },
+) {
   const project = findProjectById(db, projectId);
 
-  if (!project || project.isArchived) {
+  if (!project) {
     return "有効な案件を選択してください。";
   }
 
-  if (!findActiveAssignment(db, memberId, projectId)) {
-    return "アサインされていない案件には実績工数を登録できません。";
+  const keepsExistingProject = existing?.projectId === projectId;
+
+  if (!keepsExistingProject) {
+    if (project.isArchived) {
+      return "有効な案件を選択してください。";
+    }
+
+    if (!findActiveAssignment(db, memberId, projectId)) {
+      return "アサインされていない案件には実績工数を登録できません。";
+    }
   }
 
   if (!taskId) {
@@ -270,7 +311,13 @@ function validateAllocationTarget(db: KosuDatabase, memberId: string, projectId:
 
   const task = findTaskById(db, taskId);
 
-  if (!task || task.isArchived || task.projectId !== projectId) {
+  if (!task || task.projectId !== projectId) {
+    return "有効なタスクを選択してください。";
+  }
+
+  const keepsExistingTask = existing?.taskId === taskId;
+
+  if (!keepsExistingTask && task.isArchived) {
     return "有効なタスクを選択してください。";
   }
 
@@ -280,8 +327,28 @@ function validateAllocationTarget(db: KosuDatabase, memberId: string, projectId:
 export const meta: Route.MetaFunction = () => [{ title: "日別工数実績入力 | kosu" }];
 
 export default function WorkLogEntry({ actionData }: Route.ComponentProps) {
-  const { closeStatus, currentMemberId, today, workDate, month, workLog, allocations, assignedProjects, activeTasks, targetMember, isLocked } =
-    useLoaderData<typeof loader>();
+  const {
+    closeStatus,
+    currentMemberId,
+    today,
+    workDate,
+    month,
+    workLog,
+    allocations,
+    assignedProjects,
+    activeTasks,
+    referencedOnlyProjectIds,
+    targetMember,
+    isLocked,
+  } = useLoaderData<typeof loader>();
+  const referencedOnlyProjects = new Set(referencedOnlyProjectIds);
+  const projectLabel = (project: { id: string; name: string; isArchived?: boolean }) => {
+    if (!referencedOnlyProjects.has(project.id)) {
+      return project.name;
+    }
+
+    return `${project.name}（${project.isArchived ? "アーカイブ済み" : "アサイン解除済み"}）`;
+  };
   const allocatedTotal = allocations.reduce((sum, a) => sum + a.allocatedHours, 0);
   const totalWorkingHours = workLog?.totalWorkingHours ?? 0;
   const variance = totalWorkingHours - allocatedTotal;
@@ -383,7 +450,7 @@ export default function WorkLogEntry({ actionData }: Route.ComponentProps) {
                 >
                   {assignedProjects.map((project) => (
                     <option key={project.id} value={project.id}>
-                      {project.name}
+                      {projectLabel(project)}
                     </option>
                   ))}
                 </select>,
@@ -399,7 +466,7 @@ export default function WorkLogEntry({ actionData }: Route.ComponentProps) {
                     const projectTasks = activeTasks.filter((task) => task.projectId === project.id);
 
                     return projectTasks.length > 0 ? (
-                      <optgroup key={project.id} label={project.name}>
+                      <optgroup key={project.id} label={projectLabel(project)}>
                         {projectTasks.map((task) => (
                           <option key={task.id} value={task.id}>
                             {task.name}

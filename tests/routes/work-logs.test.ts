@@ -877,3 +877,193 @@ describe("daily work logs and allocations", () => {
     ).rejects.toBeInstanceOf(Response);
   });
 });
+
+describe("allocation edits keep unassignable references", () => {
+  async function seedAllocation(cookie: string, workDate: string, projectCode: string, projectName: string) {
+    await createProject(cookie, projectCode, projectName);
+    const listResponse = await (projectsLoader as unknown as RouteLoaderHandler)({
+      request: new Request("http://localhost/projects", { headers: { Cookie: cookie } }),
+      context: buildContext(),
+    });
+    const project = (listResponse as { projects: { id: string; code: string }[] }).projects.find(
+      (candidate) => candidate.code === projectCode,
+    )!;
+    await assignAdminToProject(cookie, project.id);
+
+    const workLogForm = new FormData();
+    workLogForm.append("intent", "saveWorkLog");
+    workLogForm.append("totalWorkingHours", "8");
+    await (workLogDateAction as unknown as RouteActionHandler)({
+      request: buildRequest(workLogForm, cookie),
+      params: { date: workDate },
+      context: buildContext(),
+    });
+
+    const allocationForm = new FormData();
+    allocationForm.append("intent", "addAllocation");
+    allocationForm.append("projectId", project.id);
+    allocationForm.append("allocatedHours", "4");
+    await (workLogDateAction as unknown as RouteActionHandler)({
+      request: buildRequest(allocationForm, cookie),
+      params: { date: workDate },
+      context: buildContext(),
+    });
+
+    return project;
+  }
+
+  function loadDetail(cookie: string, workDate: string) {
+    return (workLogDateLoader as unknown as RouteLoaderHandler)({
+      request: new Request(`http://localhost/work-logs/${workDate}`, { headers: { Cookie: cookie } }),
+      params: { date: workDate },
+      context: buildContext(),
+    });
+  }
+
+  test("entry screen keeps an archived project selectable with a state label", async () => {
+    const cookie = await setupAndLogin(dataDir, "password123");
+    const project = await seedAllocation(cookie, "2026-07-20", "ARCH-1", "Archived project");
+
+    const connection = createDatabaseConnection();
+    try {
+      archiveProject(connection.db, project.id, new Date().toISOString());
+    } finally {
+      connection.sqlite.close();
+    }
+
+    const detail = (await loadDetail(cookie, "2026-07-20")) as {
+      assignedProjects: { id: string }[];
+      referencedOnlyProjectIds: string[];
+      allocations: { projectId: string }[];
+    };
+
+    expect(detail.allocations[0].projectId).toBe(project.id);
+    expect(detail.assignedProjects.map((candidate) => candidate.id)).toContain(project.id);
+    expect(detail.referencedOnlyProjectIds).toContain(project.id);
+  });
+
+  test("updating hours keeps an archived project instead of moving the allocation", async () => {
+    const cookie = await setupAndLogin(dataDir, "password123");
+    const project = await seedAllocation(cookie, "2026-07-21", "ARCH-2", "Archived project 2");
+
+    const connection = createDatabaseConnection();
+    try {
+      archiveProject(connection.db, project.id, new Date().toISOString());
+    } finally {
+      connection.sqlite.close();
+    }
+
+    const before = (await loadDetail(cookie, "2026-07-21")) as { allocations: { id: string }[] };
+    const allocationId = before.allocations[0].id;
+
+    const updateForm = new FormData();
+    updateForm.append("intent", "updateAllocation");
+    updateForm.append("allocationId", allocationId);
+    updateForm.append("projectId", project.id);
+    updateForm.append("allocatedHours", "6");
+
+    const response = await (workLogDateAction as unknown as RouteActionHandler)({
+      request: buildRequest(updateForm, cookie),
+      params: { date: "2026-07-21" },
+      context: buildContext(),
+    });
+    expect(response).toBeInstanceOf(Response);
+
+    const after = (await loadDetail(cookie, "2026-07-21")) as {
+      allocations: { projectId: string; allocatedHours: number }[];
+    };
+    expect(after.allocations[0].projectId).toBe(project.id);
+    expect(after.allocations[0].allocatedHours).toBe(6);
+  });
+
+  test("rejects changing an allocation to a project that is archived or unassigned", async () => {
+    const cookie = await setupAndLogin(dataDir, "password123");
+    const original = await seedAllocation(cookie, "2026-07-22", "MOVE-1", "Original project");
+    const archived = await seedAllocation(cookie, "2026-07-22", "MOVE-2", "Archived target");
+
+    const connection = createDatabaseConnection();
+    try {
+      archiveProject(connection.db, archived.id, new Date().toISOString());
+    } finally {
+      connection.sqlite.close();
+    }
+
+    const detail = (await loadDetail(cookie, "2026-07-22")) as {
+      allocations: { id: string; projectId: string }[];
+    };
+    const allocation = detail.allocations.find((candidate) => candidate.projectId === original.id)!;
+
+    const updateForm = new FormData();
+    updateForm.append("intent", "updateAllocation");
+    updateForm.append("allocationId", allocation.id);
+    updateForm.append("projectId", archived.id);
+    updateForm.append("allocatedHours", "4");
+
+    const response = await (workLogDateAction as unknown as RouteActionHandler)({
+      request: buildRequest(updateForm, cookie),
+      params: { date: "2026-07-22" },
+      context: buildContext(),
+    });
+    expect((response as { error: string }).error).toContain("有効な案件");
+
+    const after = (await loadDetail(cookie, "2026-07-22")) as { allocations: { projectId: string }[] };
+    expect(after.allocations.find((candidate) => candidate.projectId === original.id)).toBeDefined();
+  });
+
+  test("updating hours keeps an archived task on the allocation", async () => {
+    const cookie = await setupAndLogin(dataDir, "password123");
+    const project = await seedAllocation(cookie, "2026-07-23", "TASK-1", "Task project");
+
+    const connection = createDatabaseConnection();
+    let taskId: string;
+    try {
+      const task = createTask(connection.db, { projectId: project.id, name: "Archived task" });
+      taskId = task.id;
+    } finally {
+      connection.sqlite.close();
+    }
+
+    const detail = (await loadDetail(cookie, "2026-07-23")) as { allocations: { id: string }[] };
+    const allocationId = detail.allocations[0].id;
+
+    const assignTaskForm = new FormData();
+    assignTaskForm.append("intent", "updateAllocation");
+    assignTaskForm.append("allocationId", allocationId);
+    assignTaskForm.append("projectId", project.id);
+    assignTaskForm.append("taskId", taskId);
+    assignTaskForm.append("allocatedHours", "4");
+    await (workLogDateAction as unknown as RouteActionHandler)({
+      request: buildRequest(assignTaskForm, cookie),
+      params: { date: "2026-07-23" },
+      context: buildContext(),
+    });
+
+    const archiveConnection = createDatabaseConnection();
+    try {
+      archiveTask(archiveConnection.db, taskId, new Date().toISOString());
+    } finally {
+      archiveConnection.sqlite.close();
+    }
+
+    const updateForm = new FormData();
+    updateForm.append("intent", "updateAllocation");
+    updateForm.append("allocationId", allocationId);
+    updateForm.append("projectId", project.id);
+    updateForm.append("allocatedHours", "5");
+
+    const response = await (workLogDateAction as unknown as RouteActionHandler)({
+      request: buildRequest(updateForm, cookie),
+      params: { date: "2026-07-23" },
+      context: buildContext(),
+    });
+    expect(response).toBeInstanceOf(Response);
+
+    const after = (await loadDetail(cookie, "2026-07-23")) as {
+      allocations: { taskId: string | null; allocatedHours: number }[];
+      activeTasks: { id: string }[];
+    };
+    expect(after.allocations[0].taskId).toBe(taskId);
+    expect(after.allocations[0].allocatedHours).toBe(5);
+    expect(after.activeTasks.map((task) => task.id)).toContain(taskId);
+  });
+});
