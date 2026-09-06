@@ -6,6 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "~/components/ui/card";
 import { Field, Input } from "~/components/ui/form";
 import { createDatabaseConnection } from "~/db/client";
 import { archiveProject, findProjectById, unarchiveProject, updateProject } from "~/db/repositories/projects";
+import { logRouteError } from "~/lib/log";
 import { parseOptionalYen } from "~/lib/currency";
 import { requireAdministrator } from "~/services/auth";
 
@@ -72,6 +73,7 @@ export const action = async ({ request, params }: Route.ActionArgs) => {
     if (error instanceof Response) {
       throw error;
     }
+    logRouteError("projects.$id", error);
     return { error: "案件の更新に失敗しました。コードが重複している可能性があります。" };
   } finally {
     sqlite.close();

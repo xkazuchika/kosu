@@ -5,6 +5,7 @@ export default [
   route("setup", "routes/setup.tsx"),
   route("login", "routes/login.tsx"),
   route("logout", "routes/logout.ts"),
+  route("health", "routes/health.ts"),
   layout("routes/app-layout.tsx", [
     route("dashboard", "routes/dashboard.tsx"),
     route("settings", "routes/settings.tsx"),

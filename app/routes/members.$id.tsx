@@ -8,6 +8,7 @@ import { createDatabaseConnection } from "~/db/client";
 import { activateMember, deactivateMember, findMemberById, isLastActiveAdministrator, updateMember, withoutMemberPasswordHash } from "~/db/repositories/members";
 import { deleteSessionsForMember } from "~/db/repositories/sessions";
 import { requireAdministrator } from "~/services/auth";
+import { logRouteError } from "~/lib/log";
 import { hashPassword } from "~/lib/password";
 
 export const loader = async ({ request, params }: { request: Request; params: { id: string } }) => {
@@ -97,7 +98,8 @@ export const action = async ({ request, params }: Route.ActionArgs) => {
     }
 
     return redirect("/members");
-  } catch {
+  } catch (error) {
+    logRouteError("members.$id", error);
     return { error: "メンバーの更新に失敗しました。メールアドレスが重複している可能性があります。" };
   } finally {
     sqlite.close();

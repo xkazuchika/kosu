@@ -11,6 +11,7 @@ import { createMemberMonthlyCapacity, deleteMemberMonthlyCapacity, findCapacityB
 import { createMonthlyPlan, deleteMonthlyPlan, findMonthlyPlan, findMonthlyPlanById, listMonthlyPlansByMonth, updateMonthlyPlan } from "~/db/repositories/monthly-plans";
 import { findMemberById, listMembers, withoutMemberFinancials } from "~/db/repositories/members";
 import { findProjectById, listActiveProjects } from "~/db/repositories/projects";
+import { logRouteError } from "~/lib/log";
 import { isNonNegativeQuarterHour, isValidMonth } from "~/lib/time";
 import { requireAdministrator } from "~/services/auth";
 import { getMonthlyCostCloseState } from "~/services/monthly-cost-close";
@@ -163,6 +164,7 @@ export const action = async ({ request }: Route.ActionArgs) => {
     if (error instanceof Response) {
       throw error;
     }
+    logRouteError("monthly-plans.admin", error);
     return { error: "保存に失敗しました。" };
   } finally {
     sqlite.close();

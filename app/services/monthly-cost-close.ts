@@ -1,4 +1,5 @@
 import type { KosuDatabase } from "~/db/client";
+import { logWarn } from "~/lib/log";
 import { findDailyWorkLogById } from "~/db/repositories/daily-work-logs";
 import { findAllocationById, updateEffortAllocation } from "~/db/repositories/effort-allocations";
 import {
@@ -45,6 +46,10 @@ export function requireOpenMonth(db: KosuDatabase, month: string) {
   const state = getMonthlyCostCloseState(db, month);
 
   if (state.isProtected) {
+    logWarn("monthly_close.protected_write_rejected", "保護された月への書き込みを拒否しました", {
+      month,
+      status: state.status,
+    });
     throw new Response(
       `${month} は「${state.label}」のため変更できません。月次締め画面で理由を記録して再オープンしてください。`,
       { status: 423 },

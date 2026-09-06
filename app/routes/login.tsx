@@ -5,6 +5,7 @@ import { Button } from "~/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "~/components/ui/card";
 import { Field, Input } from "~/components/ui/form";
 import { createDatabaseConnection } from "~/db/client";
+import { logWarn } from "~/lib/log";
 import { authenticateMember, createMemberSession, isSetupComplete } from "~/services/auth";
 import { getClientKeyFromRequest, isLoginThrottled, recordLoginFailure } from "~/services/login-rate-limit";
 import { setSessionCookie } from "~/services/session";
@@ -35,6 +36,7 @@ export const action = async ({ request }: Route.ActionArgs) => {
     const clientKey = getClientKeyFromRequest(request);
 
     if (isLoginThrottled(clientKey)) {
+      logWarn("auth.login_throttled", "ログイン試行がレート制限により拒否されました", { clientKey });
       return new Response("Too Many Requests", { status: 429 });
     }
 
@@ -45,6 +47,7 @@ export const action = async ({ request }: Route.ActionArgs) => {
 
     if (!member) {
       recordLoginFailure(clientKey);
+      logWarn("auth.login_failed", "ログイン認証に失敗しました", { emailDomain: emailDomainOf(email) });
       return { error: "メールアドレスまたはパスワードが正しくありません。" };
     }
 
@@ -59,6 +62,12 @@ export const action = async ({ request }: Route.ActionArgs) => {
 };
 
 export const meta: Route.MetaFunction = () => [{ title: "ログイン | kosu" }];
+
+function emailDomainOf(email: string) {
+  const atIndex = email.lastIndexOf("@");
+
+  return atIndex > 0 ? email.slice(atIndex + 1) : "";
+}
 
 export default function Login({ actionData }: Route.ComponentProps) {
   return (

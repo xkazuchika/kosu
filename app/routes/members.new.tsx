@@ -7,6 +7,7 @@ import { Field, Input } from "~/components/ui/form";
 import { createDatabaseConnection } from "~/db/client";
 import { createMember } from "~/db/repositories/members";
 import { requireAdministrator } from "~/services/auth";
+import { logRouteError } from "~/lib/log";
 import { hashPassword } from "~/lib/password";
 
 export const action = async ({ request }: Route.ActionArgs) => {
@@ -44,7 +45,8 @@ export const action = async ({ request }: Route.ActionArgs) => {
     });
 
     return redirect("/members");
-  } catch {
+  } catch (error) {
+    logRouteError("members.new", error);
     return { error: "メンバーの作成に失敗しました。メールアドレスが重複している可能性があります。" };
   } finally {
     sqlite.close();

@@ -2,6 +2,7 @@ import type { KosuDatabase } from "~/db/client";
 import { createMember, findActiveMemberByEmail, findMemberById } from "~/db/repositories/members";
 import { createSession, deleteExpiredSessions, deleteSession, findSessionById } from "~/db/repositories/sessions";
 import { findWorkspace, createWorkspace } from "~/db/repositories/workspace";
+import { logWarn } from "~/lib/log";
 import { hashPassword, verifyPassword } from "~/lib/password";
 import { normalizeTimeZone } from "~/lib/time";
 
@@ -124,6 +125,7 @@ export function requireAuth(db: KosuDatabase, request: Request) {
   const member = getSessionMember(db, request);
 
   if (!member) {
+    logWarn("auth.unauthenticated", "未認証のリクエストを拒否しました", { path: requestPath(request) });
     throw new Response("Unauthorized", { status: 401 });
   }
 
@@ -134,10 +136,22 @@ export function requireAdministrator(db: KosuDatabase, request: Request) {
   const member = requireAuth(db, request);
 
   if (member.role !== "admin") {
+    logWarn("auth.forbidden", "管理者権限のないリクエストを拒否しました", {
+      path: requestPath(request),
+      memberId: member.id,
+    });
     throw new Response("Forbidden", { status: 403 });
   }
 
   return member;
+}
+
+function requestPath(request: Request) {
+  try {
+    return new URL(request.url).pathname;
+  } catch {
+    return "";
+  }
 }
 
 export { clearSessionCookie, setSessionCookie };

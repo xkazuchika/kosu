@@ -11,6 +11,7 @@ import {
   listMonthlyCostCloses,
 } from "~/db/repositories/monthly-cost-closes";
 import { listMembers } from "~/db/repositories/members";
+import { logInfo, logRouteError } from "~/lib/log";
 import { isValidMonth } from "~/lib/time";
 import { requireAdministrator } from "~/services/auth";
 import { approveMonthlyCostClose } from "~/services/monthly-cost-approval";
@@ -72,11 +73,17 @@ export const action = async ({ request }: Route.ActionArgs) => {
 
     if (intent === "startReview") {
       startMonthlyCostReview(db, { month, actorMemberId: member.id });
+      logInfo("monthly_close.entered_review", "月次締めのレビューを開始しました", { month, actorMemberId: member.id });
       return { success: `${month} のレビューを開始しました。` };
     }
 
     if (intent === "approve") {
       const result = approveMonthlyCostClose(db, { month, actorMemberId: member.id });
+      logInfo("monthly_close.approved", "月次締めを承認しました", {
+        month,
+        actorMemberId: member.id,
+        projectSnapshotCount: result.projectSnapshotCount,
+      });
       return { success: `${month} を承認しました（案件スナップショット ${result.projectSnapshotCount} 件）。` };
     }
 
@@ -86,6 +93,7 @@ export const action = async ({ request }: Route.ActionArgs) => {
         actorMemberId: member.id,
         reason: String(formData.get("reason") ?? ""),
       });
+      logInfo("monthly_close.reopened", "月次締めを再オープンしました", { month, actorMemberId: member.id });
       return { success: `${month} を再オープンしました。` };
     }
 
@@ -98,12 +106,18 @@ export const action = async ({ request }: Route.ActionArgs) => {
         hourlyCostRate: Number(formData.get("hourlyCostRate") ?? Number.NaN),
         reason: String(formData.get("reason") ?? ""),
       });
+      logInfo("monthly_close.cost_snapshot_corrected", "原価スナップショットを補正しました", {
+        month,
+        actorMemberId: member.id,
+        targetType: String(formData.get("targetType") ?? ""),
+      });
       return { success: "原価スナップショットを補正し、履歴に記録しました。" };
     }
 
     return { error: "不明な操作です。" };
   } catch (error) {
     if (error instanceof Response) throw error;
+    logRouteError("period-locks", error);
     return { error: error instanceof Error ? error.message : "月次締めの操作に失敗しました。" };
   } finally {
     sqlite.close();

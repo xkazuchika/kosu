@@ -11,6 +11,7 @@ import { listMembers, findMemberById, withoutMemberFinancials } from "~/db/repos
 import { listMonthlyPlansByMemberAndMonth } from "~/db/repositories/monthly-plans";
 import { listActiveAssignmentsByMember } from "~/db/repositories/project-assignments";
 import { findProjectById, withoutProjectFinancials } from "~/db/repositories/projects";
+import { logRouteError } from "~/lib/log";
 import { getWeekdayLabel, isSaturdayDate, isSundayDate, isValidMonth, isWeekendDate, listMonthDates } from "~/lib/time";
 import { DailyAllocationPlanError, copyDailyAllocationPlansToActuals, saveDailyAllocationPlans } from "~/services/daily-allocation-plans";
 import { getSessionMember } from "~/services/auth";
@@ -142,6 +143,7 @@ export const action = async ({ request }: Route.ActionArgs) => {
     if (error instanceof DailyAllocationPlanError) {
       return { error: error.message };
     }
+    logRouteError("daily-plans", error);
     return { error: "日別予定工数の保存に失敗しました。" };
   } finally {
     sqlite.close();
