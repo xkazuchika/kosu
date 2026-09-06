@@ -5,7 +5,8 @@ import { Button } from "~/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "~/components/ui/card";
 import { Field, Input } from "~/components/ui/form";
 import { createDatabaseConnection } from "~/db/client";
-import { activateMember, deactivateMember, findMemberById, updateMember, withoutMemberPasswordHash } from "~/db/repositories/members";
+import { activateMember, deactivateMember, findMemberById, isLastActiveAdministrator, updateMember, withoutMemberPasswordHash } from "~/db/repositories/members";
+import { deleteSessionsForMember } from "~/db/repositories/sessions";
 import { requireAdministrator } from "~/services/auth";
 import { hashPassword } from "~/lib/password";
 
@@ -34,8 +35,17 @@ export const action = async ({ request, params }: Route.ActionArgs) => {
 
     const formData = await request.formData();
     const intent = String(formData.get("intent") ?? "update");
+    const target = findMemberById(db, params.id);
+
+    if (!target) {
+      return { error: "対象のメンバーが見つかりません。" };
+    }
 
     if (intent === "deactivate") {
+      if (isLastActiveAdministrator(db, target)) {
+        return { error: "最後のアクティブ管理者は無効化できません。先にもう1名を管理者にしてください。" };
+      }
+
       deactivateMember(db, params.id);
       return redirect("/members");
     }
@@ -61,6 +71,10 @@ export const action = async ({ request, params }: Route.ActionArgs) => {
       return { error: "権限が不正です。" };
     }
 
+    if (role !== target.role && isLastActiveAdministrator(db, target)) {
+      return { error: "最後のアクティブ管理者は降格できません。先にもう1名を管理者にしてください。" };
+    }
+
     const updates: Parameters<typeof updateMember>[2] = {
       displayName,
       email,
@@ -77,6 +91,10 @@ export const action = async ({ request, params }: Route.ActionArgs) => {
     }
 
     updateMember(db, params.id, updates);
+
+    if (password) {
+      deleteSessionsForMember(db, params.id);
+    }
 
     return redirect("/members");
   } catch {

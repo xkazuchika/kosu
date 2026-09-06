@@ -101,6 +101,57 @@ describe("auth service", () => {
     expect(member).toBeNull();
   });
 
+  test("unknown email timing is comparable to wrong password timing", async () => {
+    await setupWorkspace(db, {
+      workspaceName: "Acme",
+      defaultTimezone: "Asia/Tokyo",
+      administratorName: "Admin",
+      administratorEmail: "admin@example.com",
+      administratorPassword: "password123",
+    });
+
+    await authenticateMember(db, { email: "admin@example.com", password: "wrong" });
+    await authenticateMember(db, { email: "unknown@example.com", password: "wrong" });
+
+    const durations: number[] = [];
+
+    for (let i = 0; i < 3; i += 1) {
+      const knownStart = performance.now();
+      await authenticateMember(db, { email: "admin@example.com", password: "wrong" });
+      const knownEnd = performance.now();
+
+      const unknownStart = performance.now();
+      await authenticateMember(db, { email: "unknown@example.com", password: "wrong" });
+      const unknownEnd = performance.now();
+
+      durations.push((unknownEnd - unknownStart) / (knownEnd - knownStart));
+    }
+
+    const ratios = [...durations].sort((a, b) => a - b);
+    const medianRatio = ratios[1];
+
+    expect(medianRatio).toBeGreaterThan(0.4);
+    expect(medianRatio).toBeLessThan(2.5);
+  });
+
+  test("createMemberSession removes expired sessions", async () => {
+    const { administrator } = await setupWorkspace(db, {
+      workspaceName: "Acme",
+      defaultTimezone: "Asia/Tokyo",
+      administratorName: "Admin",
+      administratorEmail: "admin@example.com",
+      administratorPassword: "password123",
+    });
+
+    const expired = createMemberSession(db, administrator.id);
+    db.update(sessions).set({ expiresAt: "2020-01-01T00:00:00Z" }).where(eq(sessions.id, expired.id)).run();
+
+    const active = createMemberSession(db, administrator.id);
+
+    const remaining = db.select().from(sessions).all();
+    expect(remaining.map((session) => session.id)).toEqual([active.id]);
+  });
+
   test("get session member from cookie", async () => {
     const { administrator } = await setupWorkspace(db, {
       workspaceName: "Acme",

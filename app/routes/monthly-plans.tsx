@@ -9,6 +9,7 @@ import { DataTable } from "~/components/ui/table";
 import { createDatabaseConnection } from "~/db/client";
 import { findCapacityByMemberAndMonth } from "~/db/repositories/member-monthly-capacities";
 import { listMonthlyPlansByMemberAndMonth } from "~/db/repositories/monthly-plans";
+import { withoutMemberFinancials } from "~/db/repositories/members";
 import { findProjectById } from "~/db/repositories/projects";
 import { isValidMonth } from "~/lib/time";
 import { getSessionMember } from "~/services/auth";
@@ -42,7 +43,7 @@ export const loader = async ({ request }: { request: Request }) => {
     const closeState = getMonthlyCostCloseState(db, currentMonth);
 
     return {
-      member,
+      member: withoutMemberFinancials(member),
       isAdmin: member.role === "admin",
       currentMonth,
       closeStatus: closeState.status,

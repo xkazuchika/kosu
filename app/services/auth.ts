@@ -1,7 +1,7 @@
 import { createDatabaseConnection } from "~/db/client";
 import type { KosuDatabase } from "~/db/client";
 import { createMember, findActiveMemberByEmail, findMemberById } from "~/db/repositories/members";
-import { createSession, deleteSession, findSessionById } from "~/db/repositories/sessions";
+import { createSession, deleteExpiredSessions, deleteSession, findSessionById } from "~/db/repositories/sessions";
 import { findWorkspace, createWorkspace } from "~/db/repositories/workspace";
 import { hashPassword, verifyPassword } from "~/lib/password";
 import { normalizeTimeZone } from "~/lib/time";
@@ -67,21 +67,21 @@ export async function setupWorkspace(db: KosuDatabase, input: SetupInput) {
 
 export async function authenticateMember(db: KosuDatabase, input: LoginInput) {
   const member = findActiveMemberByEmail(db, input.email);
+  const passwordHash = member?.passwordHash ?? DUMMY_PASSWORD_HASH;
+  const isValid = await verifyPassword(input.password, passwordHash);
 
-  if (!member) {
-    return null;
-  }
-
-  const isValid = await verifyPassword(input.password, member.passwordHash);
-
-  if (!isValid) {
+  if (!member || !isValid) {
     return null;
   }
 
   return member;
 }
 
+const DUMMY_PASSWORD_HASH = "$2b$10$GAiTlWReg3uXDed3dBsTiOMC5tHi8brEmbtuyhLhkN9Zi0safa/dm";
+
 export function createMemberSession(db: KosuDatabase, memberId: string) {
+  deleteExpiredSessions(db);
+
   const expiresAt = new Date();
   expiresAt.setDate(expiresAt.getDate() + 7);
 

@@ -410,4 +410,28 @@ describe("projects, tasks, assignments, and plans routes", () => {
     });
     expect((deletedAdminResponse as { planRows: unknown[] }).planRows).toHaveLength(0);
   });
+
+  test("monthly plan responses do not expose member credential or cost fields", async () => {
+    const cookie = await setupAndLogin(dataDir, "password123");
+
+    const memberResponse = await (monthlyPlansLoader as unknown as RouteLoaderHandler)({
+      request: new Request("http://localhost/monthly-plans?month=2026-07", { headers: { Cookie: cookie } }),
+      context: buildContext(),
+    });
+    const memberPayload = JSON.stringify(memberResponse);
+    expect(memberPayload).not.toContain("passwordHash");
+    expect(memberPayload).not.toContain("hourlyCostRate");
+
+    const adminResponse = await (monthlyPlansAdminLoader as unknown as RouteLoaderHandler)({
+      request: new Request("http://localhost/monthly-plans/admin?month=2026-07", { headers: { Cookie: cookie } }),
+      context: buildContext(),
+    });
+    const adminPayload = JSON.stringify(adminResponse);
+    expect(adminPayload).not.toContain("passwordHash");
+    expect((adminResponse as { capacities: { memberId: string; displayName: string }[] }).capacities[0]).toMatchObject({
+      memberId: expect.any(String),
+      displayName: "Admin",
+    });
+    expect((adminResponse as { capacities: Record<string, unknown>[] }).capacities[0]).not.toHaveProperty("member");
+  });
 });

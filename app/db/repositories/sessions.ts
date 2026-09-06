@@ -1,4 +1,4 @@
-import { eq } from "drizzle-orm";
+import { and, eq, lt, ne } from "drizzle-orm";
 
 import { createId } from "~/lib/id";
 
@@ -27,5 +27,13 @@ export function deleteSession(db: KosuDatabase, id: string) {
 }
 
 export function deleteSessionsForMember(db: KosuDatabase, memberId: string) {
-  return db.delete(sessions).where(eq(sessions.memberId, memberId));
+  return db.delete(sessions).where(eq(sessions.memberId, memberId)).run();
+}
+
+export function deleteOtherSessionsForMember(db: KosuDatabase, memberId: string, keepSessionId: string) {
+  return db.delete(sessions).where(and(eq(sessions.memberId, memberId), ne(sessions.id, keepSessionId))).run();
+}
+
+export function deleteExpiredSessions(db: KosuDatabase) {
+  return db.delete(sessions).where(lt(sessions.expiresAt, new Date().toISOString())).run();
 }

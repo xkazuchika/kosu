@@ -48,7 +48,11 @@ export const loader = async ({ request }: { request: Request }) => {
       members: members.map(withoutMemberFinancials),
       projects,
       planRows,
-      capacities: members.map((m) => ({ member: m, capacity: findCapacityByMemberAndMonth(db, m.id, month) })),
+      capacities: members.map((m) => ({
+        memberId: m.id,
+        displayName: m.displayName,
+        capacity: findCapacityByMemberAndMonth(db, m.id, month),
+      })),
     };
   } finally {
     sqlite.close();
@@ -246,11 +250,11 @@ export default function MonthlyPlansAdmin({ actionData }: Route.ComponentProps) 
           <DataTable
             columns={["担当者", "稼働可能時間", "操作"]}
             emptyMessage="該当データがありません。"
-            rows={capacities.map(({ member, capacity }) => [
-              member.displayName,
-              <Form key={member.id} className="flex gap-2" method="post" action={`/monthly-plans/admin?month=${month}`}>
+            rows={capacities.map(({ memberId, displayName, capacity }) => [
+              displayName,
+              <Form key={memberId} className="flex gap-2" method="post" action={`/monthly-plans/admin?month=${month}`}>
                 <input name="intent" type="hidden" value="capacity" />
-                <input name="memberId" type="hidden" value={member.id} />
+                <input name="memberId" type="hidden" value={memberId} />
                 <input name="month" type="hidden" value={month} />
                 <Input className="w-24" defaultValue={capacity?.capacityHours ?? ""} disabled={isLocked} name="capacityHours" type="number" step="0.25" />
                 <Button disabled={isLocked} type="submit" variant="primary">保存</Button>

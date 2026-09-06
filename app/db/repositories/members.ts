@@ -1,4 +1,4 @@
-import { and, asc, eq } from "drizzle-orm";
+import { and, asc, count, eq } from "drizzle-orm";
 
 import { createId } from "~/lib/id";
 
@@ -79,6 +79,18 @@ export function isAdministrator(member: { role: MemberRole }) {
 
 export function findActiveMemberByEmail(db: KosuDatabase, email: string) {
   return db.select().from(members).where(and(eq(members.email, email), eq(members.isActive, true))).get();
+}
+
+export function countActiveAdministrators(db: KosuDatabase) {
+  return db
+    .select({ value: count() })
+    .from(members)
+    .where(and(eq(members.role, "admin"), eq(members.isActive, true)))
+    .get()?.value ?? 0;
+}
+
+export function isLastActiveAdministrator(db: KosuDatabase, member: { id: string; role: MemberRole; isActive: boolean }) {
+  return member.role === "admin" && member.isActive && countActiveAdministrators(db) === 1;
 }
 
 export function withoutMemberPasswordHash<T extends { passwordHash?: unknown }>(member: T) {

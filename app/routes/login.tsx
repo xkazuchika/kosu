@@ -6,6 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "~/components/ui/card";
 import { Field, Input } from "~/components/ui/form";
 import { createDatabaseConnection } from "~/db/client";
 import { authenticateMember, createMemberSession, isSetupComplete } from "~/services/auth";
+import { getClientKeyFromRequest, isLoginThrottled, recordLoginFailure } from "~/services/login-rate-limit";
 import { setSessionCookie } from "~/services/session";
 
 export const loader = async () => {
@@ -31,12 +32,19 @@ export const action = async ({ request }: Route.ActionArgs) => {
       return redirect("/setup");
     }
 
+    const clientKey = getClientKeyFromRequest(request);
+
+    if (isLoginThrottled(clientKey)) {
+      return new Response("Too Many Requests", { status: 429 });
+    }
+
     const email = String(formData.get("email") ?? "").trim();
     const password = String(formData.get("password") ?? "");
 
     const member = await authenticateMember(db, { email, password });
 
     if (!member) {
+      recordLoginFailure(clientKey);
       return { error: "メールアドレスまたはパスワードが正しくありません。" };
     }
 

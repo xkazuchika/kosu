@@ -6,7 +6,9 @@ import { Card, CardContent, CardHeader, CardTitle } from "~/components/ui/card";
 import { Field, Input } from "~/components/ui/form";
 import { createDatabaseConnection } from "~/db/client";
 import { updateMember, withoutMemberFinancials } from "~/db/repositories/members";
+import { deleteOtherSessionsForMember } from "~/db/repositories/sessions";
 import { requireAuth } from "~/services/auth";
+import { getSessionCookie } from "~/services/session";
 import { hashPassword } from "~/lib/password";
 
 export const loader = async ({ request }: { request: Request }) => {
@@ -43,6 +45,10 @@ export const action = async ({ request }: Route.ActionArgs) => {
     }
 
     updateMember(db, member.id, updates);
+
+    if (password) {
+      deleteOtherSessionsForMember(db, member.id, getSessionCookie(request) ?? "");
+    }
 
     return redirect("/dashboard");
   } finally {
