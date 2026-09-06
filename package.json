@@ -14,7 +14,8 @@
     "test:watch": "vitest",
     "test:e2e": "playwright test",
     "db:generate": "drizzle-kit generate",
-    "db:migrate": "drizzle-kit migrate",
+    "db:migrate": "drizzle-kit migrate && npm run db:check",
+    "db:check": "tsx scripts/check-foreign-keys.ts",
     "db:seed:demo": "tsx scripts/seed-demo.ts"
   },
   "dependencies": {

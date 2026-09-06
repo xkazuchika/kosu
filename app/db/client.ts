@@ -5,7 +5,7 @@ import Database from "better-sqlite3";
 import { drizzle } from "drizzle-orm/better-sqlite3";
 import { migrate } from "drizzle-orm/better-sqlite3/migrator";
 
-import { resolveDatabaseConfig, migrationsFolder } from "./config";
+import { resolveBusyTimeoutMs, resolveDatabaseConfig, migrationsFolder } from "./config";
 import { schema } from "./schema";
 
 export type DatabaseConnection = ReturnType<typeof createDatabaseConnection>;
@@ -16,6 +16,9 @@ export function createDatabaseConnection(databaseUrl?: string) {
   const url = databaseUrl ?? resolveDatabaseConfig().databaseUrl;
   mkdirSync(path.dirname(url), { recursive: true });
   const sqlite = new Database(url);
+  sqlite.pragma("foreign_keys = ON");
+  sqlite.pragma("journal_mode = WAL");
+  sqlite.pragma(`busy_timeout = ${resolveBusyTimeoutMs()}`);
   const db = drizzle({ client: sqlite, schema });
 
   return { db, sqlite };
