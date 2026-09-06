@@ -1,4 +1,3 @@
-import { createDatabaseConnection } from "~/db/client";
 import type { KosuDatabase } from "~/db/client";
 import { createMember, findActiveMemberByEmail, findMemberById } from "~/db/repositories/members";
 import { createSession, deleteExpiredSessions, deleteSession, findSessionById } from "~/db/repositories/sessions";
@@ -142,7 +141,3 @@ export function requireAdministrator(db: KosuDatabase, request: Request) {
 }
 
 export { clearSessionCookie, setSessionCookie };
-
-export function getServerDatabase() {
-  return createDatabaseConnection().db;
-}

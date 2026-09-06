@@ -11,7 +11,7 @@ import { createMemberMonthlyCapacity, deleteMemberMonthlyCapacity, findCapacityB
 import { createMonthlyPlan, deleteMonthlyPlan, findMonthlyPlan, findMonthlyPlanById, listMonthlyPlansByMonth, updateMonthlyPlan } from "~/db/repositories/monthly-plans";
 import { findMemberById, listMembers, withoutMemberFinancials } from "~/db/repositories/members";
 import { findProjectById, listActiveProjects } from "~/db/repositories/projects";
-import { isValidMonth } from "~/lib/time";
+import { isNonNegativeQuarterHour, isValidMonth } from "~/lib/time";
 import { requireAdministrator } from "~/services/auth";
 import { getMonthlyCostCloseState } from "~/services/monthly-cost-close";
 import { requireUnlockedMonth } from "~/services/period-lock";
@@ -70,8 +70,17 @@ export const action = async ({ request }: Route.ActionArgs) => {
     if (intent === "capacity") {
       const memberId = String(formData.get("memberId") ?? "");
       const month = String(formData.get("month") ?? "");
-      requireUnlockedMonth(db, month);
       const capacityHours = Number(formData.get("capacityHours") ?? 0);
+
+      if (!isValidMonth(month)) {
+        return { error: "月の形式は YYYY-MM で実在する月にしてください。" };
+      }
+
+      if (!isNonNegativeQuarterHour(capacityHours)) {
+        return { error: "稼働可能時間は 0.25h 単位の 0 以上の値で入力してください。" };
+      }
+
+      requireUnlockedMonth(db, month);
       const existing = findCapacityByMemberAndMonth(db, memberId, month);
 
       if (existing) {
@@ -86,9 +95,18 @@ export const action = async ({ request }: Route.ActionArgs) => {
       const memberId = String(formData.get("memberId") ?? "");
       const projectId = String(formData.get("projectId") ?? "");
       const month = String(formData.get("month") ?? "");
-      requireUnlockedMonth(db, month);
       const assignmentRole = String(formData.get("assignmentRole") ?? "").trim();
       const plannedHours = Number(formData.get("plannedHours") ?? 0);
+
+      if (!isValidMonth(month)) {
+        return { error: "月の形式は YYYY-MM で実在する月にしてください。" };
+      }
+
+      if (!isNonNegativeQuarterHour(plannedHours)) {
+        return { error: "予定工数は 0.25h 単位の 0 以上の値で入力してください。" };
+      }
+
+      requireUnlockedMonth(db, month);
       const existing = findMonthlyPlan(db, memberId, projectId, month, assignmentRole);
 
       if (existing) {
@@ -110,9 +128,14 @@ export const action = async ({ request }: Route.ActionArgs) => {
       const id = String(formData.get("id") ?? "");
       const plan = findMonthlyPlanById(db, id);
       if (!plan) return { error: "対象の月次予定が見つかりません。" };
-      requireUnlockedMonth(db, plan.month);
-      const assignmentRole = String(formData.get("assignmentRole") ?? "").trim();
       const plannedHours = Number(formData.get("plannedHours") ?? 0);
+      const assignmentRole = String(formData.get("assignmentRole") ?? "").trim();
+
+      if (!isNonNegativeQuarterHour(plannedHours)) {
+        return { error: "予定工数は 0.25h 単位の 0 以上の値で入力してください。" };
+      }
+
+      requireUnlockedMonth(db, plan.month);
       updateMonthlyPlan(db, id, { assignmentRole, plannedHours });
       return null;
     }

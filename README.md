@@ -163,16 +163,27 @@ Docker 手順は release checklist で smoke test する対象です。公開前
 
 SQLite データベースは `KOSU_DATA_DIR`（デフォルト `./data`）に保存されます。
 
-バックアップ:
+**重要: 稼働中の SQLite ファイルを `cp` でコピーしないでください。** 書き込み中のデータベースをコピーすると、破損したバックアップになる可能性があります。次のいずれかの方法を使用してください。
+
+方法1: SQLite の一貫性バックアップコマンド（アプリ稼働中でも安全）:
 
 ```bash
+sqlite3 ./data/kosu.sqlite ".backup '/backup/kosu-$(date +%Y%m%d).sqlite'"
+```
+
+方法2: アプリを停止してからディレクトリをコピー:
+
+```bash
+npm stop  # または docker compose stop
 cp -r ./data /backup/kosu-$(date +%Y%m%d)
 ```
 
-Docker Compose の named volume を使っている場合:
+Docker Compose の named volume を使っている場合（コンテナ停止後にコピー）:
 
 ```bash
+docker compose stop
 docker run --rm -v kosu_kosu-data:/data -v "$PWD/backups:/backup" alpine sh -c 'cp -r /data /backup/kosu-$(date +%Y%m%d)'
+docker compose start
 ```
 
 復元:
@@ -217,8 +228,10 @@ npm run db:seed:demo
 - 現在は SQLite single-instance self-host 前提です。
 - high concurrency、multi-instance、multi-tenant SaaS 用途は対象外です。
 - PostgreSQL 対応や複数インスタンス運用は今後の検討対象です。
-- 永続化ディレクトリをバックアップ対象にします。
+- 永続化ディレクトリをバックアップ対象にします（稼働中の SQLite ファイルコピーは禁止。上記の手順を参照）。
 - 本番投入前に、環境変数、永続化ボリューム、バックアップ、HTTPS 終端、Cookie 設定を確認してください。
+- インターネット公開する場合は、HTTPS 終端とリバースプロキシ（IP 単位のレート制限併用）を前面に配置してください。アプリ内のログインレート制限（既定: 15分あたり10回失敗、`KOSU_LOGIN_RATE_LIMIT_MAX` / `KOSU_LOGIN_RATE_LIMIT_WINDOW_MS` で調整）は単一プロセス前提です。
+- CSV インポートは UTF-8（BOM 付き可）で保存してください。Shift-JIS は文字化けするため非対応です。
 - `KOSU_SESSION_SECRET` は本番環境で必須です（32文字以上）。
 - 公開前の確認項目は `docs/release-checklist.md` を参照してください。
 - 「今日」「今月」の既定値は、ワークスペース設定のタイムゾーンを基準にします。

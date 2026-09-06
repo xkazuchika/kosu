@@ -276,7 +276,7 @@ describe("daily work logs and allocations", () => {
       request: new Request(`http://localhost/work-logs/month?month=2026-07&memberId=${member.id}`, { headers: { Cookie: cookie } }),
       context: buildContext(),
     });
-    expect((monthResponse as { rows: { totalWorkingHours: number }[] }).rows.find((row) => row.workDate === "2026-07-01")?.totalWorkingHours).toBe(8);
+    expect((monthResponse as { rows: { totalWorkingHours: number; workDate: string }[] }).rows.find((row) => row.workDate === "2026-07-01")?.totalWorkingHours).toBe(8);
   });
 
   test("admin bulk edits selected member month", async () => {

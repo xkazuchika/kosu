@@ -5,9 +5,8 @@ import { Button } from "~/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "~/components/ui/card";
 import { DataTable } from "~/components/ui/table";
 import { createDatabaseConnection } from "~/db/client";
-import { listActiveAssignmentsByMember } from "~/db/repositories/project-assignments";
-import { createProjectAssignment } from "~/db/repositories/project-assignments";
-import { listActiveProjects, withoutProjectFinancials } from "~/db/repositories/projects";
+import { listActiveAssignmentsByMember, createProjectAssignment } from "~/db/repositories/project-assignments";
+import { findProjectById, listActiveProjects, withoutProjectFinancials } from "~/db/repositories/projects";
 import { getSessionMember } from "~/services/auth";
 
 export const loader = async ({ request }: { request: Request }) => {
@@ -45,6 +44,22 @@ export const action = async ({ request }: Route.ActionArgs) => {
 
     if (!projectId) {
       return { error: "案件を選択してください。" };
+    }
+
+    const project = findProjectById(db, projectId);
+
+    if (!project) {
+      throw new Response("Not found", { status: 404 });
+    }
+
+    if (project.isArchived) {
+      return { error: "アーカイブ済みの案件には自己アサインできません。" };
+    }
+
+    const assignments = listActiveAssignmentsByMember(db, member.id);
+
+    if (assignments.some((assignment) => assignment.projectId === projectId)) {
+      return redirect("/projects");
     }
 
     createProjectAssignment(db, {

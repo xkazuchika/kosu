@@ -9,6 +9,7 @@ import { createDatabaseConnection } from "~/db/client";
 import { listEffortReportRows } from "~/db/repositories/effort-allocations";
 import { listMembers, withoutMemberFinancials } from "~/db/repositories/members";
 import { listActiveProjects, withoutProjectFinancials } from "~/db/repositories/projects";
+import { neutralizeCsvCell } from "~/lib/csv";
 import { isValidMonth } from "~/lib/time";
 import { getSessionMember } from "~/services/auth";
 import { getMonthlyCostCloseState } from "~/services/monthly-cost-close";
@@ -134,10 +135,11 @@ export const action = async ({ request }: Route.ActionArgs) => {
 };
 
 function escapeCsv(value: string) {
-  if (value.includes(",") || value.includes('"') || value.includes("\n")) {
-    return `"${value.replace(/"/g, '""')}"`;
+  const neutralized = neutralizeCsvCell(value);
+  if (neutralized.includes(",") || neutralized.includes('"') || neutralized.includes("\n")) {
+    return `"${neutralized.replace(/"/g, '""')}"`;
   }
-  return value;
+  return neutralized;
 }
 
 export const meta: Route.MetaFunction = () => [{ title: "工数実績レポート | kosu" }];

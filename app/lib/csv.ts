@@ -1,12 +1,13 @@
 export function parseCsv(text: string): string[][] {
+  const bomStripped = text.startsWith("\uFEFF") ? text.slice(1) : text;
   const lines: string[][] = [];
   let current: string[] = [];
   let field = "";
   let inQuotes = false;
 
-  for (let i = 0; i < text.length; i++) {
-    const char = text[i];
-    const next = text[i + 1];
+  for (let i = 0; i < bomStripped.length; i++) {
+    const char = bomStripped[i];
+    const next = bomStripped[i + 1];
 
     if (inQuotes) {
       if (char === '"' && next === '"') {
@@ -44,15 +45,25 @@ export function parseCsv(text: string): string[][] {
   return lines;
 }
 
+const FORMULA_PREFIXES = new Set(["=", "+", "-", "@"]);
+
+export function neutralizeCsvCell(value: string): string {
+  if (value.length > 0 && FORMULA_PREFIXES.has(value[0]) && Number.isNaN(Number(value))) {
+    return `'${value}`;
+  }
+  return value;
+}
+
 export function stringifyCsv(rows: string[][]): string {
   return rows
     .map((cells) =>
       cells
         .map((cell) => {
-          if (cell.includes(",") || cell.includes('"') || cell.includes("\n")) {
-            return `"${cell.replace(/"/g, '""')}"`;
+          const neutralized = neutralizeCsvCell(cell);
+          if (neutralized.includes(",") || neutralized.includes('"') || neutralized.includes("\n")) {
+            return `"${neutralized.replace(/"/g, '""')}"`;
           }
-          return cell;
+          return neutralized;
         })
         .join(","),
     )

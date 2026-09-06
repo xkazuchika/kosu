@@ -10,6 +10,7 @@ import { createProjectAssignment, findActiveAssignment } from "~/db/repositories
 import { createProject, findProjectByCode, updateProject } from "~/db/repositories/projects";
 import { parseOptionalYen } from "~/lib/currency";
 import { hashPassword } from "~/lib/password";
+import { isNonNegativeQuarterHour, isValidMonth } from "~/lib/time";
 import { requireOpenMonth } from "~/services/monthly-cost-close";
 
 export type ImportType = "members" | "projects" | "project_assignments" | "member_monthly_capacities" | "monthly_plans";
@@ -204,16 +205,20 @@ function validateRow(db: KosuDatabase, type: ImportType, record: Record<string, 
     }
     case "member_monthly_capacities": {
       if (!record.memberEmail) errors.push("メンバーメールが必要です");
-      if (!/^\d{4}-\d{2}$/.test(record.month ?? "")) errors.push("月の形式は YYYY-MM です");
-      if (Number.isNaN(Number(record.capacityHours))) errors.push("キャパシティは数値です");
+      if (!isValidMonth(record.month ?? "")) errors.push("月の形式は YYYY-MM で実在する月にしてください");
+      if (record.capacityHours !== undefined && record.capacityHours !== "" && !isNonNegativeQuarterHour(Number(record.capacityHours))) {
+        errors.push("キャパシティは 0.25h 単位の 0 以上の値です");
+      }
       if (record.memberEmail && !findMemberByEmail(db, record.memberEmail)) errors.push("メンバーが存在しません");
       break;
     }
     case "monthly_plans": {
       if (!record.memberEmail) errors.push("メンバーメールが必要です");
       if (!record.projectCode) errors.push("案件コードが必要です");
-      if (!/^\d{4}-\d{2}$/.test(record.month ?? "")) errors.push("月の形式は YYYY-MM です");
-      if (Number.isNaN(Number(record.plannedHours))) errors.push("予定時間は数値です");
+      if (!isValidMonth(record.month ?? "")) errors.push("月の形式は YYYY-MM で実在する月にしてください");
+      if (record.plannedHours !== undefined && record.plannedHours !== "" && !isNonNegativeQuarterHour(Number(record.plannedHours))) {
+        errors.push("予定時間は 0.25h 単位の 0 以上の値です");
+      }
       if (record.memberEmail && !findMemberByEmail(db, record.memberEmail)) errors.push("メンバーが存在しません");
       if (record.projectCode && !findProjectByCode(db, record.projectCode)) errors.push("案件が存在しません");
       break;

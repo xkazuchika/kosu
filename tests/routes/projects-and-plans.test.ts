@@ -411,6 +411,98 @@ describe("projects, tasks, assignments, and plans routes", () => {
     expect((deletedAdminResponse as { planRows: unknown[] }).planRows).toHaveLength(0);
   });
 
+  test("monthly plan admin rejects invalid hours and non-calendar months", async () => {
+    const cookie = await setupAndLogin(dataDir, "password123");
+    await createProject(cookie, "PRJ-001", "Website", "internal");
+
+    const listResponse = await (projectsLoader as unknown as RouteLoaderHandler)({
+      request: new Request("http://localhost/", { headers: { Cookie: cookie } }),
+      context: buildContext(),
+    });
+    const project = (listResponse as { projects: { id: string }[] }).projects[0];
+    const adminMember = await assignAdminToProject(cookie, project.id);
+
+    const negativeForm = new FormData();
+    negativeForm.append("intent", "plan");
+    negativeForm.append("memberId", adminMember.id);
+    negativeForm.append("projectId", project.id);
+    negativeForm.append("month", "2026-07");
+    negativeForm.append("plannedHours", "-8");
+
+    const negativeResponse = await (monthlyPlansAdminAction as unknown as RouteActionHandler)({
+      request: buildRequest(negativeForm, cookie),
+      params: {},
+      context: buildContext(),
+    });
+    expect((negativeResponse as { error: string }).error).toContain("0.25h");
+
+    const nonQuarterForm = new FormData();
+    nonQuarterForm.append("intent", "plan");
+    nonQuarterForm.append("memberId", adminMember.id);
+    nonQuarterForm.append("projectId", project.id);
+    nonQuarterForm.append("month", "2026-07");
+    nonQuarterForm.append("plannedHours", "8.1");
+
+    const nonQuarterResponse = await (monthlyPlansAdminAction as unknown as RouteActionHandler)({
+      request: buildRequest(nonQuarterForm, cookie),
+      params: {},
+      context: buildContext(),
+    });
+    expect((nonQuarterResponse as { error: string }).error).toContain("0.25h");
+
+    const invalidMonthForm = new FormData();
+    invalidMonthForm.append("intent", "plan");
+    invalidMonthForm.append("memberId", adminMember.id);
+    invalidMonthForm.append("projectId", project.id);
+    invalidMonthForm.append("month", "2026-13");
+    invalidMonthForm.append("plannedHours", "8");
+
+    const invalidMonthResponse = await (monthlyPlansAdminAction as unknown as RouteActionHandler)({
+      request: buildRequest(invalidMonthForm, cookie),
+      params: {},
+      context: buildContext(),
+    });
+    expect((invalidMonthResponse as { error: string }).error).toContain("実在する月");
+  });
+
+  test("self-assign rejects archived projects and unknown project ids", async () => {
+    const cookie = await setupAndLogin(dataDir, "password123");
+    await createProject(cookie, "PRJ-001", "Website", "internal");
+
+    const listResponse = await (projectsLoader as unknown as RouteLoaderHandler)({
+      request: new Request("http://localhost/", { headers: { Cookie: cookie } }),
+      context: buildContext(),
+    });
+    const project = (listResponse as { projects: { id: string }[] }).projects[0];
+
+    const archiveForm = new FormData();
+    archiveForm.append("intent", "archive");
+    await (projectDetailAction as unknown as RouteActionHandler)({
+      request: buildRequest(archiveForm, cookie),
+      params: { id: project.id },
+      context: buildContext(),
+    });
+
+    const archivedForm = new FormData();
+    archivedForm.append("projectId", project.id);
+    const archivedResponse = await (selfAssignAction as unknown as RouteActionHandler)({
+      request: buildRequest(archivedForm, cookie),
+      params: {},
+      context: buildContext(),
+    });
+    expect((archivedResponse as { error: string }).error).toContain("アーカイブ済み");
+
+    const unknownForm = new FormData();
+    unknownForm.append("projectId", "missing-project-id");
+    await expect(
+      (selfAssignAction as unknown as RouteActionHandler)({
+        request: buildRequest(unknownForm, cookie),
+        params: {},
+        context: buildContext(),
+      }),
+    ).rejects.toMatchObject({ status: 404 });
+  });
+
   test("monthly plan responses do not expose member credential or cost fields", async () => {
     const cookie = await setupAndLogin(dataDir, "password123");
 

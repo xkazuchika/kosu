@@ -144,6 +144,46 @@ describe("imports", () => {
     expect(preview.rows.every((row) => row.errors.some((error) => error.includes("重複")))).toBe(true);
   });
 
+  test("preview accepts a byte order mark prefixed csv", async () => {
+    const cookie = await setupAndLogin(dataDir, "password123");
+
+    const csv = "\uFEFFcode,name,projectType,clientName,revenueOrBudgetAmount\nPRJ-001,Website,internal,,\n";
+    const file = new File([csv], "projects-bom.csv", { type: "text/csv" });
+    const formData = new FormData();
+    formData.append("intent", "preview");
+    formData.append("type", "projects");
+    formData.append("file", file);
+
+    const response = await (importsAction as unknown as RouteActionHandler)({
+      request: buildMultipartRequest(formData, cookie),
+      params: {},
+      context: buildContext(),
+    });
+    const preview = (response as { preview: { validRows: number; invalidRows: number; rows: { errors: string[] }[] } }).preview;
+    expect(preview.validRows).toBe(1);
+    expect(preview.invalidRows).toBe(0);
+    expect(preview.rows[0].errors).toHaveLength(0);
+  });
+
+  test("preview rejects non-calendar months for monthly capacities", async () => {
+    const cookie = await setupAndLogin(dataDir, "password123");
+
+    const csv = "memberEmail,month,capacityHours\nadmin@example.com,2026-13,160\n";
+    const file = new File([csv], "capacities.csv", { type: "text/csv" });
+    const formData = new FormData();
+    formData.append("intent", "preview");
+    formData.append("type", "member_monthly_capacities");
+    formData.append("file", file);
+
+    const response = await (importsAction as unknown as RouteActionHandler)({
+      request: buildMultipartRequest(formData, cookie),
+      params: {},
+      context: buildContext(),
+    });
+    const preview = (response as { preview: { rows: { errors: string[] }[] } }).preview;
+    expect(preview.rows[0].errors.some((error) => error.includes("実在する月"))).toBe(true);
+  });
+
   test("member import commit requires explicit initial password", async () => {
     const cookie = await setupAndLogin(dataDir, "password123");
     const csv = "email,displayName,role,departmentName,hourlyCostRate,isActive\nnew@example.com,New User,member,Engineering,3000,true\n";
