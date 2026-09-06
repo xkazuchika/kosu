@@ -96,6 +96,10 @@ KOSU_DATA_DIR=/var/lib/kosu npm run db:migrate
 
 セルフホスト運用では、このディレクトリを永続化ボリュームに配置し、バックアップ対象にしてください。
 
+データベースは WAL（Write-Ahead Logging）モードで動作します。同じディレクトリに `kosu.sqlite-wal` と `kosu.sqlite-shm` が生成されますが、**これらもデータベースの一部です**。バックアップと復元は必ず `kosu.sqlite` とこれらのファイルを一体として扱ってください。
+
+データベース接続ごとに外部キー制約を有効化しています。`journal_mode = WAL` と `busy_timeout`（デフォルト 5000ms、環境変数 `KOSU_SQLITE_BUSY_TIMEOUT_MS` で変更可能）も合わせて設定されます。
+
 ## 主な画面
 
 公開用スクリーンショットは今後追加予定です。現時点では、ローカルでデモデータを投入して以下の画面を確認できます。
@@ -163,7 +167,7 @@ Docker 手順は release checklist で smoke test する対象です。公開前
 
 ## バックアップと復元
 
-SQLite データベースは `KOSU_DATA_DIR`（デフォルト `./data`）に保存されます。
+SQLite データベースは `KOSU_DATA_DIR`（デフォルト `./data`）に保存されます。WAL モードのため `kosu.sqlite` に加えて `kosu.sqlite-wal` / `kosu.sqlite-shm` が存在します。これら 3 ファイルをまとめてバックアップしてください。
 
 **重要: 稼働中の SQLite ファイルを `cp` でコピーしないでください。** 書き込み中のデータベースをコピーすると、破損したバックアップになる可能性があります。次のいずれかの方法を使用してください。
 
@@ -201,6 +205,54 @@ Docker Compose の named volume へ復元する場合:
 docker run --rm -v kosu_kosu-data:/data -v "$PWD/backups:/backup" alpine sh -c 'rm -rf /data/* && cp -r /backup/kosu-YYYYMMDD/* /data/'
 ```
 
+## 外部キー制約の検査
+
+アプリは起動時に外部キー制約の違反（孤立行）を検査し、違反がある場合は起動を中止します。アップグレード前に次のコマンドで事前確認できます。
+
+```bash
+npm run db:check
+# または特定のファイルを指定
+npx tsx scripts/check-foreign-keys.ts /var/lib/kosu/kosu.sqlite
+```
+
+`npm run db:migrate` はマイグレーション適用後にこの検査を実行します。違反が検出された場合は対象テーブルと件数が表示され、非ゼロ終了します。
+
+修復方法:
+
+1. 対象行を特定します。
+
+   ```bash
+   sqlite3 ./data/kosu.sqlite "PRAGMA foreign_key_check"
+   ```
+
+2. 参照先を確認します。
+
+   ```bash
+   sqlite3 ./data/kosu.sqlite "PRAGMA foreign_key_list(<テーブル名>)"
+   ```
+
+3. バックアップからリストアするか、孤立行を明示的に削除・修復してから再起動します。
+
+自動修復は行いません。削除はデータ損失を伴う判断のため、内容を確認したうえで人手で実施してください。
+
+## ヘルスチェックとログ
+
+`GET /health` は認証不要で可用性を返します。データベース接続が利用できる場合は `200`、利用できない場合は `503` を返します。レスポンスは `{"status":"ok","database":true}` のような可用性情報のみで、メンバー・案件・財務情報は含まれません。Docker Compose の healthcheck と外部監視から利用してください。
+
+運用上重要なイベント（認証失敗、レート制限超過、権限拒否、保護された月への書き込み拒否、アクションの失敗、月次締め操作）は、1 行 JSON として標準出力へ記録されます。
+
+```json
+{
+  "level": "warn",
+  "event": "auth.login_failed",
+  "message": "ログイン認証に失敗しました",
+  "at": "2026-09-06T00:00:00.000Z",
+  "emailDomain": "example.com"
+}
+```
+
+コンテナ運用では標準出力が唯一の収集経路です。Docker のログドライバや外部のログ収集サービスへ転送してください。パスワード・パスワードハッシュ・セッション ID・原価率はログに記録されません。
+
 ## デモデータ投入（開発・評価用）
 
 ```bash
@@ -230,7 +282,8 @@ npm run db:seed:demo
 - 現在は SQLite single-instance self-host 前提です。
 - high concurrency、multi-instance、multi-tenant SaaS 用途は対象外です。
 - PostgreSQL 対応や複数インスタンス運用は今後の検討対象です。
-- 永続化ディレクトリをバックアップ対象にします（稼働中の SQLite ファイルコピーは禁止。上記の手順を参照）。
+- 永続化ディレクトリをバックアップ対象にします（稼働中の SQLite ファイルコピーは禁止。上記の手順を参照）。WAL モードの `kosu.sqlite-wal` / `kosu.sqlite-shm` もデータベースの一部として扱ってください。
+- アップグレード前に `npm run db:check` で外部キー制約の違反を確認してください。違反がある場合は起動を中止します。
 - 本番投入前に、環境変数、永続化ボリューム、バックアップ、HTTPS 終端、Cookie 設定を確認してください。
 - インターネット公開する場合は、HTTPS 終端とリバースプロキシ（IP 単位のレート制限併用）を前面に配置してください。アプリ内のログインレート制限（既定: 15分あたり10回失敗、`KOSU_LOGIN_RATE_LIMIT_MAX` / `KOSU_LOGIN_RATE_LIMIT_WINDOW_MS` で調整）は単一プロセス前提です。
 - CSV インポートは UTF-8（BOM 付き可）で保存してください。Shift-JIS は文字化けするため非対応です。
