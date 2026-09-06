@@ -10,6 +10,8 @@
 
 画面ごとの操作手順は [docs/user-guide.md](docs/user-guide.md) を参照してください。
 
+月次の業務の流れと締めの条件は [docs/business-flow.md](docs/business-flow.md) を参照してください。
+
 ## 現在できること
 
 - ワークスペース初期セットアップと最初の管理者作成
