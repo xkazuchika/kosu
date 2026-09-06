@@ -96,23 +96,29 @@ export async function commitImport(
       requireOpenMonth(db, month);
     }
   }
-  let imported = 0;
-  let failed = preview.invalidRows;
 
-  for (const row of preview.rows) {
-    if (!row.parsed) {
-      continue;
-    }
+  const applicableRows = preview.rows.filter((row) => Boolean(row.parsed));
 
-    try {
-      await applyRow(db, type, row.parsed, defaultPassword);
-      imported++;
-    } catch {
-      failed++;
-    }
+  if (applicableRows.length === 0) {
+    return { imported: 0, failed: preview.invalidRows, createdByMemberId };
   }
 
-  return { imported, failed, createdByMemberId };
+  const defaultPasswordHash = type === "members" && defaultPassword ? await hashPassword(defaultPassword) : undefined;
+  const importedCount = applicableRows.length;
+
+  try {
+    db.transaction((transaction) => {
+      const tx = transaction as unknown as KosuDatabase;
+
+      for (const row of applicableRows) {
+        applyRow(tx, type, row.parsed!, defaultPasswordHash);
+      }
+    });
+  } catch {
+    return { imported: 0, failed: importedCount, createdByMemberId };
+  }
+
+  return { imported: importedCount, failed: 0, createdByMemberId };
 }
 
 function collectDuplicateLineNumbers(type: ImportType, headers: string[], rows: string[][]) {
@@ -217,7 +223,7 @@ function validateRow(db: KosuDatabase, type: ImportType, record: Record<string, 
   return errors;
 }
 
-async function applyRow(db: KosuDatabase, type: ImportType, record: Record<string, string>, defaultPassword: string | undefined) {
+function applyRow(db: KosuDatabase, type: ImportType, record: Record<string, string>, defaultPasswordHash: string | undefined) {
   switch (type) {
     case "members": {
       const existing = findMemberByEmail(db, record.email);
@@ -232,12 +238,11 @@ async function applyRow(db: KosuDatabase, type: ImportType, record: Record<strin
       if (existing) {
         updateMember(db, existing.id, payload);
       } else {
-        if (!defaultPassword) {
-          throw new Error("default password is required for new members");
+        if (!defaultPasswordHash) {
+          throw new Error("default password hash is required for new members");
         }
 
-        const passwordHash = await hashPassword(defaultPassword);
-        createMember(db, { ...payload, passwordHash });
+        createMember(db, { ...payload, passwordHash: defaultPasswordHash });
       }
       break;
     }

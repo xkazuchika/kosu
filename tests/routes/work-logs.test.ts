@@ -8,7 +8,8 @@ import { eq } from "drizzle-orm";
 import { beforeEach, describe, expect, test } from "vitest";
 
 import { createDatabaseConnection } from "../../app/db/client";
-import { createDailyWorkLog } from "../../app/db/repositories/daily-work-logs";
+import { createDailyWorkLog, findDailyWorkLogByMemberAndDate } from "../../app/db/repositories/daily-work-logs";
+import { createEffortAllocation } from "../../app/db/repositories/effort-allocations";
 import { createMember } from "../../app/db/repositories/members";
 import { archiveProject } from "../../app/db/repositories/projects";
 import { archiveTask, createTask } from "../../app/db/repositories/tasks";
@@ -132,6 +133,150 @@ describe("daily work logs and allocations", () => {
       context: buildContext(),
     });
     expect((response as { error: string }).error).toContain("0.25h");
+  });
+
+  test("monthly bulk edit does not save valid rows when a later row is invalid", async () => {
+    const cookie = await setupAndLogin(dataDir, "password123", "member");
+
+    const formData = new FormData();
+    formData.append("date", "2026-07-01");
+    formData.append("totalWorkingHours", "8");
+    formData.append("date", "2026-07-02");
+    formData.append("totalWorkingHours", "8.13");
+
+    const response = await (workLogMonthAction as unknown as RouteActionHandler)({
+      request: new Request("http://localhost/work-logs/month?month=2026-07", {
+        method: "POST",
+        body: formData,
+        headers: { Cookie: cookie },
+      }),
+      params: {},
+      context: buildContext(),
+    });
+    expect((response as { error: string }).error).toContain("0.25h");
+
+    const monthResponse = await (workLogMonthLoader as unknown as RouteLoaderHandler)({
+      request: new Request("http://localhost/work-logs/month?month=2026-07", { headers: { Cookie: cookie } }),
+      context: buildContext(),
+    });
+    const rows = (monthResponse as { rows: { status: string; totalWorkingHours: number; workDate: string }[] }).rows;
+    expect(rows.find((row) => row.workDate === "2026-07-01")?.totalWorkingHours).toBe(0);
+    expect(rows.find((row) => row.workDate === "2026-07-01")?.status).toBe("missing");
+    expect(rows.find((row) => row.workDate === "2026-07-02")?.totalWorkingHours).toBe(0);
+  });
+
+  test("monthly bulk edit clears a day with zero when no allocations exist", async () => {
+    const cookie = await setupAndLogin(dataDir, "password123", "member");
+
+    const createForm = new FormData();
+    createForm.append("date", "2026-07-01");
+    createForm.append("totalWorkingHours", "8");
+    await (workLogMonthAction as unknown as RouteActionHandler)({
+      request: new Request("http://localhost/work-logs/month?month=2026-07", {
+        method: "POST",
+        body: createForm,
+        headers: { Cookie: cookie },
+      }),
+      params: {},
+      context: buildContext(),
+    });
+
+    const clearForm = new FormData();
+    clearForm.append("date", "2026-07-01");
+    clearForm.append("totalWorkingHours", "0");
+    const clearResponse = await (workLogMonthAction as unknown as RouteActionHandler)({
+      request: new Request("http://localhost/work-logs/month?month=2026-07", {
+        method: "POST",
+        body: clearForm,
+        headers: { Cookie: cookie },
+      }),
+      params: {},
+      context: buildContext(),
+    });
+    expect(clearResponse).toBeInstanceOf(Response);
+
+    const monthResponse = await (workLogMonthLoader as unknown as RouteLoaderHandler)({
+      request: new Request("http://localhost/work-logs/month?month=2026-07", { headers: { Cookie: cookie } }),
+      context: buildContext(),
+    });
+    const rows = (monthResponse as { rows: { status: string; totalWorkingHours: number; workDate: string }[] }).rows;
+    expect(rows.find((row) => row.workDate === "2026-07-01")?.totalWorkingHours).toBe(0);
+    expect(rows.find((row) => row.workDate === "2026-07-01")?.status).toBe("missing");
+  });
+
+  test("monthly bulk edit rejects zero for a day with allocations", async () => {
+    const cookie = await setupAndLogin(dataDir, "password123");
+    const setupConnection = createDatabaseConnection();
+    const member = createMember(setupConnection.db, {
+      displayName: "Member",
+      email: "member@example.com",
+      passwordHash: "unused",
+      role: "member",
+    });
+    setupConnection.sqlite.close();
+
+    await createProject(cookie, "PRJ-001", "Website", "internal");
+    const listResponse = await (projectsLoader as unknown as RouteLoaderHandler)({
+      request: new Request("http://localhost/", { headers: { Cookie: cookie } }),
+      params: {},
+      context: buildContext(),
+    });
+    const project = (listResponse as { projects: { id: string }[] }).projects[0];
+
+    const assignForm = new FormData();
+    assignForm.append("memberId", member.id);
+    assignForm.append("assignmentRole", "Engineer");
+    await (projectAssignmentsAction as unknown as RouteActionHandler)({
+      request: buildRequest(assignForm, cookie),
+      params: { id: project.id },
+      context: buildContext(),
+    });
+
+    const workLogForm = new FormData();
+    workLogForm.append("date", "2026-07-01");
+    workLogForm.append("totalWorkingHours", "8");
+    await (workLogMonthAction as unknown as RouteActionHandler)({
+      request: new Request(`http://localhost/work-logs/month?month=2026-07&memberId=${member.id}`, {
+        method: "POST",
+        body: workLogForm,
+        headers: { Cookie: cookie },
+      }),
+      params: {},
+      context: buildContext(),
+    });
+
+    const logConnection = createDatabaseConnection();
+    const log = findDailyWorkLogByMemberAndDate(logConnection.db, member.id, "2026-07-01")!;
+    createEffortAllocation(logConnection.db, {
+      dailyWorkLogId: log.id,
+      memberId: member.id,
+      projectId: project.id,
+      taskId: null,
+      allocatedHours: 8,
+      note: null,
+      hourlyCostRateSnapshot: null,
+    });
+    logConnection.sqlite.close();
+
+    const clearForm = new FormData();
+    clearForm.append("date", "2026-07-01");
+    clearForm.append("totalWorkingHours", "0");
+    const clearResponse = await (workLogMonthAction as unknown as RouteActionHandler)({
+      request: new Request(`http://localhost/work-logs/month?month=2026-07&memberId=${member.id}`, {
+        method: "POST",
+        body: clearForm,
+        headers: { Cookie: cookie },
+      }),
+      params: {},
+      context: buildContext(),
+    });
+    expect((clearResponse as { error: string }).error).toContain("0h にできません");
+
+    const monthResponse = await (workLogMonthLoader as unknown as RouteLoaderHandler)({
+      request: new Request(`http://localhost/work-logs/month?month=2026-07&memberId=${member.id}`, { headers: { Cookie: cookie } }),
+      context: buildContext(),
+    });
+    expect((monthResponse as { rows: { totalWorkingHours: number }[] }).rows.find((row) => row.workDate === "2026-07-01")?.totalWorkingHours).toBe(8);
   });
 
   test("admin bulk edits selected member month", async () => {

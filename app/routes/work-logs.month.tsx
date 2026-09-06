@@ -7,6 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "~/components/ui/card";
 import { createDatabaseConnection } from "~/db/client";
 import {
   createDailyWorkLog,
+  deleteDailyWorkLog,
   findDailyWorkLogByMemberAndDate,
   listDailyWorkLogsByMemberAndMonth,
   updateDailyWorkLog,
@@ -113,6 +114,12 @@ export const action = async ({ request }: { request: Request }) => {
     const dates = formData.getAll("date").map(String);
     const hourValues = formData.getAll("totalWorkingHours").map(String);
 
+    type EntryOperation =
+      | { kind: "upsert"; workDate: string; totalWorkingHours: number }
+      | { kind: "clear"; workDate: string };
+
+    const operations: EntryOperation[] = [];
+
     for (let index = 0; index < dates.length; index += 1) {
       const workDate = dates[index];
       const rawHours = hourValues[index]?.trim() ?? "";
@@ -126,19 +133,67 @@ export const action = async ({ request }: { request: Request }) => {
       }
 
       const totalWorkingHours = Number(rawHours);
+      const isZero = totalWorkingHours === 0;
 
-      if (!isValidQuarterHour(totalWorkingHours)) {
+      if (!isZero && !isValidQuarterHour(totalWorkingHours)) {
         return { error: "総稼働時間は 0.25h 単位で入力してください。" };
       }
 
-      const existing = findDailyWorkLogByMemberAndDate(db, targetMemberId, workDate);
-
-      if (existing) {
-        updateDailyWorkLog(db, existing.id, { totalWorkingHours });
+      if (isZero) {
+        operations.push({ kind: "clear", workDate });
       } else {
-        createDailyWorkLog(db, { memberId: targetMemberId, workDate, totalWorkingHours });
+        operations.push({ kind: "upsert", workDate, totalWorkingHours });
       }
     }
+
+    const existingLogs = new Map(
+      operations
+        .filter((operation) => operation.kind === "clear")
+        .map((operation) => [operation.workDate, findDailyWorkLogByMemberAndDate(db, targetMemberId, operation.workDate)]),
+    );
+
+    for (const operation of operations) {
+      if (operation.kind !== "clear") {
+        continue;
+      }
+
+      const existing = existingLogs.get(operation.workDate);
+
+      if (!existing) {
+        continue;
+      }
+
+      const allocations = listAllocationsByWorkLog(db, existing.id);
+
+      if (allocations.length > 0) {
+        return { error: `${operation.workDate} は案件別実績工数があるため 0h にできません。先に案件別実績工数を削除してください。` };
+      }
+    }
+
+    const clearedAt = new Date().toISOString();
+
+    db.transaction((transaction) => {
+      const tx = transaction as unknown as typeof db;
+
+      for (const operation of operations) {
+        if (operation.kind === "clear") {
+          const existing = existingLogs.get(operation.workDate);
+
+          if (existing) {
+            deleteDailyWorkLog(tx, existing.id, clearedAt);
+          }
+          continue;
+        }
+
+        const existing = findDailyWorkLogByMemberAndDate(tx, targetMemberId, operation.workDate);
+
+        if (existing) {
+          updateDailyWorkLog(tx, existing.id, { totalWorkingHours: operation.totalWorkingHours });
+        } else {
+          createDailyWorkLog(tx, { memberId: targetMemberId, workDate: operation.workDate, totalWorkingHours: operation.totalWorkingHours });
+        }
+      }
+    });
 
     const memberQuery = isAdmin && targetMemberId !== currentMember.id ? `&memberId=${targetMemberId}` : "";
     return redirect(`/work-logs/month?month=${month}${memberQuery}`);
@@ -207,6 +262,7 @@ export default function WorkLogMonth() {
       <Card>
         <CardHeader>
           <CardTitle>日別の総稼働時間</CardTitle>
+          <p className="mt-1 text-sm text-slate-600">空欄は変更なし。0 を入力するとその日の総稼働を削除します（案件別実績工数がある日は削除できません）。</p>
         </CardHeader>
         <CardContent>
           <Form method="post" action={`/work-logs/month?month=${month}${memberQuery}`}>

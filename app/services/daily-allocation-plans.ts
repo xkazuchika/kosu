@@ -126,43 +126,47 @@ export function copyDailyAllocationPlansToActuals(db: KosuDatabase, input: CopyD
     skippedNoPlanDates: 0,
   };
 
-  for (const planDate of listMonthDates(input.month)) {
-    const datePlans = plansByDate.get(planDate) ?? [];
+  db.transaction((transaction) => {
+    const tx = transaction as unknown as KosuDatabase;
 
-    if (datePlans.length === 0) {
-      summary.skippedNoPlanDates += 1;
-      continue;
+    for (const planDate of listMonthDates(input.month)) {
+      const datePlans = plansByDate.get(planDate) ?? [];
+
+      if (datePlans.length === 0) {
+        summary.skippedNoPlanDates += 1;
+        continue;
+      }
+
+      const workLog = findDailyWorkLogByMemberAndDate(tx, input.memberId, planDate);
+      const existingAllocations = workLog ? listAllocationsByWorkLog(tx, workLog.id) : [];
+
+      if (existingAllocations.length > 0) {
+        summary.skippedExistingActualDates += 1;
+        continue;
+      }
+
+      const totalWorkingHours = datePlans.reduce((sum, plan) => sum + plan.plannedHours, 0);
+      const targetWorkLog = workLog
+        ? updateDailyWorkLog(tx, workLog.id, { totalWorkingHours })
+        : createDailyWorkLog(tx, { memberId: input.memberId, workDate: planDate, totalWorkingHours });
+
+      for (const plan of datePlans) {
+        validateAssignedActiveProject(tx, input.memberId, plan.projectId);
+        createEffortAllocation(tx, {
+          dailyWorkLogId: targetWorkLog.id,
+          memberId: input.memberId,
+          projectId: plan.projectId,
+          taskId: null,
+          allocatedHours: plan.plannedHours,
+          note: null,
+          hourlyCostRateSnapshot: targetMember.hourlyCostRate ?? null,
+        });
+        summary.createdAllocations += 1;
+      }
+
+      summary.copiedDates += 1;
     }
-
-    const workLog = findDailyWorkLogByMemberAndDate(db, input.memberId, planDate);
-    const existingAllocations = workLog ? listAllocationsByWorkLog(db, workLog.id) : [];
-
-    if (existingAllocations.length > 0) {
-      summary.skippedExistingActualDates += 1;
-      continue;
-    }
-
-    const totalWorkingHours = datePlans.reduce((sum, plan) => sum + plan.plannedHours, 0);
-    const targetWorkLog = workLog
-      ? updateDailyWorkLog(db, workLog.id, { totalWorkingHours })
-      : createDailyWorkLog(db, { memberId: input.memberId, workDate: planDate, totalWorkingHours });
-
-    for (const plan of datePlans) {
-      validateAssignedActiveProject(db, input.memberId, plan.projectId);
-      createEffortAllocation(db, {
-        dailyWorkLogId: targetWorkLog.id,
-        memberId: input.memberId,
-        projectId: plan.projectId,
-        taskId: null,
-        allocatedHours: plan.plannedHours,
-        note: null,
-        hourlyCostRateSnapshot: targetMember.hourlyCostRate ?? null,
-      });
-      summary.createdAllocations += 1;
-    }
-
-    summary.copiedDates += 1;
-  }
+  });
 
   return summary;
 }
