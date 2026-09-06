@@ -7,8 +7,14 @@ import { Card, CardContent, CardHeader, CardTitle } from "~/components/ui/card";
 import { EmptyState } from "~/components/ui/empty-state";
 import { createDatabaseConnection } from "~/db/client";
 import { listEffortReportRows } from "~/db/repositories/effort-allocations";
-import { listMembers, withoutMemberFinancials } from "~/db/repositories/members";
-import { listActiveProjects, withoutProjectFinancials } from "~/db/repositories/projects";
+import {
+  listMembers,
+  withoutMemberFinancials,
+} from "~/db/repositories/members";
+import {
+  listActiveProjects,
+  withoutProjectFinancials,
+} from "~/db/repositories/projects";
 import { neutralizeCsvCell } from "~/lib/csv";
 import { isValidMonth } from "~/lib/time";
 import { getSessionMember } from "~/services/auth";
@@ -28,12 +34,18 @@ export const loader = async ({ request }: { request: Request }) => {
     const url = new URL(request.url);
     const { currentMonth } = getWorkspaceCalendarContext(db);
     const requestedMonth = url.searchParams.get("month");
-    const month = requestedMonth && isValidMonth(requestedMonth) ? requestedMonth : currentMonth;
+    const month =
+      requestedMonth && isValidMonth(requestedMonth)
+        ? requestedMonth
+        : currentMonth;
     const departmentName = url.searchParams.get("departmentName") ?? undefined;
     const role = url.searchParams.get("role") ?? undefined;
     const projectId = url.searchParams.get("projectId") ?? undefined;
     const projectType = url.searchParams.get("projectType") ?? undefined;
-    const memberId = member.role === "admin" ? (url.searchParams.get("memberId") ?? undefined) : member.id;
+    const memberId =
+      member.role === "admin"
+        ? (url.searchParams.get("memberId") ?? undefined)
+        : member.id;
 
     const reportRows = listEffortReportRows(db, {
       month,
@@ -43,10 +55,19 @@ export const loader = async ({ request }: { request: Request }) => {
       projectId,
       projectType,
     });
-    const rows = reportRows.map((row) => ({ ...row, hourlyCostRateSnapshot: null }));
+    const rows = reportRows.map((row) => ({
+      ...row,
+      hourlyCostRateSnapshot: null,
+    }));
 
-    const projects = member.role === "admin" ? listActiveProjects(db) : listActiveProjects(db).map(withoutProjectFinancials);
-    const members = member.role === "admin" ? listMembers(db).map(withoutMemberFinancials) : [];
+    const projects =
+      member.role === "admin"
+        ? listActiveProjects(db)
+        : listActiveProjects(db).map(withoutProjectFinancials);
+    const members =
+      member.role === "admin"
+        ? listMembers(db).map(withoutMemberFinancials)
+        : [];
 
     return {
       closeStatus: getMonthlyCostCloseState(db, month).status,
@@ -79,12 +100,18 @@ export const action = async ({ request }: Route.ActionArgs) => {
     const url = new URL(request.url);
     const { currentMonth } = getWorkspaceCalendarContext(db);
     const requestedMonth = url.searchParams.get("month");
-    const month = requestedMonth && isValidMonth(requestedMonth) ? requestedMonth : currentMonth;
+    const month =
+      requestedMonth && isValidMonth(requestedMonth)
+        ? requestedMonth
+        : currentMonth;
     const departmentName = url.searchParams.get("departmentName") ?? undefined;
     const role = url.searchParams.get("role") ?? undefined;
     const projectId = url.searchParams.get("projectId") ?? undefined;
     const projectType = url.searchParams.get("projectType") ?? undefined;
-    const memberId = member.role === "admin" ? (url.searchParams.get("memberId") ?? undefined) : member.id;
+    const memberId =
+      member.role === "admin"
+        ? (url.searchParams.get("memberId") ?? undefined)
+        : member.id;
 
     const rows = listEffortReportRows(db, {
       month,
@@ -121,7 +148,9 @@ export const action = async ({ request }: Route.ActionArgs) => {
       row.note ?? "",
     ]);
 
-    const csv = [headers, ...csvRows].map((cells) => cells.map(escapeCsv).join(",")).join("\n");
+    const csv = [headers, ...csvRows]
+      .map((cells) => cells.map(escapeCsv).join(","))
+      .join("\n");
 
     return new Response(csv, {
       headers: {
@@ -136,25 +165,38 @@ export const action = async ({ request }: Route.ActionArgs) => {
 
 function escapeCsv(value: string) {
   const neutralized = neutralizeCsvCell(value);
-  if (neutralized.includes(",") || neutralized.includes('"') || neutralized.includes("\n")) {
+  if (
+    neutralized.includes(",") ||
+    neutralized.includes('"') ||
+    neutralized.includes("\n")
+  ) {
     return `"${neutralized.replace(/"/g, '""')}"`;
   }
   return neutralized;
 }
 
-export const meta: Route.MetaFunction = () => [{ title: "工数実績レポート | kosu" }];
+export const meta: Route.MetaFunction = () => [
+  { title: "工数実績レポート | kosu" },
+];
 
 export default function Reports() {
   const data = useLoaderData<typeof loader>();
 
-  const totalHours = data.rows.reduce((sum: number, row) => sum + row.allocatedHours, 0);
+  const totalHours = data.rows.reduce(
+    (sum: number, row) => sum + row.allocatedHours,
+    0,
+  );
 
   return (
     <div className="space-y-6">
       <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight text-slate-950">工数実績レポート</h1>
-          <p className="text-sm text-slate-600">案件・メンバー・月ごとの実績工数を確認してCSV出力できます。</p>
+          <h1 className="text-2xl font-bold tracking-tight text-slate-950">
+            工数実績レポート
+          </h1>
+          <p className="text-sm text-slate-600">
+            案件・メンバー・月ごとの実績工数を確認してCSV出力できます。
+          </p>
         </div>
         <div className="flex flex-wrap items-center gap-3">
           <MonthlyCloseStatusBadge status={data.closeStatus} />
@@ -172,7 +214,10 @@ export default function Reports() {
           <CardTitle>フィルター</CardTitle>
         </CardHeader>
         <CardContent>
-          <Form className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4" method="get">
+          <Form
+            className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4"
+            method="get"
+          >
             <div>
               <label className="text-sm font-medium text-slate-800">月</label>
               <input
@@ -184,7 +229,9 @@ export default function Reports() {
             </div>
             {data.isAdmin ? (
               <div>
-                <label className="text-sm font-medium text-slate-800">メンバー</label>
+                <label className="text-sm font-medium text-slate-800">
+                  メンバー
+                </label>
                 <select
                   className="mt-1 block w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm"
                   defaultValue={data.memberId}
@@ -201,7 +248,9 @@ export default function Reports() {
             ) : null}
             {data.isAdmin ? (
               <div>
-                <label className="text-sm font-medium text-slate-800">部署</label>
+                <label className="text-sm font-medium text-slate-800">
+                  部署
+                </label>
                 <input
                   className="mt-1 block w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
                   defaultValue={data.departmentName}
@@ -212,7 +261,9 @@ export default function Reports() {
             ) : null}
             {data.isAdmin ? (
               <div>
-                <label className="text-sm font-medium text-slate-800">権限</label>
+                <label className="text-sm font-medium text-slate-800">
+                  権限
+                </label>
                 <select
                   className="mt-1 block w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm"
                   defaultValue={data.role}
@@ -286,14 +337,19 @@ export default function Reports() {
         </CardHeader>
         <CardContent>
           {data.rows.length === 0 ? (
-            <EmptyState description="条件に一致する工数データがありません。" title="データがありません" />
+            <EmptyState
+              description="条件に一致する工数データがありません。"
+              title="データがありません"
+            />
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead className="border-b border-slate-200 text-left text-slate-600">
                   <tr>
                     <th className="py-2 pr-4">日付</th>
-                    {data.isAdmin ? <th className="py-2 pr-4">メンバー</th> : null}
+                    {data.isAdmin ? (
+                      <th className="py-2 pr-4">メンバー</th>
+                    ) : null}
                     <th className="py-2 pr-4">案件</th>
                     <th className="py-2 pr-4">種別</th>
                     <th className="py-2 pr-4">タスク</th>
@@ -303,17 +359,33 @@ export default function Reports() {
                 </thead>
                 <tbody>
                   {data.rows.map((row) => (
-                    <tr key={row.allocationId} className="border-b border-slate-100">
+                    <tr
+                      key={row.allocationId}
+                      className="border-b border-slate-100"
+                    >
                       <td className="py-2 pr-4">{row.workDate}</td>
-                      {data.isAdmin ? <td className="py-2 pr-4">{row.memberName}</td> : null}
+                      {data.isAdmin ? (
+                        <td className="py-2 pr-4">{row.memberName}</td>
+                      ) : null}
                       <td className="py-2 pr-4">
-                        <Link className="text-sky-700 hover:underline" to={`/projects/${row.projectId}`}>
-                          {row.projectCode} {row.projectName}
-                        </Link>
+                        {data.isAdmin ? (
+                          <Link
+                            className="text-sky-700 hover:underline"
+                            to={`/projects/${row.projectId}`}
+                          >
+                            {row.projectCode} {row.projectName}
+                          </Link>
+                        ) : (
+                          <span>
+                            {row.projectCode} {row.projectName}
+                          </span>
+                        )}
                       </td>
                       <td className="py-2 pr-4">{row.projectType}</td>
                       <td className="py-2 pr-4">{row.taskName ?? "-"}</td>
-                      <td className="py-2 pr-4 text-right">{row.allocatedHours}h</td>
+                      <td className="py-2 pr-4 text-right">
+                        {row.allocatedHours}h
+                      </td>
                       <td className="py-2">{row.note ?? "-"}</td>
                     </tr>
                   ))}
