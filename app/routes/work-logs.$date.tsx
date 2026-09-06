@@ -1,7 +1,10 @@
-import { Form, Link, redirect, useLoaderData } from "react-router";
+import { Form, Link, useLoaderData } from "react-router";
 import type { Route } from "./+types/work-logs.$date";
 
-import { MonthlyCloseReadOnlyNotice, MonthlyCloseStatusBadge } from "~/components/monthly-close-status";
+import {
+  MonthlyCloseReadOnlyNotice,
+  MonthlyCloseStatusBadge,
+} from "~/components/monthly-close-status";
 import { Badge } from "~/components/ui/badge";
 import { Button } from "~/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "~/components/ui/card";
@@ -20,20 +23,44 @@ import {
   deleteEffortAllocation,
   findAllocationById,
   listAllocationsByWorkLog,
+  listRecentlyUsedProjectIdsByMember,
   updateEffortAllocation,
 } from "~/db/repositories/effort-allocations";
-import { findMemberById, withoutMemberFinancials } from "~/db/repositories/members";
-import { findActiveAssignment, listActiveAssignmentsByMember } from "~/db/repositories/project-assignments";
-import { findProjectById, withoutProjectFinancials } from "~/db/repositories/projects";
-import { findTaskById, listActiveTasksByProject } from "~/db/repositories/tasks";
+import {
+  findMemberById,
+  withoutMemberFinancials,
+} from "~/db/repositories/members";
+import {
+  findActiveAssignment,
+  listActiveAssignmentsByMember,
+} from "~/db/repositories/project-assignments";
+import {
+  findProjectById,
+  withoutProjectFinancials,
+} from "~/db/repositories/projects";
+import {
+  findTaskById,
+  listActiveTasksByProject,
+} from "~/db/repositories/tasks";
 import { getSessionMember } from "~/services/auth";
 import { logRouteError } from "~/lib/log";
-import { getWeekdayLabel, isSaturdayDate, isSundayDate, isValidQuarterHour } from "~/lib/time";
+import {
+  getWeekdayLabel,
+  isSaturdayDate,
+  isSundayDate,
+  isValidQuarterHour,
+} from "~/lib/time";
 import { getMonthlyCostCloseState } from "~/services/monthly-cost-close";
 import { requireUnlockedMonth } from "~/services/period-lock";
 import { getWorkspaceCalendarContext } from "~/services/workspace-calendar";
 
-export const loader = async ({ request, params }: { request: Request; params: { date: string } }) => {
+export const loader = async ({
+  request,
+  params,
+}: {
+  request: Request;
+  params: { date: string };
+}) => {
   const { db, sqlite } = createDatabaseConnection();
 
   try {
@@ -47,7 +74,8 @@ export const loader = async ({ request, params }: { request: Request; params: { 
 
     const isAdmin = currentMember.role === "admin";
     const { today } = getWorkspaceCalendarContext(db);
-    const targetMemberId = memberIdParam && isAdmin ? memberIdParam : currentMember.id;
+    const targetMemberId =
+      memberIdParam && isAdmin ? memberIdParam : currentMember.id;
     const targetMember = findMemberById(db, targetMemberId);
 
     if (!targetMember) {
@@ -56,30 +84,84 @@ export const loader = async ({ request, params }: { request: Request; params: { 
 
     const workDate = params.date;
     const month = workDate.slice(0, 7);
-    const workLog = findDailyWorkLogByMemberAndDate(db, targetMemberId, workDate);
+    const workLog = findDailyWorkLogByMemberAndDate(
+      db,
+      targetMemberId,
+      workDate,
+    );
     const allocations = workLog ? listAllocationsByWorkLog(db, workLog.id) : [];
-    const assignedProjectRecords = listActiveAssignmentsByMember(db, targetMemberId)
+    const assignedProjectRecords = listActiveAssignmentsByMember(
+      db,
+      targetMemberId,
+    )
       .map((a) => findProjectById(db, a.projectId))
-      .filter((p): p is NonNullable<typeof p> => p !== undefined && !p.isArchived);
-    const assignableProjectIds = new Set(assignedProjectRecords.map((project) => project.id));
-    const referencedProjectRecords = [...new Set(allocations.map((allocation) => allocation.projectId))]
+      .filter(
+        (p): p is NonNullable<typeof p> => p !== undefined && !p.isArchived,
+      );
+    const assignableProjectIds = new Set(
+      assignedProjectRecords.map((project) => project.id),
+    );
+    const referencedProjectRecords = [
+      ...new Set(allocations.map((allocation) => allocation.projectId)),
+    ]
       .filter((projectId) => !assignableProjectIds.has(projectId))
       .map((projectId) => findProjectById(db, projectId))
       .filter((p): p is NonNullable<typeof p> => p !== undefined);
-    const selectableProjectRecords = [...assignedProjectRecords, ...referencedProjectRecords];
+    const selectableProjectRecords = [
+      ...assignedProjectRecords,
+      ...referencedProjectRecords,
+    ];
     const activeTasks = selectableProjectRecords.flatMap((project) =>
-      listActiveTasksByProject(db, project.id).map((task) => ({ ...task, projectName: project.name })),
+      listActiveTasksByProject(db, project.id).map((task) => ({
+        ...task,
+        projectName: project.name,
+      })),
     );
     const activeTaskIds = new Set(activeTasks.map((task) => task.id));
-    const projectNameById = new Map(selectableProjectRecords.map((project) => [project.id, project.name]));
-    const referencedTasks = [...new Set(allocations.map((allocation) => allocation.taskId))]
-      .filter((taskId): taskId is string => taskId !== null && !activeTaskIds.has(taskId))
+    const projectNameById = new Map(
+      selectableProjectRecords.map((project) => [project.id, project.name]),
+    );
+    const referencedTasks = [
+      ...new Set(allocations.map((allocation) => allocation.taskId)),
+    ]
+      .filter(
+        (taskId): taskId is string =>
+          taskId !== null && !activeTaskIds.has(taskId),
+      )
       .map((taskId) => findTaskById(db, taskId))
       .filter((t): t is NonNullable<typeof t> => t !== undefined)
-      .map((task) => ({ ...task, projectName: projectNameById.get(task.projectId) ?? "" }));
+      .map((task) => ({
+        ...task,
+        projectName: projectNameById.get(task.projectId) ?? "",
+      }));
     const selectableTasks = [...activeTasks, ...referencedTasks];
-    const assignedProjects = isAdmin ? selectableProjectRecords : selectableProjectRecords.map(withoutProjectFinancials);
-    const referencedOnlyProjectIds = referencedProjectRecords.map((project) => project.id);
+    const recentlyUsedProjectIds = listRecentlyUsedProjectIdsByMember(
+      db,
+      targetMemberId,
+      addDays(workDate, -60),
+    );
+    const recentOrder = new Map(
+      recentlyUsedProjectIds.map((projectId, index) => [projectId, index]),
+    );
+    const orderedProjectRecords = [...selectableProjectRecords].sort((a, b) => {
+      const aRecent = recentOrder.has(a.id);
+      const bRecent = recentOrder.has(b.id);
+
+      if (aRecent && bRecent) {
+        return (recentOrder.get(a.id) ?? 0) - (recentOrder.get(b.id) ?? 0);
+      }
+
+      if (aRecent) return -1;
+      if (bRecent) return 1;
+
+      return 0;
+    });
+    const assignedProjects = isAdmin
+      ? orderedProjectRecords
+      : orderedProjectRecords.map(withoutProjectFinancials);
+    const referencedOnlyProjectIds = referencedProjectRecords.map(
+      (project) => project.id,
+    );
 
     const closeState = getMonthlyCostCloseState(db, month);
 
@@ -116,7 +198,8 @@ export const action = async ({ request, params }: Route.ActionArgs) => {
     }
 
     const isAdmin = currentMember.role === "admin";
-    const targetMemberId = memberIdParam && isAdmin ? memberIdParam : currentMember.id;
+    const targetMemberId =
+      memberIdParam && isAdmin ? memberIdParam : currentMember.id;
 
     if (targetMemberId !== currentMember.id && !isAdmin) {
       throw new Response("Forbidden", { status: 403 });
@@ -125,147 +208,74 @@ export const action = async ({ request, params }: Route.ActionArgs) => {
     const workDate = params.date;
     const month = workDate.slice(0, 7);
     const formData = await request.formData();
-    const intent = String(formData.get("intent") ?? "saveWorkLog");
+    const deleteAllocationId = String(
+      formData.get("deleteAllocationId") ?? "",
+    ).trim();
+    const intent = String(formData.get("intent") ?? "").trim();
+
+    if (deleteAllocationId) {
+      const allocation = findAllocationById(db, deleteAllocationId);
+      const allocationLog = allocation
+        ? findDailyWorkLogById(db, allocation.dailyWorkLogId)
+        : undefined;
+
+      if (
+        !isOwnedAllocationOnDate(
+          allocation,
+          allocationLog,
+          targetMemberId,
+          workDate,
+        )
+      ) {
+        throw new Response("Not found", { status: 404 });
+      }
+
+      requireUnlockedMonth(db, allocationLog!.workDate.slice(0, 7));
+      deleteEffortAllocation(db, deleteAllocationId, new Date().toISOString());
+
+      return { success: "実績工数を 1 件削除しました。" };
+    }
 
     if (intent === "saveWorkLog") {
       requireUnlockedMonth(db, month);
 
-      const totalWorkingHours = Number(formData.get("totalWorkingHours") ?? 0);
+      const totalWorkingHours = Number(
+        String(formData.get("totalWorkingHours") ?? "").trim(),
+      );
 
       if (!isValidQuarterHour(totalWorkingHours)) {
         return { error: "総稼働時間は 0.25h 単位で入力してください。" };
       }
 
-      const existing = findDailyWorkLogByMemberAndDate(db, targetMemberId, workDate);
+      const existing = findDailyWorkLogByMemberAndDate(
+        db,
+        targetMemberId,
+        workDate,
+      );
 
       if (existing) {
         updateDailyWorkLog(db, existing.id, { totalWorkingHours });
       } else {
-        createDailyWorkLog(db, { memberId: targetMemberId, workDate, totalWorkingHours });
+        createDailyWorkLog(db, {
+          memberId: targetMemberId,
+          workDate,
+          totalWorkingHours,
+        });
       }
 
-      const adminQuery = isAdmin && memberIdParam ? `?memberId=${targetMemberId}` : "";
-      return redirect(`/work-logs/${workDate}${adminQuery}`);
+      return { success: "総稼働時間を保存しました。" };
     }
 
-    if (intent === "addAllocation") {
+    if (intent === "copyPrevious") {
       requireUnlockedMonth(db, month);
 
-      const workLog = findDailyWorkLogByMemberAndDate(db, targetMemberId, workDate);
-
-      if (!workLog) {
-        return { error: "先に勤務日の総稼働時間を保存してください。" };
-      }
-
-      const projectId = String(formData.get("projectId") ?? "");
-      const taskIdRaw = String(formData.get("taskId") ?? "");
-      const taskId = taskIdRaw || undefined;
-      const allocatedHours = Number(formData.get("allocatedHours") ?? 0);
-      const note = String(formData.get("note") ?? "").trim() || undefined;
-
-      if (!projectId) {
-        return { error: "案件を選択してください。" };
-      }
-
-      if (!isValidQuarterHour(allocatedHours)) {
-        return { error: "実績工数は 0.25h 単位で入力してください。" };
-      }
-
-      const allocationTargetError = validateAllocationTarget(db, targetMemberId, projectId, taskId);
-
-      if (allocationTargetError) {
-        return { error: allocationTargetError };
-      }
-
-      const targetMember = findMemberById(db, targetMemberId);
-
-      createEffortAllocation(db, {
-        dailyWorkLogId: workLog.id,
-        memberId: targetMemberId,
-        projectId,
-        taskId: taskId ?? null,
-        allocatedHours,
-        note,
-        hourlyCostRateSnapshot: targetMember?.hourlyCostRate ?? null,
-      });
-
-      const adminQuery = isAdmin && memberIdParam ? `?memberId=${targetMemberId}` : "";
-      return redirect(`/work-logs/${workDate}${adminQuery}`);
+      return copyPreviousDayEffort(db, targetMemberId, workDate);
     }
 
-    if (intent === "updateAllocation") {
-      const allocationId = String(formData.get("allocationId") ?? "");
-      const projectId = String(formData.get("projectId") ?? "");
-      const taskIdRaw = String(formData.get("taskId") ?? "");
-      const taskId = taskIdRaw || undefined;
-      const allocatedHours = Number(formData.get("allocatedHours") ?? 0);
-      const note = String(formData.get("note") ?? "").trim() || undefined;
+    if (intent === "saveDay") {
+      requireUnlockedMonth(db, month);
 
-      const allocation = findAllocationById(db, allocationId);
-      const allocationLog = allocation ? findDailyWorkLogById(db, allocation.dailyWorkLogId) : undefined;
-
-      if (
-        !allocation ||
-        allocation.deletedAt ||
-        !allocationLog ||
-        allocationLog.deletedAt ||
-        allocationLog.memberId !== targetMemberId ||
-        allocationLog.workDate !== workDate
-      ) {
-        throw new Response("Not found", { status: 404 });
-      }
-
-      requireUnlockedMonth(db, allocationLog.workDate.slice(0, 7));
-
-      if (!projectId) {
-        return { error: "案件を選択してください。" };
-      }
-
-      if (!isValidQuarterHour(allocatedHours)) {
-        return { error: "実績工数は 0.25h 単位で入力してください。" };
-      }
-
-      const resolvedTaskId = taskId ?? allocation.taskId ?? undefined;
-      const allocationTargetError = validateAllocationTarget(db, targetMemberId, projectId, resolvedTaskId, {
-        projectId: allocation.projectId,
-        taskId: allocation.taskId,
-      });
-
-      if (allocationTargetError) {
-        return { error: allocationTargetError };
-      }
-
-      updateEffortAllocation(db, allocationId, {
-        projectId,
-        taskId: resolvedTaskId ?? null,
-        allocatedHours,
-        note,
-      });
-      const adminQuery = isAdmin && memberIdParam ? `?memberId=${targetMemberId}` : "";
-      return redirect(`/work-logs/${workDate}${adminQuery}`);
-    }
-
-    if (intent === "deleteAllocation") {
-      const allocationId = String(formData.get("allocationId") ?? "");
-      const allocation = findAllocationById(db, allocationId);
-      const allocationLog = allocation ? findDailyWorkLogById(db, allocation.dailyWorkLogId) : undefined;
-
-      if (
-        !allocation ||
-        allocation.deletedAt ||
-        !allocationLog ||
-        allocationLog.deletedAt ||
-        allocationLog.memberId !== targetMemberId ||
-        allocationLog.workDate !== workDate
-      ) {
-        throw new Response("Not found", { status: 404 });
-      }
-
-      requireUnlockedMonth(db, allocationLog.workDate.slice(0, 7));
-
-      deleteEffortAllocation(db, allocationId, new Date().toISOString());
-      const adminQuery = isAdmin && memberIdParam ? `?memberId=${targetMemberId}` : "";
-      return redirect(`/work-logs/${workDate}${adminQuery}`);
+      return saveDayEffort(db, targetMemberId, workDate, formData);
     }
 
     return { error: "不明な操作です。" };
@@ -279,6 +289,265 @@ export const action = async ({ request, params }: Route.ActionArgs) => {
     sqlite.close();
   }
 };
+
+type DailyEntryRow = {
+  allocationId: string;
+  projectId: string;
+  taskId: string;
+  hoursRaw: string;
+  note: string;
+};
+
+type DailyEntryResult = { success?: string; error?: string };
+
+type EffortAllocationRow = NonNullable<ReturnType<typeof findAllocationById>>;
+type DailyWorkLogRow = NonNullable<ReturnType<typeof findDailyWorkLogById>>;
+
+function isOwnedAllocationOnDate(
+  allocation: EffortAllocationRow | undefined,
+  allocationLog: DailyWorkLogRow | undefined,
+  memberId: string,
+  workDate: string,
+) {
+  return Boolean(
+    allocation &&
+    !allocation.deletedAt &&
+    allocationLog &&
+    !allocationLog.deletedAt &&
+    allocationLog.memberId === memberId &&
+    allocationLog.workDate === workDate,
+  );
+}
+
+function parseDailyEntryRows(formData: FormData): DailyEntryRow[] {
+  const allocationIds = formData.getAll("allocationId").map(String);
+  const projectIds = formData.getAll("projectId").map(String);
+  const taskIds = formData.getAll("taskId").map(String);
+  const hoursValues = formData.getAll("allocatedHours").map(String);
+  const notes = formData.getAll("note").map(String);
+  const rowCount = Math.max(
+    allocationIds.length,
+    projectIds.length,
+    hoursValues.length,
+  );
+  const rows: DailyEntryRow[] = [];
+
+  for (let i = 0; i < rowCount; i++) {
+    rows.push({
+      allocationId: (allocationIds[i] ?? "").trim(),
+      projectId: (projectIds[i] ?? "").trim(),
+      taskId: (taskIds[i] ?? "").trim(),
+      hoursRaw: (hoursValues[i] ?? "").trim(),
+      note: (notes[i] ?? "").trim(),
+    });
+  }
+
+  return rows;
+}
+
+function isBlankRow(row: DailyEntryRow) {
+  return !row.projectId && !row.hoursRaw;
+}
+
+function saveDayEffort(
+  db: KosuDatabase,
+  memberId: string,
+  workDate: string,
+  formData: FormData,
+): DailyEntryResult {
+  const totalWorkingHours = Number(
+    String(formData.get("totalWorkingHours") ?? "").trim(),
+  );
+
+  if (!isValidQuarterHour(totalWorkingHours)) {
+    return { error: "総稼働時間は 0.25h 単位で入力してください。" };
+  }
+
+  const rows = parseDailyEntryRows(formData).filter((row) => !isBlankRow(row));
+
+  for (const row of rows) {
+    if (!row.projectId) {
+      return { error: "案件を選択してください。" };
+    }
+
+    if (!isValidQuarterHour(Number(row.hoursRaw))) {
+      return { error: "実績工数は 0.25h 単位で入力してください。" };
+    }
+  }
+
+  const existingById = new Map<string, EffortAllocationRow>();
+
+  for (const row of rows) {
+    if (!row.allocationId) {
+      continue;
+    }
+
+    const allocation = findAllocationById(db, row.allocationId);
+    const allocationLog = allocation
+      ? findDailyWorkLogById(db, allocation.dailyWorkLogId)
+      : undefined;
+
+    if (
+      !isOwnedAllocationOnDate(allocation, allocationLog, memberId, workDate)
+    ) {
+      throw new Response("Not found", { status: 404 });
+    }
+
+    existingById.set(row.allocationId, allocation!);
+  }
+
+  const resolvedRows = rows.map((row) => {
+    const existing = existingById.get(row.allocationId);
+
+    return {
+      row,
+      existing,
+      taskId: row.taskId || existing?.taskId || undefined,
+    };
+  });
+
+  for (const { row, existing, taskId } of resolvedRows) {
+    const allocationTargetError = validateAllocationTarget(
+      db,
+      memberId,
+      row.projectId,
+      taskId,
+      existing,
+    );
+
+    if (allocationTargetError) {
+      return { error: allocationTargetError };
+    }
+  }
+
+  const targetMember = findMemberById(db, memberId);
+
+  db.transaction((transaction) => {
+    const tx = transaction as unknown as KosuDatabase;
+    const workLog = findDailyWorkLogByMemberAndDate(tx, memberId, workDate);
+    const workLogId = workLog
+      ? (updateDailyWorkLog(tx, workLog.id, { totalWorkingHours }), workLog.id)
+      : createDailyWorkLog(tx, { memberId, workDate, totalWorkingHours }).id;
+
+    for (const { row, existing, taskId } of resolvedRows) {
+      const allocatedHours = Number(row.hoursRaw);
+
+      if (existing) {
+        updateEffortAllocation(tx, existing.id, {
+          projectId: row.projectId,
+          taskId: taskId ?? null,
+          allocatedHours,
+          note: row.note || undefined,
+        });
+        continue;
+      }
+
+      createEffortAllocation(tx, {
+        dailyWorkLogId: workLogId,
+        memberId,
+        projectId: row.projectId,
+        taskId: taskId ?? null,
+        allocatedHours,
+        note: row.note || undefined,
+        hourlyCostRateSnapshot: targetMember?.hourlyCostRate ?? null,
+      });
+    }
+  });
+
+  return { success: `実績工数 ${resolvedRows.length} 件を保存しました。` };
+}
+
+function copyPreviousDayEffort(
+  db: KosuDatabase,
+  memberId: string,
+  workDate: string,
+): DailyEntryResult {
+  const previousDate = addDays(workDate, -1);
+  const currentLog = findDailyWorkLogByMemberAndDate(db, memberId, workDate);
+  const currentAllocations = currentLog
+    ? listAllocationsByWorkLog(db, currentLog.id)
+    : [];
+
+  if (currentAllocations.length > 0) {
+    return {
+      error: "既に実績工数が登録されているため、前日から複製できません。",
+    };
+  }
+
+  const previousLog = findDailyWorkLogByMemberAndDate(
+    db,
+    memberId,
+    previousDate,
+  );
+  const previousAllocations = previousLog
+    ? listAllocationsByWorkLog(db, previousLog.id)
+    : [];
+
+  if (!previousLog || previousAllocations.length === 0) {
+    return { error: "前日に複製する内容がありません。" };
+  }
+
+  const usable = previousAllocations.filter(
+    (allocation) =>
+      !validateAllocationTarget(
+        db,
+        memberId,
+        allocation.projectId,
+        allocation.taskId ?? undefined,
+      ),
+  );
+  const skipped = previousAllocations.filter((allocation) =>
+    validateAllocationTarget(
+      db,
+      memberId,
+      allocation.projectId,
+      allocation.taskId ?? undefined,
+    ),
+  );
+
+  if (usable.length === 0) {
+    return { error: "前日の実績に複製できる案件がないため、複製できません。" };
+  }
+
+  const targetMember = findMemberById(db, memberId);
+
+  db.transaction((transaction) => {
+    const tx = transaction as unknown as KosuDatabase;
+    const workLog =
+      currentLog ??
+      createDailyWorkLog(tx, {
+        memberId,
+        workDate,
+        totalWorkingHours: previousLog.totalWorkingHours,
+      });
+
+    for (const allocation of usable) {
+      createEffortAllocation(tx, {
+        dailyWorkLogId: workLog.id,
+        memberId,
+        projectId: allocation.projectId,
+        taskId: allocation.taskId ?? null,
+        allocatedHours: allocation.allocatedHours,
+        note: allocation.note ?? undefined,
+        hourlyCostRateSnapshot: targetMember?.hourlyCostRate ?? null,
+      });
+    }
+  });
+
+  const skippedNames = [
+    ...new Set(
+      skipped.map(
+        (allocation) => findProjectById(db, allocation.projectId)?.name ?? "",
+      ),
+    ),
+  ].filter((name) => name !== "");
+  const skippedSuffix =
+    skippedNames.length > 0 ? `（スキップ: ${skippedNames.join("、")}）` : "";
+
+  return {
+    success: `前日（${previousDate}）から ${usable.length} 件を複製しました。${skippedSuffix}`,
+  };
+}
 
 function validateAllocationTarget(
   db: KosuDatabase,
@@ -324,7 +593,9 @@ function validateAllocationTarget(
   return undefined;
 }
 
-export const meta: Route.MetaFunction = () => [{ title: "日別工数実績入力 | kosu" }];
+export const meta: Route.MetaFunction = () => [
+  { title: "日別工数実績入力 | kosu" },
+];
 
 export default function WorkLogEntry({ actionData }: Route.ComponentProps) {
   const {
@@ -342,20 +613,68 @@ export default function WorkLogEntry({ actionData }: Route.ComponentProps) {
     isLocked,
   } = useLoaderData<typeof loader>();
   const referencedOnlyProjects = new Set(referencedOnlyProjectIds);
-  const projectLabel = (project: { id: string; name: string; isArchived?: boolean }) => {
+  const projectLabel = (project: {
+    id: string;
+    name: string;
+    isArchived?: boolean;
+  }) => {
     if (!referencedOnlyProjects.has(project.id)) {
       return project.name;
     }
 
     return `${project.name}（${project.isArchived ? "アーカイブ済み" : "アサイン解除済み"}）`;
   };
-  const allocatedTotal = allocations.reduce((sum, a) => sum + a.allocatedHours, 0);
+  const allocatedTotal = allocations.reduce(
+    (sum, a) => sum + a.allocatedHours,
+    0,
+  );
   const totalWorkingHours = workLog?.totalWorkingHours ?? 0;
   const variance = totalWorkingHours - allocatedTotal;
-  const remainingAllocationHours = variance > 0 ? variance : "";
   const previousDate = addDays(workDate, -1);
   const nextDate = addDays(workDate, 1);
-  const memberQuery = targetMember.id !== currentMemberId ? `?memberId=${targetMember.id}` : "";
+  const blankRowKeys = ["new-row-1"];
+  const renderProjectSelect = (value: string) => (
+    <select
+      className="block w-full min-w-40 rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm disabled:bg-slate-100"
+      defaultValue={value}
+      disabled={isLocked}
+      name="projectId"
+    >
+      <option value="">選択</option>
+      {assignedProjects.map((project) => (
+        <option key={project.id} value={project.id}>
+          {projectLabel(project)}
+        </option>
+      ))}
+    </select>
+  );
+  const renderTaskSelect = (value: string) => (
+    <select
+      className="block w-full min-w-40 rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm disabled:bg-slate-100"
+      defaultValue={value}
+      disabled={isLocked}
+      name="taskId"
+    >
+      <option value="">未指定</option>
+      {assignedProjects.map((project) => {
+        const projectTasks = activeTasks.filter(
+          (task) => task.projectId === project.id,
+        );
+
+        return projectTasks.length > 0 ? (
+          <optgroup key={project.id} label={projectLabel(project)}>
+            {projectTasks.map((task) => (
+              <option key={task.id} value={task.id}>
+                {task.name}
+              </option>
+            ))}
+          </optgroup>
+        ) : null;
+      })}
+    </select>
+  );
+  const memberQuery =
+    targetMember.id !== currentMemberId ? `?memberId=${targetMember.id}` : "";
   const weekday = getWeekdayLabel(workDate);
   const isSunday = isSundayDate(workDate);
   const isSaturday = isSaturdayDate(workDate);
@@ -364,7 +683,9 @@ export default function WorkLogEntry({ actionData }: Route.ComponentProps) {
     <div className="space-y-6">
       <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight text-slate-950">日別工数実績入力</h1>
+          <h1 className="text-2xl font-bold tracking-tight text-slate-950">
+            日別工数実績入力
+          </h1>
           <p className="text-sm text-slate-600">
             {targetMember.displayName} · {workDate}（{weekday}） · {month}
           </p>
@@ -379,178 +700,182 @@ export default function WorkLogEntry({ actionData }: Route.ComponentProps) {
       <MonthlyCloseReadOnlyNotice month={month} status={closeStatus} />
 
       <div className="flex flex-wrap gap-2">
-        <Link className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-900 hover:bg-slate-50" to={`/work-logs/${previousDate}${memberQuery}`}>
+        <Link
+          className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-900 hover:bg-slate-50"
+          to={`/work-logs/${previousDate}${memberQuery}`}
+        >
           前日
         </Link>
-        <Link className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-900 hover:bg-slate-50" to={`/work-logs/${today}${memberQuery}`}>
+        <Link
+          className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-900 hover:bg-slate-50"
+          to={`/work-logs/${today}${memberQuery}`}
+        >
           今日
         </Link>
-        <Link className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-900 hover:bg-slate-50" to={`/work-logs/${nextDate}${memberQuery}`}>
+        <Link
+          className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-900 hover:bg-slate-50"
+          to={`/work-logs/${nextDate}${memberQuery}`}
+        >
           翌日
         </Link>
       </div>
 
       {actionData?.error ? (
-        <p className="rounded-lg bg-red-50 p-3 text-sm text-red-700" role="alert">
+        <p
+          className="rounded-lg bg-red-50 p-3 text-sm text-red-700"
+          role="alert"
+        >
           {actionData.error}
+        </p>
+      ) : null}
+
+      {actionData?.success ? (
+        <p
+          className="rounded-lg bg-emerald-50 p-3 text-sm text-emerald-800"
+          role="status"
+        >
+          {actionData.success}
         </p>
       ) : null}
 
       <Card>
         <CardHeader>
-          <CardTitle>総稼働時間</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <Form className="flex flex-col gap-4 sm:flex-row sm:items-end" method="post">
-            <input name="intent" type="hidden" value="saveWorkLog" />
-            <Field label="総稼働時間（0.25h 単位）">
-              <Input
-                defaultValue={workLog?.totalWorkingHours ?? ""}
-                disabled={isLocked}
-                name="totalWorkingHours"
-                step="0.25"
-                type="number"
-                required
-              />
-            </Field>
-            <Button disabled={isLocked} type="submit" variant="primary">
-              総稼働時間を保存
-            </Button>
-          </Form>
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader>
-          <CardTitle>案件別実績工数</CardTitle>
+          <CardTitle>{workDate} の実績工数</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="flex flex-col justify-between gap-2 rounded-lg bg-slate-50 p-3 text-sm sm:flex-row">
-            <span>総稼働: {totalWorkingHours}h</span>
-            <span>案件別実績工数: {allocatedTotal}h</span>
-            <span className={variance === 0 ? "text-emerald-700" : "text-amber-700"}>
-              差分: {variance >= 0 ? "+" : ""}{variance}h
-            </span>
-          </div>
+          <Form className="space-y-4" method="post">
+            {allocations.map((allocation) => (
+              <input
+                key={allocation.id}
+                name="allocationId"
+                type="hidden"
+                value={allocation.id}
+              />
+            ))}
+            {blankRowKeys.map((key) => (
+              <input key={key} name="allocationId" type="hidden" value="" />
+            ))}
 
-          <DataTable
-            columns={["案件", "タスク", "実績時間", "備考", "操作"]}
-            emptyMessage="案件別実績工数はまだありません。"
-            rows={allocations.map((allocation) => {
-              const formId = `allocation-${allocation.id}`;
-
-              return [
-                <select
-                  className="block w-full min-w-40 rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm disabled:bg-slate-100"
-                  defaultValue={allocation.projectId}
-                  disabled={isLocked}
-                  form={formId}
-                  name="projectId"
-                  required
-                >
-                  {assignedProjects.map((project) => (
-                    <option key={project.id} value={project.id}>
-                      {projectLabel(project)}
-                    </option>
-                  ))}
-                </select>,
-                <select
-                  className="block w-full min-w-40 rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm disabled:bg-slate-100"
-                  defaultValue={allocation.taskId ?? ""}
-                  disabled={isLocked}
-                  form={formId}
-                  name="taskId"
-                >
-                  <option value="">未指定</option>
-                  {assignedProjects.map((project) => {
-                    const projectTasks = activeTasks.filter((task) => task.projectId === project.id);
-
-                    return projectTasks.length > 0 ? (
-                      <optgroup key={project.id} label={projectLabel(project)}>
-                        {projectTasks.map((task) => (
-                          <option key={task.id} value={task.id}>
-                            {task.name}
-                          </option>
-                        ))}
-                      </optgroup>
-                    ) : null;
-                  })}
-                </select>,
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
+              <Field label="総稼働時間（0.25h 単位）">
                 <Input
-                  className="w-28"
-                  defaultValue={allocation.allocatedHours}
+                  defaultValue={workLog?.totalWorkingHours ?? ""}
                   disabled={isLocked}
-                  form={formId}
-                  name="allocatedHours"
+                  name="totalWorkingHours"
                   step="0.25"
                   type="number"
                   required
-                />,
-                <Input
-                  className="min-w-40"
-                  defaultValue={allocation.note ?? ""}
-                  disabled={isLocked}
-                  form={formId}
-                  name="note"
-                  type="text"
-                />,
-                <Form className="flex gap-2" id={formId} key={allocation.id} method="post">
-                  <input name="allocationId" type="hidden" value={allocation.id} />
-                  <Button disabled={isLocked} name="intent" type="submit" value="updateAllocation" variant="primary">
-                    変更を保存
-                  </Button>
-                  <Button disabled={isLocked} name="intent" type="submit" value="deleteAllocation" variant="outline">
-                    削除
-                  </Button>
-                </Form>,
-              ];
-            })}
-          />
-
-          <Form className="grid gap-4 rounded-lg border border-slate-200 p-4 sm:grid-cols-2 lg:grid-cols-5" method="post">
-            <input name="intent" type="hidden" value="addAllocation" />
-            <div>
-              <label className="text-sm font-medium text-slate-800">案件</label>
-              <select className="mt-1 block w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm" disabled={isLocked} name="projectId" required>
-                <option value="">選択</option>
-                {assignedProjects.map((project) => (
-                  <option key={project.id} value={project.id}>
-                    {project.name}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div>
-              <label className="text-sm font-medium text-slate-800">タスク（任意）</label>
-              <select className="mt-1 block w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm" disabled={isLocked} name="taskId">
-                <option value="">未指定</option>
-                {assignedProjects.map((project) => {
-                  const projectTasks = activeTasks.filter((task) => task.projectId === project.id);
-
-                  return projectTasks.length > 0 ? (
-                    <optgroup key={project.id} label={project.name}>
-                      {projectTasks.map((task) => (
-                        <option key={task.id} value={task.id}>
-                          {task.name}
-                        </option>
-                      ))}
-                    </optgroup>
-                  ) : null;
-                })}
-              </select>
-            </div>
-            <div>
-              <label className="text-sm font-medium text-slate-800">実績時間</label>
-              <Input className="mt-1" defaultValue={remainingAllocationHours} disabled={isLocked} name="allocatedHours" step="0.25" type="number" required />
-            </div>
-            <div>
-              <label className="text-sm font-medium text-slate-800">備考</label>
-              <Input className="mt-1" disabled={isLocked} name="note" type="text" />
-            </div>
-            <div className="flex items-end">
-              <Button className="w-full" disabled={isLocked} type="submit" variant="primary">
-                案件別実績工数を追加
+                />
+              </Field>
+              <Button
+                disabled={isLocked}
+                name="intent"
+                type="submit"
+                value="saveWorkLog"
+                variant="outline"
+              >
+                総稼働時間のみ保存
               </Button>
+            </div>
+
+            <div className="flex flex-col justify-between gap-2 rounded-lg bg-slate-50 p-3 text-sm sm:flex-row">
+              <span>総稼働: {totalWorkingHours}h</span>
+              <span>案件別実績工数: {allocatedTotal}h</span>
+              <span
+                className={
+                  variance === 0 ? "text-emerald-700" : "text-amber-700"
+                }
+              >
+                {variance > 0 ? `未割当: ${variance}h` : null}
+                {variance < 0 ? `超過: ${Math.abs(variance)}h` : null}
+                {variance === 0 ? "割当済み" : null}
+              </span>
+            </div>
+
+            {assignedProjects.length === 0 ? (
+              <p className="rounded-lg bg-slate-50 p-3 text-sm text-slate-600">
+                アサインされている案件がありません。管理者にアサインを依頼するか、セルフアサインで案件を追加してください。
+              </p>
+            ) : null}
+
+            <DataTable
+              columns={["案件", "タスク", "実績時間", "備考", "操作"]}
+              emptyMessage="案件別実績工数はまだありません。"
+              rows={[
+                ...allocations.map((allocation) => [
+                  renderProjectSelect(allocation.projectId),
+                  renderTaskSelect(allocation.taskId ?? ""),
+                  <Input
+                    className="w-28"
+                    defaultValue={allocation.allocatedHours}
+                    disabled={isLocked}
+                    name="allocatedHours"
+                    step="0.25"
+                    type="number"
+                  />,
+                  <Input
+                    className="min-w-40"
+                    defaultValue={allocation.note ?? ""}
+                    disabled={isLocked}
+                    name="note"
+                    type="text"
+                  />,
+                  <Button
+                    disabled={isLocked}
+                    formNoValidate
+                    name="deleteAllocationId"
+                    type="submit"
+                    value={allocation.id}
+                    variant="outline"
+                  >
+                    削除
+                  </Button>,
+                ]),
+                ...blankRowKeys.map((key) => [
+                  renderProjectSelect(""),
+                  renderTaskSelect(""),
+                  <Input
+                    defaultValue=""
+                    disabled={isLocked}
+                    key={`${key}-hours`}
+                    name="allocatedHours"
+                    step="0.25"
+                    type="number"
+                  />,
+                  <Input
+                    className="min-w-40"
+                    disabled={isLocked}
+                    name="note"
+                    type="text"
+                  />,
+                  <span className="text-xs text-slate-400">新規</span>,
+                ]),
+              ]}
+            />
+
+            <div className="flex flex-wrap items-center gap-3">
+              <Button
+                disabled={isLocked}
+                name="intent"
+                type="submit"
+                value="saveDay"
+                variant="primary"
+              >
+                実績を保存
+              </Button>
+              <Button
+                disabled={isLocked}
+                formNoValidate
+                name="intent"
+                type="submit"
+                value="copyPrevious"
+                variant="secondary"
+              >
+                前日から複製
+              </Button>
+              <p className="text-xs text-slate-500">
+                「実績を保存」は総稼働時間と案件別実績工数の両方を反映します。総稼働時間だけを先に記録したい場合は「総稼働時間のみ保存」を使ってください。
+              </p>
             </div>
           </Form>
         </CardContent>

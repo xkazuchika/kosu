@@ -170,7 +170,7 @@ describe("authorization rejection logging", () => {
     output = [];
 
     const workLogForm = new FormData();
-    workLogForm.append("intent", "saveWorkLog");
+    workLogForm.append("intent", "saveDay");
     workLogForm.append("totalWorkingHours", "8");
     await expect(
       (workLogDateAction as unknown as RouteActionHandler)({
