@@ -1,9 +1,20 @@
 import { sql } from "drizzle-orm";
-import { index, integer, real, sqliteTable, text, unique } from "drizzle-orm/sqlite-core";
+import {
+  index,
+  integer,
+  real,
+  sqliteTable,
+  text,
+  unique,
+} from "drizzle-orm/sqlite-core";
 
 const id = text("id").primaryKey();
-const createdAt = text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`);
-const updatedAt = text("updated_at").notNull().default(sql`CURRENT_TIMESTAMP`);
+const createdAt = text("created_at")
+  .notNull()
+  .default(sql`CURRENT_TIMESTAMP`);
+const updatedAt = text("updated_at")
+  .notNull()
+  .default(sql`CURRENT_TIMESTAMP`);
 
 export const workspaceSettings = sqliteTable("workspace_settings", {
   id,
@@ -20,7 +31,9 @@ export const members = sqliteTable(
     displayName: text("display_name").notNull(),
     email: text("email").notNull().unique(),
     passwordHash: text("password_hash").notNull(),
-    role: text("role", { enum: ["admin", "member"] }).notNull().default("member"),
+    role: text("role", { enum: ["admin", "member"] })
+      .notNull()
+      .default("member"),
     isActive: integer("is_active", { mode: "boolean" }).notNull().default(true),
     departmentName: text("department_name"),
     hourlyCostRate: integer("hourly_cost_rate"),
@@ -43,7 +56,10 @@ export const sessions = sqliteTable(
     expiresAt: text("expires_at").notNull(),
     createdAt,
   },
-  (table) => [index("sessions_member_id_index").on(table.memberId), index("sessions_expires_at_index").on(table.expiresAt)],
+  (table) => [
+    index("sessions_member_id_index").on(table.memberId),
+    index("sessions_expires_at_index").on(table.expiresAt),
+  ],
 );
 
 export const projects = sqliteTable(
@@ -52,18 +68,28 @@ export const projects = sqliteTable(
     id,
     code: text("code").notNull().unique(),
     name: text("name").notNull(),
-    projectType: text("project_type", { enum: ["billable", "internal", "non_billable"] }).notNull(),
+    projectType: text("project_type", {
+      enum: ["billable", "internal", "non_billable"],
+    }).notNull(),
     clientName: text("client_name"),
     description: text("description"),
     revenueOrBudgetAmount: integer("revenue_or_budget_amount"),
     contractRevenueAmount: integer("contract_revenue_amount"),
     laborCostBudgetAmount: integer("labor_cost_budget_amount"),
-    isArchived: integer("is_archived", { mode: "boolean" }).notNull().default(false),
+    effortBudgetHours: real("effort_budget_hours"),
+    isArchived: integer("is_archived", { mode: "boolean" })
+      .notNull()
+      .default(false),
     archivedAt: text("archived_at"),
     createdAt,
     updatedAt,
   },
-  (table) => [index("projects_type_archived_index").on(table.projectType, table.isArchived)],
+  (table) => [
+    index("projects_type_archived_index").on(
+      table.projectType,
+      table.isArchived,
+    ),
+  ],
 );
 
 export const tasks = sqliteTable(
@@ -74,12 +100,16 @@ export const tasks = sqliteTable(
       .notNull()
       .references(() => projects.id, { onDelete: "cascade" }),
     name: text("name").notNull(),
-    isArchived: integer("is_archived", { mode: "boolean" }).notNull().default(false),
+    isArchived: integer("is_archived", { mode: "boolean" })
+      .notNull()
+      .default(false),
     archivedAt: text("archived_at"),
     createdAt,
     updatedAt,
   },
-  (table) => [index("tasks_project_archived_index").on(table.projectId, table.isArchived)],
+  (table) => [
+    index("tasks_project_archived_index").on(table.projectId, table.isArchived),
+  ],
 );
 
 export const projectAssignments = sqliteTable(
@@ -93,15 +123,27 @@ export const projectAssignments = sqliteTable(
       .notNull()
       .references(() => projects.id, { onDelete: "cascade" }),
     assignmentRole: text("assignment_role"),
-    assignmentSource: text("assignment_source", { enum: ["admin", "self_assigned"] }).notNull().default("admin"),
-    assignedAt: text("assigned_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+    assignmentSource: text("assignment_source", {
+      enum: ["admin", "self_assigned"],
+    })
+      .notNull()
+      .default("admin"),
+    assignedAt: text("assigned_at")
+      .notNull()
+      .default(sql`CURRENT_TIMESTAMP`),
     removedAt: text("removed_at"),
     createdAt,
     updatedAt,
   },
   (table) => [
-    index("project_assignments_member_project_index").on(table.memberId, table.projectId),
-    index("project_assignments_project_member_index").on(table.projectId, table.memberId),
+    index("project_assignments_member_project_index").on(
+      table.memberId,
+      table.projectId,
+    ),
+    index("project_assignments_project_member_index").on(
+      table.projectId,
+      table.memberId,
+    ),
     index("project_assignments_source_index").on(table.assignmentSource),
   ],
 );
@@ -119,8 +161,14 @@ export const memberMonthlyCapacities = sqliteTable(
     updatedAt,
   },
   (table) => [
-    unique("member_monthly_capacity_member_month_unique").on(table.memberId, table.month),
-    index("member_monthly_capacities_member_month_index").on(table.memberId, table.month),
+    unique("member_monthly_capacity_member_month_unique").on(
+      table.memberId,
+      table.month,
+    ),
+    index("member_monthly_capacities_member_month_index").on(
+      table.memberId,
+      table.month,
+    ),
     index("member_monthly_capacities_month_index").on(table.month),
   ],
 );
@@ -169,8 +217,14 @@ export const dailyWorkLogs = sqliteTable(
     updatedAt,
   },
   (table) => [
-    unique("daily_work_log_member_date_unique").on(table.memberId, table.workDate),
-    index("daily_work_logs_member_date_index").on(table.memberId, table.workDate),
+    unique("daily_work_log_member_date_unique").on(
+      table.memberId,
+      table.workDate,
+    ),
+    index("daily_work_logs_member_date_index").on(
+      table.memberId,
+      table.workDate,
+    ),
     index("daily_work_logs_work_date_index").on(table.workDate),
   ],
 );
@@ -191,9 +245,19 @@ export const dailyAllocationPlans = sqliteTable(
     updatedAt,
   },
   (table) => [
-    unique("daily_allocation_plan_member_date_project_unique").on(table.memberId, table.planDate, table.projectId),
-    index("daily_allocation_plans_member_date_index").on(table.memberId, table.planDate),
-    index("daily_allocation_plans_project_date_index").on(table.projectId, table.planDate),
+    unique("daily_allocation_plan_member_date_project_unique").on(
+      table.memberId,
+      table.planDate,
+      table.projectId,
+    ),
+    index("daily_allocation_plans_member_date_index").on(
+      table.memberId,
+      table.planDate,
+    ),
+    index("daily_allocation_plans_project_date_index").on(
+      table.projectId,
+      table.planDate,
+    ),
   ],
 );
 
@@ -210,7 +274,9 @@ export const effortAllocations = sqliteTable(
     projectId: text("project_id")
       .notNull()
       .references(() => projects.id, { onDelete: "cascade" }),
-    taskId: text("task_id").references(() => tasks.id, { onDelete: "set null" }),
+    taskId: text("task_id").references(() => tasks.id, {
+      onDelete: "set null",
+    }),
     allocatedHours: real("allocated_hours").notNull(),
     note: text("note"),
     hourlyCostRateSnapshot: integer("hourly_cost_rate_snapshot"),
@@ -220,9 +286,18 @@ export const effortAllocations = sqliteTable(
   },
   (table) => [
     index("effort_allocations_daily_work_log_index").on(table.dailyWorkLogId),
-    index("effort_allocations_member_project_index").on(table.memberId, table.projectId),
-    index("effort_allocations_member_task_index").on(table.memberId, table.taskId),
-    index("effort_allocations_project_member_index").on(table.projectId, table.memberId),
+    index("effort_allocations_member_project_index").on(
+      table.memberId,
+      table.projectId,
+    ),
+    index("effort_allocations_member_task_index").on(
+      table.memberId,
+      table.taskId,
+    ),
+    index("effort_allocations_project_member_index").on(
+      table.projectId,
+      table.memberId,
+    ),
   ],
 );
 
@@ -232,9 +307,14 @@ export const periodLocks = sqliteTable(
     id,
     month: text("month").notNull().unique(),
     isLocked: integer("is_locked", { mode: "boolean" }).notNull().default(true),
-    lockedByMemberId: text("locked_by_member_id").references(() => members.id, { onDelete: "set null" }),
+    lockedByMemberId: text("locked_by_member_id").references(() => members.id, {
+      onDelete: "set null",
+    }),
     lockedAt: text("locked_at"),
-    unlockedByMemberId: text("unlocked_by_member_id").references(() => members.id, { onDelete: "set null" }),
+    unlockedByMemberId: text("unlocked_by_member_id").references(
+      () => members.id,
+      { onDelete: "set null" },
+    ),
     unlockedAt: text("unlocked_at"),
     createdAt,
     updatedAt,
@@ -247,19 +327,30 @@ export const monthlyCostCloses = sqliteTable(
   {
     id,
     month: text("month").notNull().unique(),
-    status: text("status", { enum: ["open", "in_review", "approved"] }).notNull().default("open"),
-    enteredReviewByMemberId: text("entered_review_by_member_id").references(() => members.id, {
-      onDelete: "set null",
-    }),
+    status: text("status", { enum: ["open", "in_review", "approved"] })
+      .notNull()
+      .default("open"),
+    enteredReviewByMemberId: text("entered_review_by_member_id").references(
+      () => members.id,
+      {
+        onDelete: "set null",
+      },
+    ),
     enteredReviewAt: text("entered_review_at"),
-    approvedByMemberId: text("approved_by_member_id").references(() => members.id, { onDelete: "set null" }),
+    approvedByMemberId: text("approved_by_member_id").references(
+      () => members.id,
+      { onDelete: "set null" },
+    ),
     approvedAt: text("approved_at"),
     createdAt,
     updatedAt,
   },
   (table) => [
     index("monthly_cost_closes_month_index").on(table.month),
-    index("monthly_cost_closes_status_month_index").on(table.status, table.month),
+    index("monthly_cost_closes_status_month_index").on(
+      table.status,
+      table.month,
+    ),
   ],
 );
 
@@ -271,13 +362,27 @@ export const monthlyCostCloseEvents = sqliteTable(
       .notNull()
       .references(() => monthlyCostCloses.id, { onDelete: "cascade" }),
     eventType: text("event_type", {
-      enum: ["migration", "entered_review", "approved", "reopened", "cost_snapshot_corrected"],
+      enum: [
+        "migration",
+        "entered_review",
+        "approved",
+        "reopened",
+        "cost_snapshot_corrected",
+      ],
     }).notNull(),
-    actorMemberId: text("actor_member_id").references(() => members.id, { onDelete: "set null" }),
-    previousStatus: text("previous_status", { enum: ["open", "in_review", "approved"] }),
-    nextStatus: text("next_status", { enum: ["open", "in_review", "approved"] }),
+    actorMemberId: text("actor_member_id").references(() => members.id, {
+      onDelete: "set null",
+    }),
+    previousStatus: text("previous_status", {
+      enum: ["open", "in_review", "approved"],
+    }),
+    nextStatus: text("next_status", {
+      enum: ["open", "in_review", "approved"],
+    }),
     reason: text("reason"),
-    targetType: text("target_type", { enum: ["monthly_plan", "effort_allocation"] }),
+    targetType: text("target_type", {
+      enum: ["monthly_plan", "effort_allocation"],
+    }),
     targetId: text("target_id"),
     previousHourlyCostRate: integer("previous_hourly_cost_rate"),
     nextHourlyCostRate: integer("next_hourly_cost_rate"),
@@ -285,7 +390,10 @@ export const monthlyCostCloseEvents = sqliteTable(
     createdAt,
   },
   (table) => [
-    index("monthly_cost_close_events_close_occurred_index").on(table.closeId, table.occurredAt),
+    index("monthly_cost_close_events_close_occurred_index").on(
+      table.closeId,
+      table.occurredAt,
+    ),
     index("monthly_cost_close_events_actor_index").on(table.actorMemberId),
   ],
 );
@@ -302,8 +410,12 @@ export const monthlyCostCloseProjectSnapshots = sqliteTable(
       .references(() => projects.id, { onDelete: "restrict" }),
     projectCode: text("project_code").notNull(),
     projectName: text("project_name").notNull(),
-    projectType: text("project_type", { enum: ["billable", "internal", "non_billable"] }).notNull(),
-    projectIsArchived: integer("project_is_archived", { mode: "boolean" }).notNull(),
+    projectType: text("project_type", {
+      enum: ["billable", "internal", "non_billable"],
+    }).notNull(),
+    projectIsArchived: integer("project_is_archived", {
+      mode: "boolean",
+    }).notNull(),
     legacyRevenueOrBudgetAmount: integer("legacy_revenue_or_budget_amount"),
     contractRevenueAmount: integer("contract_revenue_amount"),
     laborCostBudgetAmount: integer("labor_cost_budget_amount"),
@@ -319,9 +431,14 @@ export const monthlyCostCloseProjectSnapshots = sqliteTable(
     createdAt,
   },
   (table) => [
-    unique("monthly_cost_close_project_snapshot_close_project_unique").on(table.closeId, table.projectId),
+    unique("monthly_cost_close_project_snapshot_close_project_unique").on(
+      table.closeId,
+      table.projectId,
+    ),
     index("monthly_cost_close_project_snapshots_close_index").on(table.closeId),
-    index("monthly_cost_close_project_snapshots_project_index").on(table.projectId),
+    index("monthly_cost_close_project_snapshots_project_index").on(
+      table.projectId,
+    ),
   ],
 );
 
@@ -330,19 +447,32 @@ export const importJobs = sqliteTable(
   {
     id,
     importType: text("import_type", {
-      enum: ["members", "projects", "project_assignments", "member_monthly_capacities", "monthly_plans"],
+      enum: [
+        "members",
+        "projects",
+        "project_assignments",
+        "member_monthly_capacities",
+        "monthly_plans",
+      ],
     }).notNull(),
-    status: text("status", { enum: ["previewed", "committed", "failed"] }).notNull(),
+    status: text("status", {
+      enum: ["previewed", "committed", "failed"],
+    }).notNull(),
     fileName: text("file_name"),
     totalRows: integer("total_rows").notNull().default(0),
     validRows: integer("valid_rows").notNull().default(0),
     invalidRows: integer("invalid_rows").notNull().default(0),
     resultSummary: text("result_summary"),
-    createdByMemberId: text("created_by_member_id").references(() => members.id, { onDelete: "set null" }),
+    createdByMemberId: text("created_by_member_id").references(
+      () => members.id,
+      { onDelete: "set null" },
+    ),
     createdAt,
     committedAt: text("committed_at"),
   },
-  (table) => [index("import_jobs_status_type_index").on(table.status, table.importType)],
+  (table) => [
+    index("import_jobs_status_type_index").on(table.status, table.importType),
+  ],
 );
 
 export const schema = {

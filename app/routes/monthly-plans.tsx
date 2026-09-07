@@ -15,6 +15,7 @@ import { isValidMonth } from "~/lib/time";
 import { getSessionMember } from "~/services/auth";
 import { getMonthlyCostCloseState } from "~/services/monthly-cost-close";
 import { getWorkspaceCalendarContext } from "~/services/workspace-calendar";
+import { listEffortReportRows } from "~/db/repositories/effort-allocations";
 
 export const loader = async ({ request }: { request: Request }) => {
   const { db, sqlite } = createDatabaseConnection();
@@ -30,15 +31,71 @@ export const loader = async ({ request }: { request: Request }) => {
     const workspaceCalendar = getWorkspaceCalendarContext(db);
     const requestedMonth = url.searchParams.get("month");
     const currentMonth =
-      requestedMonth && isValidMonth(requestedMonth) ? requestedMonth : workspaceCalendar.currentMonth;
+      requestedMonth && isValidMonth(requestedMonth)
+        ? requestedMonth
+        : workspaceCalendar.currentMonth;
     const capacity = findCapacityByMemberAndMonth(db, member.id, currentMonth);
-    const plans = listMonthlyPlansByMemberAndMonth(db, member.id, currentMonth).map((plan) => ({
-      ...plan,
-      projectName: findProjectById(db, plan.projectId)?.name ?? plan.projectId,
-    }));
-    const totalPlanned = plans.reduce((sum, plan) => sum + plan.plannedHours, 0);
+    const actualByProject = new Map<string, number>();
+    for (const row of listEffortReportRows(db, {
+      memberId: member.id,
+      month: currentMonth,
+    })) {
+      actualByProject.set(
+        row.projectId,
+        (actualByProject.get(row.projectId) ?? 0) + row.allocatedHours,
+      );
+    }
+    const planRows = listMonthlyPlansByMemberAndMonth(
+      db,
+      member.id,
+      currentMonth,
+    );
+    const plansByProject = new Map<
+      string,
+      {
+        id: string;
+        memberId: string;
+        projectId: string;
+        month: string;
+        roles: Set<string>;
+        plannedHours: number;
+      }
+    >();
+    for (const plan of planRows) {
+      const current = plansByProject.get(plan.projectId) ?? {
+        id: plan.id,
+        memberId: plan.memberId,
+        projectId: plan.projectId,
+        month: plan.month,
+        roles: new Set<string>(),
+        plannedHours: 0,
+      };
+      current.plannedHours += plan.plannedHours;
+      if (plan.assignmentRole) current.roles.add(plan.assignmentRole);
+      plansByProject.set(plan.projectId, current);
+    }
+    const plans = [...plansByProject.values()].map((plan) => {
+      const actualHours = actualByProject.get(plan.projectId) ?? 0;
+      return {
+        id: plan.id,
+        memberId: plan.memberId,
+        projectId: plan.projectId,
+        month: plan.month,
+        assignmentRole: [...plan.roles].join(" / "),
+        plannedHours: plan.plannedHours,
+        projectName:
+          findProjectById(db, plan.projectId)?.name ?? plan.projectId,
+        actualHours,
+        balanceHours: plan.plannedHours - actualHours,
+      };
+    });
+    const totalPlanned = plans.reduce(
+      (sum, plan) => sum + plan.plannedHours,
+      0,
+    );
     const capacityHours = capacity?.capacityHours ?? null;
-    const variance = capacityHours === null ? null : capacityHours - totalPlanned;
+    const variance =
+      capacityHours === null ? null : capacityHours - totalPlanned;
 
     const closeState = getMonthlyCostCloseState(db, currentMonth);
 
@@ -57,17 +114,30 @@ export const loader = async ({ request }: { request: Request }) => {
   }
 };
 
-export const meta: Route.MetaFunction = () => [{ title: "月次予定工数 | kosu" }];
+export const meta: Route.MetaFunction = () => [
+  { title: "月次予定工数 | kosu" },
+];
 
 export default function MonthlyPlans() {
-  const { closeStatus, currentMonth, capacityHours, totalPlanned, variance, plans } = useLoaderData<typeof loader>();
+  const {
+    closeStatus,
+    currentMonth,
+    capacityHours,
+    totalPlanned,
+    variance,
+    plans,
+  } = useLoaderData<typeof loader>();
 
   return (
     <div className="space-y-6">
       <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight text-slate-950">月次予定工数</h1>
-          <p className="text-sm text-slate-600">今月の案件別予定工数と稼働可能時間の差分を確認します。</p>
+          <h1 className="text-2xl font-bold tracking-tight text-slate-950">
+            月次予定工数
+          </h1>
+          <p className="text-sm text-slate-600">
+            今月の案件別予定工数と稼働可能時間の差分を確認します。
+          </p>
         </div>
         <MonthlyCloseStatusBadge status={closeStatus} />
       </div>
@@ -76,12 +146,22 @@ export default function MonthlyPlans() {
           <CardTitle>対象月</CardTitle>
         </CardHeader>
         <CardContent>
-          <Form className="flex flex-col gap-4 sm:flex-row sm:items-end" method="get">
+          <Form
+            className="flex flex-col gap-4 sm:flex-row sm:items-end"
+            method="get"
+          >
             <div>
               <label className="text-sm font-medium text-slate-800">月</label>
-              <Input className="mt-1" defaultValue={currentMonth} name="month" type="month" />
+              <Input
+                className="mt-1"
+                defaultValue={currentMonth}
+                name="month"
+                type="month"
+              />
             </div>
-            <Button type="submit" variant="primary">表示</Button>
+            <Button type="submit" variant="primary">
+              表示
+            </Button>
           </Form>
         </CardContent>
       </Card>
@@ -99,7 +179,9 @@ export default function MonthlyPlans() {
             <CardTitle>任意: 稼働可能時間</CardTitle>
           </CardHeader>
           <CardContent>
-            <p className="text-3xl font-semibold">{capacityHours === null ? "未設定" : `${capacityHours}h`}</p>
+            <p className="text-3xl font-semibold">
+              {capacityHours === null ? "未設定" : `${capacityHours}h`}
+            </p>
           </CardContent>
         </Card>
         <Card>
@@ -107,21 +189,42 @@ export default function MonthlyPlans() {
             <CardTitle>稼働可能時間との差分</CardTitle>
           </CardHeader>
           <CardContent>
-            <p className={`text-3xl font-semibold ${variance !== null && variance < 0 ? "text-red-700" : "text-emerald-700"}`}>
-              {variance === null ? "-" : variance >= 0 ? `+${variance}h` : `${variance}h`}
+            <p
+              className={`text-3xl font-semibold ${variance !== null && variance < 0 ? "text-red-700" : "text-emerald-700"}`}
+            >
+              {variance === null
+                ? "-"
+                : variance >= 0
+                  ? `+${variance}h`
+                  : `${variance}h`}
             </p>
           </CardContent>
         </Card>
       </div>
 
       <DataTable
-        columns={["対象月", "案件", "担当ロール", "予定工数"]}
+        columns={[
+          "対象月",
+          "案件",
+          "担当ロール",
+          "予定工数",
+          "実績工数",
+          "残り",
+        ]}
         emptyMessage={`${currentMonth} の月次予定工数はまだありません。`}
         rows={plans.map((plan) => [
           plan.month,
           plan.projectName,
           plan.assignmentRole || "-",
           `${plan.plannedHours}h`,
+          `${plan.actualHours}h`,
+          <span
+            className={
+              plan.balanceHours < 0 ? "font-medium text-amber-700" : ""
+            }
+          >
+            {plan.balanceHours}h
+          </span>,
         ])}
       />
     </div>

@@ -5,7 +5,10 @@ import { Button } from "~/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "~/components/ui/card";
 import { DataTable } from "~/components/ui/table";
 import { createDatabaseConnection } from "~/db/client";
-import { listMembers, withoutMemberFinancials } from "~/db/repositories/members";
+import {
+  listMembers,
+  withoutMemberFinancials,
+} from "~/db/repositories/members";
 import {
   createProjectAssignment,
   listAssignmentsByProject,
@@ -14,7 +17,13 @@ import {
 import { findProjectById } from "~/db/repositories/projects";
 import { requireAdministrator } from "~/services/auth";
 
-export const loader = async ({ request, params }: { request: Request; params: { id: string } }) => {
+export const loader = async ({
+  request,
+  params,
+}: {
+  request: Request;
+  params: { id: string };
+}) => {
   const { db, sqlite } = createDatabaseConnection();
 
   try {
@@ -50,13 +59,18 @@ export const action = async ({ request, params }: Route.ActionArgs) => {
     }
 
     const memberId = String(formData.get("memberId") ?? "");
-    const assignmentRole = String(formData.get("assignmentRole") ?? "").trim() || undefined;
+    const assignmentRole =
+      String(formData.get("assignmentRole") ?? "").trim() || undefined;
 
     if (!memberId) {
       return { error: "メンバーを選択してください。" };
     }
 
-    createProjectAssignment(db, { memberId, projectId: params.id, assignmentRole });
+    createProjectAssignment(db, {
+      memberId,
+      projectId: params.id,
+      assignmentRole,
+    });
     return null;
   } finally {
     sqlite.close();
@@ -65,10 +79,16 @@ export const action = async ({ request, params }: Route.ActionArgs) => {
 
 export const meta: Route.MetaFunction = () => [{ title: "アサイン | kosu" }];
 
-export default function ProjectAssignments({ actionData }: Route.ComponentProps) {
+export default function ProjectAssignments({
+  actionData,
+}: Route.ComponentProps) {
   const { project, assignments, members } = useLoaderData<typeof loader>();
-  const assignedMemberIds = new Set(assignments.filter((a) => !a.removedAt).map((a) => a.memberId));
-  const availableMembers = members.filter((m) => m.isActive && !assignedMemberIds.has(m.id));
+  const assignedMemberIds = new Set(
+    assignments.filter((a) => !a.removedAt).map((a) => a.memberId),
+  );
+  const availableMembers = members.filter(
+    (m) => m.isActive && !assignedMemberIds.has(m.id),
+  );
 
   return (
     <div className="space-y-6">
@@ -90,14 +110,27 @@ export default function ProjectAssignments({ actionData }: Route.ComponentProps)
         </CardHeader>
         <CardContent>
           {actionData?.error ? (
-            <p className="mb-4 rounded-lg bg-red-50 p-3 text-sm text-red-700" role="alert">
+            <p
+              className="mb-4 rounded-lg bg-red-50 p-3 text-sm text-red-700"
+              role="alert"
+            >
               {actionData.error}
             </p>
           ) : null}
-          <Form method="post" className="flex flex-col gap-4 sm:flex-row sm:items-end">
+          <Form
+            method="post"
+            className="flex flex-col gap-4 sm:flex-row sm:items-end"
+          >
             <div className="flex-1">
-              <label className="text-sm font-medium text-slate-800">メンバー</label>
-              <select className="mt-1 block w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm" name="memberId" required>
+              <label className="text-sm font-medium text-slate-800">
+                メンバー
+              </label>
+              <select
+                aria-label="メンバー"
+                className="mt-1 block w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm"
+                name="memberId"
+                required
+              >
                 <option value="">選択してください</option>
                 {availableMembers.map((member) => (
                   <option key={member.id} value={member.id}>
@@ -107,8 +140,11 @@ export default function ProjectAssignments({ actionData }: Route.ComponentProps)
               </select>
             </div>
             <div className="flex-1">
-              <label className="text-sm font-medium text-slate-800">担当ロール</label>
+              <label className="text-sm font-medium text-slate-800">
+                担当ロール
+              </label>
               <input
+                aria-label="担当ロール"
                 className="mt-1 block w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm"
                 name="assignmentRole"
                 placeholder="PM, Engineer など"
@@ -132,10 +168,20 @@ export default function ProjectAssignments({ actionData }: Route.ComponentProps)
             return [
               member?.displayName ?? "不明",
               assignment.assignmentRole ?? "-",
-              assignment.assignmentSource === "self_assigned" ? "自己アサイン" : "管理者",
-              <Form key={assignment.id} method="post" action={`/projects/${project.id}/assignments`}>
+              assignment.assignmentSource === "self_assigned"
+                ? "自己アサイン"
+                : "管理者",
+              <Form
+                key={assignment.id}
+                method="post"
+                action={`/projects/${project.id}/assignments`}
+              >
                 <input name="intent" type="hidden" value="remove" />
-                <input name="assignmentId" type="hidden" value={assignment.id} />
+                <input
+                  name="assignmentId"
+                  type="hidden"
+                  value={assignment.id}
+                />
                 <Button type="submit" variant="outline">
                   解除
                 </Button>

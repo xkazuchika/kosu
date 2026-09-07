@@ -37,6 +37,7 @@ describe("projects repository", () => {
       revenueOrBudgetAmount: 1_000_000,
       contractRevenueAmount: 1_200_000,
       laborCostBudgetAmount: 600_000,
+      effortBudgetHours: 400,
     });
 
     expect(project.code).toBe("PRJ-001");
@@ -46,6 +47,7 @@ describe("projects repository", () => {
     expect(found?.revenueOrBudgetAmount).toBe(1_000_000);
     expect(found?.contractRevenueAmount).toBe(1_200_000);
     expect(found?.laborCostBudgetAmount).toBe(600_000);
+    expect(found?.effortBudgetHours).toBe(400);
   });
 
   test("list projects ordered by code", () => {
@@ -53,10 +55,15 @@ describe("projects repository", () => {
     createProject(db, { code: "A", name: "A", projectType: "internal" });
 
     expect(listProjects(db).map((p) => p.code)).toEqual(["A", "B"]);
+    expect(findProjectByCode(db, "A")?.effortBudgetHours).toBeNull();
   });
 
   test("archive excludes from active list", () => {
-    const project = createProject(db, { code: "PRJ-001", name: "Website", projectType: "billable" });
+    const project = createProject(db, {
+      code: "PRJ-001",
+      name: "Website",
+      projectType: "billable",
+    });
     archiveProject(db, project.id, "2026-07-01T00:00:00Z");
 
     expect(listActiveProjects(db)).toHaveLength(0);
@@ -64,19 +71,31 @@ describe("projects repository", () => {
   });
 
   test("update project", () => {
-    const project = createProject(db, { code: "PRJ-001", name: "Website", projectType: "billable" });
+    const project = createProject(db, {
+      code: "PRJ-001",
+      name: "Website",
+      projectType: "billable",
+    });
     const updated = updateProject(db, project.id, {
       name: "Website Renewed",
       contractRevenueAmount: 500_000,
       laborCostBudgetAmount: 250_000,
+      effortBudgetHours: 120.25,
     });
     expect(updated.name).toBe("Website Renewed");
     expect(updated.contractRevenueAmount).toBe(500_000);
     expect(updated.laborCostBudgetAmount).toBe(250_000);
+    expect(updated.effortBudgetHours).toBe(120.25);
   });
 
   test("duplicate code throws", () => {
     createProject(db, { code: "PRJ-001", name: "A", projectType: "internal" });
-    expect(() => createProject(db, { code: "PRJ-001", name: "B", projectType: "internal" })).toThrow();
+    expect(() =>
+      createProject(db, {
+        code: "PRJ-001",
+        name: "B",
+        projectType: "internal",
+      }),
+    ).toThrow();
   });
 });

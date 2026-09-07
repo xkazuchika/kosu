@@ -377,6 +377,12 @@ export default function Dashboard() {
               今日の実績工数を入力
               <ArrowRight aria-hidden className="h-4 w-4" />
             </Link>
+            <Link
+              className="ml-2 mt-5 inline-flex items-center gap-2 rounded-xl border border-indigo-200 bg-white px-4 py-2 text-sm font-semibold text-indigo-800 hover:bg-indigo-50"
+              to={`/work-logs/week?date=${data.today}`}
+            >
+              週まとめ入力
+            </Link>
           </CardContent>
         </Card>
 

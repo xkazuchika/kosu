@@ -1,9 +1,24 @@
 export function isValidQuarterHour(value: number) {
-  return Number.isFinite(value) && value > 0 && value * 4 === Math.round(value * 4);
+  return (
+    Number.isFinite(value) && value > 0 && value * 4 === Math.round(value * 4)
+  );
 }
 
 export function isNonNegativeQuarterHour(value: number) {
-  return Number.isFinite(value) && value >= 0 && value * 4 === Math.round(value * 4);
+  return (
+    Number.isFinite(value) && value >= 0 && value * 4 === Math.round(value * 4)
+  );
+}
+
+export function parseOptionalQuarterHours(value: FormDataEntryValue | null) {
+  const raw = String(value ?? "").trim();
+
+  if (raw === "") {
+    return null;
+  }
+
+  const hours = Number(raw);
+  return isNonNegativeQuarterHour(hours) ? hours : undefined;
 }
 
 export function formatHours(value: number) {
@@ -22,7 +37,8 @@ export function normalizeTimeZone(value: string) {
   }
 
   try {
-    return new Intl.DateTimeFormat("en-US", { timeZone }).resolvedOptions().timeZone;
+    return new Intl.DateTimeFormat("en-US", { timeZone }).resolvedOptions()
+      .timeZone;
   } catch {
     return null;
   }
@@ -57,7 +73,10 @@ export function listMonthDates(month: string) {
   const date = new Date(Date.UTC(year, monthNumber - 1, 1));
   const dates: string[] = [];
 
-  while (date.getUTCFullYear() === year && date.getUTCMonth() === monthNumber - 1) {
+  while (
+    date.getUTCFullYear() === year &&
+    date.getUTCMonth() === monthNumber - 1
+  ) {
     dates.push(date.toISOString().slice(0, 10));
     date.setUTCDate(date.getUTCDate() + 1);
   }
@@ -85,4 +104,21 @@ export function isSundayDate(dateString: string) {
 
 export function isSaturdayDate(dateString: string) {
   return getWeekdayIndex(dateString) === 6;
+}
+
+export function addCalendarDays(dateString: string, days: number) {
+  const date = new Date(`${dateString}T00:00:00.000Z`);
+  if (Number.isNaN(date.getTime())) return "";
+  date.setUTCDate(date.getUTCDate() + days);
+  return date.toISOString().slice(0, 10);
+}
+
+export function listWeekDates(dateString: string) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(dateString)) return [];
+  const weekday = getWeekdayIndex(dateString);
+  const mondayOffset = weekday === 0 ? -6 : 1 - weekday;
+  const monday = addCalendarDays(dateString, mondayOffset);
+  return Array.from({ length: 7 }, (_, index) =>
+    addCalendarDays(monday, index),
+  );
 }

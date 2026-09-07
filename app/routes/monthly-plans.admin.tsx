@@ -1,22 +1,46 @@
 import { Form, useLoaderData } from "react-router";
 import type { Route } from "./+types/monthly-plans.admin";
 
-import { MonthlyCloseReadOnlyNotice, MonthlyCloseStatusBadge } from "~/components/monthly-close-status";
+import {
+  MonthlyCloseReadOnlyNotice,
+  MonthlyCloseStatusBadge,
+} from "~/components/monthly-close-status";
 import { Button } from "~/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "~/components/ui/card";
 import { Input } from "~/components/ui/form";
 import { DataTable } from "~/components/ui/table";
 import { createDatabaseConnection } from "~/db/client";
-import { createMemberMonthlyCapacity, deleteMemberMonthlyCapacity, findCapacityByMemberAndMonth, findMemberMonthlyCapacityById, updateMemberMonthlyCapacity } from "~/db/repositories/member-monthly-capacities";
-import { createMonthlyPlan, deleteMonthlyPlan, findMonthlyPlan, findMonthlyPlanById, listMonthlyPlansByMonth, updateMonthlyPlan } from "~/db/repositories/monthly-plans";
-import { findMemberById, listMembers, withoutMemberFinancials } from "~/db/repositories/members";
-import { findProjectById, listActiveProjects } from "~/db/repositories/projects";
+import {
+  createMemberMonthlyCapacity,
+  deleteMemberMonthlyCapacity,
+  findCapacityByMemberAndMonth,
+  findMemberMonthlyCapacityById,
+  updateMemberMonthlyCapacity,
+} from "~/db/repositories/member-monthly-capacities";
+import {
+  createMonthlyPlan,
+  deleteMonthlyPlan,
+  findMonthlyPlan,
+  findMonthlyPlanById,
+  listMonthlyPlansByMonth,
+  updateMonthlyPlan,
+} from "~/db/repositories/monthly-plans";
+import {
+  findMemberById,
+  listMembers,
+  withoutMemberFinancials,
+} from "~/db/repositories/members";
+import {
+  findProjectById,
+  listActiveProjects,
+} from "~/db/repositories/projects";
 import { logRouteError } from "~/lib/log";
 import { isNonNegativeQuarterHour, isValidMonth } from "~/lib/time";
 import { requireAdministrator } from "~/services/auth";
 import { getMonthlyCostCloseState } from "~/services/monthly-cost-close";
 import { requireUnlockedMonth } from "~/services/period-lock";
 import { getWorkspaceCalendarContext } from "~/services/workspace-calendar";
+import { getProjectEffortOverview } from "~/services/project-effort";
 
 export const loader = async ({ request }: { request: Request }) => {
   const { db, sqlite } = createDatabaseConnection();
@@ -26,7 +50,10 @@ export const loader = async ({ request }: { request: Request }) => {
     const url = new URL(request.url);
     const { currentMonth } = getWorkspaceCalendarContext(db);
     const requestedMonth = url.searchParams.get("month");
-    const month = requestedMonth && isValidMonth(requestedMonth) ? requestedMonth : currentMonth;
+    const month =
+      requestedMonth && isValidMonth(requestedMonth)
+        ? requestedMonth
+        : currentMonth;
     const members = listMembers(db);
     const projects = listActiveProjects(db);
     const planRows = listMonthlyPlansByMonth(db, month).map((plan) => {
@@ -41,6 +68,12 @@ export const loader = async ({ request }: { request: Request }) => {
     });
 
     const closeState = getMonthlyCostCloseState(db, month);
+    const projectEffort = projects.map((project) => ({
+      projectId: project.id,
+      projectCode: project.code,
+      projectName: project.name,
+      ...getProjectEffortOverview(db, project.id),
+    }));
 
     return {
       month,
@@ -49,6 +82,7 @@ export const loader = async ({ request }: { request: Request }) => {
       members: members.map(withoutMemberFinancials),
       projects,
       planRows,
+      projectEffort,
       capacities: members.map((m) => ({
         memberId: m.id,
         displayName: m.displayName,
@@ -78,7 +112,9 @@ export const action = async ({ request }: Route.ActionArgs) => {
       }
 
       if (!isNonNegativeQuarterHour(capacityHours)) {
-        return { error: "稼働可能時間は 0.25h 単位の 0 以上の値で入力してください。" };
+        return {
+          error: "稼働可能時間は 0.25h 単位の 0 以上の値で入力してください。",
+        };
       }
 
       requireUnlockedMonth(db, month);
@@ -96,7 +132,9 @@ export const action = async ({ request }: Route.ActionArgs) => {
       const memberId = String(formData.get("memberId") ?? "");
       const projectId = String(formData.get("projectId") ?? "");
       const month = String(formData.get("month") ?? "");
-      const assignmentRole = String(formData.get("assignmentRole") ?? "").trim();
+      const assignmentRole = String(
+        formData.get("assignmentRole") ?? "",
+      ).trim();
       const plannedHours = Number(formData.get("plannedHours") ?? 0);
 
       if (!isValidMonth(month)) {
@@ -104,11 +142,19 @@ export const action = async ({ request }: Route.ActionArgs) => {
       }
 
       if (!isNonNegativeQuarterHour(plannedHours)) {
-        return { error: "予定工数は 0.25h 単位の 0 以上の値で入力してください。" };
+        return {
+          error: "予定工数は 0.25h 単位の 0 以上の値で入力してください。",
+        };
       }
 
       requireUnlockedMonth(db, month);
-      const existing = findMonthlyPlan(db, memberId, projectId, month, assignmentRole);
+      const existing = findMonthlyPlan(
+        db,
+        memberId,
+        projectId,
+        month,
+        assignmentRole,
+      );
 
       if (existing) {
         updateMonthlyPlan(db, existing.id, { plannedHours });
@@ -119,7 +165,8 @@ export const action = async ({ request }: Route.ActionArgs) => {
           month,
           assignmentRole,
           plannedHours,
-          hourlyCostRateSnapshot: findMemberById(db, memberId)?.hourlyCostRate ?? null,
+          hourlyCostRateSnapshot:
+            findMemberById(db, memberId)?.hourlyCostRate ?? null,
         });
       }
       return null;
@@ -130,10 +177,14 @@ export const action = async ({ request }: Route.ActionArgs) => {
       const plan = findMonthlyPlanById(db, id);
       if (!plan) return { error: "対象の月次予定が見つかりません。" };
       const plannedHours = Number(formData.get("plannedHours") ?? 0);
-      const assignmentRole = String(formData.get("assignmentRole") ?? "").trim();
+      const assignmentRole = String(
+        formData.get("assignmentRole") ?? "",
+      ).trim();
 
       if (!isNonNegativeQuarterHour(plannedHours)) {
-        return { error: "予定工数は 0.25h 単位の 0 以上の値で入力してください。" };
+        return {
+          error: "予定工数は 0.25h 単位の 0 以上の値で入力してください。",
+        };
       }
 
       requireUnlockedMonth(db, plan.month);
@@ -171,17 +222,34 @@ export const action = async ({ request }: Route.ActionArgs) => {
   }
 };
 
-export const meta: Route.MetaFunction = () => [{ title: "月次予定工数入力 | kosu" }];
+export const meta: Route.MetaFunction = () => [
+  { title: "月次予定工数入力 | kosu" },
+];
 
-export default function MonthlyPlansAdmin({ actionData }: Route.ComponentProps) {
-  const { closeStatus, month, isLocked, members, projects, planRows, capacities } = useLoaderData<typeof loader>();
+export default function MonthlyPlansAdmin({
+  actionData,
+}: Route.ComponentProps) {
+  const {
+    closeStatus,
+    month,
+    isLocked,
+    members,
+    projects,
+    planRows,
+    projectEffort,
+    capacities,
+  } = useLoaderData<typeof loader>();
 
   return (
     <div className="space-y-6">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight text-slate-950">月次予定工数入力</h1>
-          <p className="text-sm text-slate-600">担当者と案件ごとの予定工数を登録します。稼働可能時間は必要なチームだけ使う任意の補足情報です。</p>
+          <h1 className="text-2xl font-bold tracking-tight text-slate-950">
+            月次予定工数入力
+          </h1>
+          <p className="text-sm text-slate-600">
+            担当者と案件ごとの予定工数を登録します。稼働可能時間は必要なチームだけ使う任意の補足情報です。
+          </p>
         </div>
         <MonthlyCloseStatusBadge status={closeStatus} />
       </div>
@@ -191,18 +259,31 @@ export default function MonthlyPlansAdmin({ actionData }: Route.ComponentProps) 
           <CardTitle>対象月</CardTitle>
         </CardHeader>
         <CardContent>
-          <Form className="flex flex-col gap-4 sm:flex-row sm:items-end" method="get">
+          <Form
+            className="flex flex-col gap-4 sm:flex-row sm:items-end"
+            method="get"
+          >
             <div>
               <label className="text-sm font-medium text-slate-800">月</label>
-              <Input className="mt-1" defaultValue={month} name="month" type="month" />
+              <Input
+                className="mt-1"
+                defaultValue={month}
+                name="month"
+                type="month"
+              />
             </div>
-            <Button type="submit" variant="primary">表示</Button>
+            <Button type="submit" variant="primary">
+              表示
+            </Button>
           </Form>
         </CardContent>
       </Card>
 
       {actionData?.error ? (
-        <p className="rounded-lg bg-red-50 p-3 text-sm text-red-700" role="alert">
+        <p
+          className="rounded-lg bg-red-50 p-3 text-sm text-red-700"
+          role="alert"
+        >
           {actionData.error}
         </p>
       ) : null}
@@ -211,33 +292,105 @@ export default function MonthlyPlansAdmin({ actionData }: Route.ComponentProps) 
 
       <Card>
         <CardHeader>
+          <CardTitle>案件工数予算と割当</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <DataTable
+            columns={["案件", "工数予算", "全期間の割当", "未割当枠", "状態"]}
+            emptyMessage="有効な案件がありません。"
+            rows={projectEffort.map((item) => [
+              `${item.projectCode} ${item.projectName}`,
+              item.effortBudgetHours === null
+                ? "未設定"
+                : `${item.effortBudgetHours}h`,
+              `${item.plannedHours}h`,
+              item.unallocatedHours === null
+                ? "-"
+                : `${item.unallocatedHours}h`,
+              item.isOverPlanned ? (
+                <span className="font-medium text-amber-700">予算超過</span>
+              ) : (
+                "範囲内"
+              ),
+            ])}
+          />
+          <p className="mt-3 text-sm text-slate-500">
+            工数予算を超えても予定は保存されます。必要な作業を止めず、超過を管理判断として表示します。
+          </p>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
           <CardTitle>案件別予定工数を追加</CardTitle>
         </CardHeader>
         <CardContent>
-          <Form className="flex flex-col gap-4 sm:flex-row sm:items-end" method="post" action={`/monthly-plans/admin?month=${month}`}>
+          <Form
+            className="flex flex-col gap-4 sm:flex-row sm:items-end"
+            method="post"
+            action={`/monthly-plans/admin?month=${month}`}
+          >
             <input name="intent" type="hidden" value="plan" />
             <input name="month" type="hidden" value={month} />
             <div>
-              <label className="text-sm font-medium text-slate-800">メンバー</label>
-              <select className="mt-1 block rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm" disabled={isLocked} name="memberId" required>
-                {members.map((m) => <option key={m.id} value={m.id}>{m.displayName}</option>)}
+              <label className="text-sm font-medium text-slate-800">
+                メンバー
+              </label>
+              <select
+                className="mt-1 block rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm"
+                disabled={isLocked}
+                name="memberId"
+                required
+              >
+                {members.map((m) => (
+                  <option key={m.id} value={m.id}>
+                    {m.displayName}
+                  </option>
+                ))}
               </select>
             </div>
             <div>
               <label className="text-sm font-medium text-slate-800">案件</label>
-              <select className="mt-1 block rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm" disabled={isLocked} name="projectId" required>
-                {projects.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
+              <select
+                className="mt-1 block rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm"
+                disabled={isLocked}
+                name="projectId"
+                required
+              >
+                {projects.map((p) => (
+                  <option key={p.id} value={p.id}>
+                    {p.name}
+                  </option>
+                ))}
               </select>
             </div>
             <div>
-              <label className="text-sm font-medium text-slate-800">担当ロール</label>
-              <input className="mt-1 block rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm" disabled={isLocked} name="assignmentRole" type="text" />
+              <label className="text-sm font-medium text-slate-800">
+                担当ロール
+              </label>
+              <input
+                className="mt-1 block rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm"
+                disabled={isLocked}
+                name="assignmentRole"
+                type="text"
+              />
             </div>
             <div>
-              <label className="text-sm font-medium text-slate-800">予定工数</label>
-              <input className="mt-1 block rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm" disabled={isLocked} name="plannedHours" type="number" step="0.25" required />
+              <label className="text-sm font-medium text-slate-800">
+                予定工数
+              </label>
+              <input
+                className="mt-1 block rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm"
+                disabled={isLocked}
+                name="plannedHours"
+                type="number"
+                step="0.25"
+                required
+              />
             </div>
-            <Button disabled={isLocked} type="submit" variant="primary">追加</Button>
+            <Button disabled={isLocked} type="submit" variant="primary">
+              追加
+            </Button>
           </Form>
         </CardContent>
       </Card>
@@ -253,13 +406,53 @@ export default function MonthlyPlansAdmin({ actionData }: Route.ComponentProps) 
             rows={planRows.map((plan) => [
               plan.memberName,
               plan.projectName,
-              <Input key={`${plan.id}-role`} className="min-w-32" defaultValue={plan.assignmentRole} disabled={isLocked} form={`plan-${plan.id}`} name="assignmentRole" type="text" />,
-              <Input key={`${plan.id}-hours`} className="w-28" defaultValue={plan.plannedHours} disabled={isLocked} form={`plan-${plan.id}`} name="plannedHours" step="0.25" type="number" required />,
-              <Form key={plan.id} className="flex gap-2" id={`plan-${plan.id}`} method="post" action={`/monthly-plans/admin?month=${month}`}>
+              <Input
+                key={`${plan.id}-role`}
+                className="min-w-32"
+                defaultValue={plan.assignmentRole}
+                disabled={isLocked}
+                form={`plan-${plan.id}`}
+                name="assignmentRole"
+                type="text"
+              />,
+              <Input
+                key={`${plan.id}-hours`}
+                className="w-28"
+                defaultValue={plan.plannedHours}
+                disabled={isLocked}
+                form={`plan-${plan.id}`}
+                name="plannedHours"
+                step="0.25"
+                type="number"
+                required
+              />,
+              <Form
+                key={plan.id}
+                className="flex gap-2"
+                id={`plan-${plan.id}`}
+                method="post"
+                action={`/monthly-plans/admin?month=${month}`}
+              >
                 <input name="id" type="hidden" value={plan.id} />
                 <input name="month" type="hidden" value={month} />
-                <Button disabled={isLocked} name="intent" type="submit" value="updatePlan" variant="primary">保存</Button>
-                <Button disabled={isLocked} name="intent" type="submit" value="deletePlan" variant="danger">削除</Button>
+                <Button
+                  disabled={isLocked}
+                  name="intent"
+                  type="submit"
+                  value="updatePlan"
+                  variant="primary"
+                >
+                  保存
+                </Button>
+                <Button
+                  disabled={isLocked}
+                  name="intent"
+                  type="submit"
+                  value="deletePlan"
+                  variant="danger"
+                >
+                  削除
+                </Button>
               </Form>,
             ])}
           />
@@ -271,23 +464,46 @@ export default function MonthlyPlansAdmin({ actionData }: Route.ComponentProps) 
           <CardTitle>任意: 稼働可能時間</CardTitle>
         </CardHeader>
         <CardContent>
-          <p className="mb-4 text-sm text-slate-600">担当者ごとの月次稼働可能時間を入れると、予定工数の不足や超過を確認できます。案件別予定工数だけで運用する場合は未入力で構いません。</p>
+          <p className="mb-4 text-sm text-slate-600">
+            担当者ごとの月次稼働可能時間を入れると、予定工数の不足や超過を確認できます。案件別予定工数だけで運用する場合は未入力で構いません。
+          </p>
           <DataTable
             columns={["担当者", "稼働可能時間", "操作"]}
             emptyMessage="該当データがありません。"
             rows={capacities.map(({ memberId, displayName, capacity }) => [
               displayName,
-              <Form key={memberId} className="flex gap-2" method="post" action={`/monthly-plans/admin?month=${month}`}>
+              <Form
+                key={memberId}
+                className="flex gap-2"
+                method="post"
+                action={`/monthly-plans/admin?month=${month}`}
+              >
                 <input name="intent" type="hidden" value="capacity" />
                 <input name="memberId" type="hidden" value={memberId} />
                 <input name="month" type="hidden" value={month} />
-                <Input className="w-24" defaultValue={capacity?.capacityHours ?? ""} disabled={isLocked} name="capacityHours" type="number" step="0.25" />
-                <Button disabled={isLocked} type="submit" variant="primary">保存</Button>
+                <Input
+                  className="w-24"
+                  defaultValue={capacity?.capacityHours ?? ""}
+                  disabled={isLocked}
+                  name="capacityHours"
+                  type="number"
+                  step="0.25"
+                />
+                <Button disabled={isLocked} type="submit" variant="primary">
+                  保存
+                </Button>
                 {capacity ? (
                   <>
                     <input name="id" type="hidden" value={capacity.id} />
                     <input name="month" type="hidden" value={month} />
-                    <Button disabled={isLocked} formAction={`/monthly-plans/admin?month=${month}`} name="intent" type="submit" value="deleteCapacity" variant="danger">
+                    <Button
+                      disabled={isLocked}
+                      formAction={`/monthly-plans/admin?month=${month}`}
+                      name="intent"
+                      type="submit"
+                      value="deleteCapacity"
+                      variant="danger"
+                    >
                       削除
                     </Button>
                   </>

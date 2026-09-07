@@ -1,4 +1,9 @@
-import { index, layout, route, type RouteConfig } from "@react-router/dev/routes";
+import {
+  index,
+  layout,
+  route,
+  type RouteConfig,
+} from "@react-router/dev/routes";
 
 export default [
   index("routes/home.tsx"),
@@ -25,10 +30,14 @@ export default [
     route("period-locks", "routes/period-locks.tsx"),
     route("work-logs", "routes/work-logs.tsx"),
     route("work-logs/month", "routes/work-logs.month.tsx"),
+    route("work-logs/week", "routes/work-logs.week.tsx"),
     route("work-logs/:date", "routes/work-logs.$date.tsx"),
     route("reports", "routes/reports.tsx"),
     route("reports/planned-vs-actual", "routes/reports.planned-vs-actual.tsx"),
-    route("reports/project-financials", "routes/reports.project-financials.tsx"),
+    route(
+      "reports/project-financials",
+      "routes/reports.project-financials.tsx",
+    ),
     route("imports", "routes/imports.tsx"),
   ]),
 ] satisfies RouteConfig;

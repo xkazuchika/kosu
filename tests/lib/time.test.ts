@@ -1,6 +1,7 @@
 import { test, expect } from "vitest";
 
 import {
+  addCalendarDays,
   getCalendarDate,
   getCalendarMonth,
   getWeekdayLabel,
@@ -11,6 +12,7 @@ import {
   isValidTimeZone,
   isWeekendDate,
   listMonthDates,
+  listWeekDates,
   normalizeTimeZone,
 } from "../../app/lib/time";
 
@@ -62,4 +64,17 @@ test("weekday helpers label weekends", () => {
   expect(isSundayDate("2026-07-05")).toBe(true);
   expect(isSundayDate("2026-07-04")).toBe(false);
   expect(isWeekendDate("2026-07-06")).toBe(false);
+});
+
+test("week helpers return Monday through Sunday across month boundaries", () => {
+  expect(listWeekDates("2026-07-01")).toEqual([
+    "2026-06-29",
+    "2026-06-30",
+    "2026-07-01",
+    "2026-07-02",
+    "2026-07-03",
+    "2026-07-04",
+    "2026-07-05",
+  ]);
+  expect(addCalendarDays("2026-12-31", 1)).toBe("2027-01-01");
 });

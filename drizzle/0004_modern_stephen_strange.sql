@@ -1,0 +1,1 @@
+ALTER TABLE `projects` ADD `effort_budget_hours` real;

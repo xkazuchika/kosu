@@ -4,14 +4,32 @@ import { and, eq } from "drizzle-orm";
 
 import { createDatabaseConnection, runMigrations } from "../app/db/client";
 import { resolveDatabaseConfig } from "../app/db/config";
-import { createDailyWorkLog, findDailyWorkLogByMemberAndDate } from "../app/db/repositories/daily-work-logs";
-import { createEffortAllocation, listAllocationsByWorkLog } from "../app/db/repositories/effort-allocations";
-import { createMemberMonthlyCapacity, findCapacityByMemberAndMonth } from "../app/db/repositories/member-monthly-capacities";
-import { createMember, findMemberByEmail } from "../app/db/repositories/members";
-import { createMonthlyPlan, findMonthlyPlan } from "../app/db/repositories/monthly-plans";
+import {
+  createDailyWorkLog,
+  findDailyWorkLogByMemberAndDate,
+} from "../app/db/repositories/daily-work-logs";
+import {
+  createEffortAllocation,
+  listAllocationsByWorkLog,
+} from "../app/db/repositories/effort-allocations";
+import {
+  createMemberMonthlyCapacity,
+  findCapacityByMemberAndMonth,
+} from "../app/db/repositories/member-monthly-capacities";
+import {
+  createMember,
+  findMemberByEmail,
+} from "../app/db/repositories/members";
+import {
+  createMonthlyPlan,
+  findMonthlyPlan,
+} from "../app/db/repositories/monthly-plans";
 import { createProject } from "../app/db/repositories/projects";
 import { createProjectAssignment } from "../app/db/repositories/project-assignments";
-import { createWorkspace, findWorkspace } from "../app/db/repositories/workspace";
+import {
+  createWorkspace,
+  findWorkspace,
+} from "../app/db/repositories/workspace";
 import { projectAssignments, projects } from "../app/db/schema";
 import { hashPassword } from "../app/lib/password";
 
@@ -29,7 +47,10 @@ async function seed() {
   const workspace = findWorkspace(db);
 
   if (!workspace) {
-    createWorkspace(db, { displayName: "Demo Workspace", defaultTimezone: "Asia/Tokyo" });
+    createWorkspace(db, {
+      displayName: "Demo Workspace",
+      defaultTimezone: "Asia/Tokyo",
+    });
   }
 
   const adminEmail = "admin@example.com";
@@ -63,16 +84,35 @@ async function seed() {
   }
 
   const projectDefinitions = [
-    { code: "INTERNAL", name: "社内業務", projectType: "internal" as const },
-    { code: "WEBSITE", name: "コーポレートサイト改修", projectType: "billable" as const },
-    { code: "CONSULT", name: "業務改善コンサルティング", projectType: "billable" as const },
+    {
+      code: "INTERNAL",
+      name: "社内業務",
+      projectType: "internal" as const,
+      effortBudgetHours: 240,
+    },
+    {
+      code: "WEBSITE",
+      name: "コーポレートサイト改修",
+      projectType: "billable" as const,
+      effortBudgetHours: 480,
+    },
+    {
+      code: "CONSULT",
+      name: "業務改善コンサルティング",
+      projectType: "billable" as const,
+      effortBudgetHours: 320,
+    },
   ];
   const month = new Date().toISOString().slice(0, 7);
   const workDate = `${month}-01`;
 
   for (const definition of projectDefinitions) {
     const { code } = definition;
-    let project = db.select().from(projects).where(eq(projects.code, code)).get();
+    let project = db
+      .select()
+      .from(projects)
+      .where(eq(projects.code, code))
+      .get();
 
     if (!project) {
       project = createProject(db, {
@@ -80,17 +120,34 @@ async function seed() {
         name: definition.name,
         projectType: definition.projectType,
         revenueOrBudgetAmount: code === "INTERNAL" ? 0 : 1_000_000,
+        effortBudgetHours: definition.effortBudgetHours,
       });
+    } else if (project.effortBudgetHours === null) {
+      project = db
+        .update(projects)
+        .set({ effortBudgetHours: definition.effortBudgetHours })
+        .where(eq(projects.id, project.id))
+        .returning()
+        .get();
     }
 
     const existing = db
       .select()
       .from(projectAssignments)
-      .where(and(eq(projectAssignments.memberId, member.id), eq(projectAssignments.projectId, project.id)))
+      .where(
+        and(
+          eq(projectAssignments.memberId, member.id),
+          eq(projectAssignments.projectId, project.id),
+        ),
+      )
       .get();
 
     if (!existing) {
-      createProjectAssignment(db, { memberId: member.id, projectId: project.id, assignmentRole: "Engineer" });
+      createProjectAssignment(db, {
+        memberId: member.id,
+        projectId: project.id,
+        assignmentRole: "Engineer",
+      });
     }
 
     if (!findMonthlyPlan(db, member.id, project.id, month, "Engineer")) {
@@ -106,14 +163,26 @@ async function seed() {
   }
 
   if (!findCapacityByMemberAndMonth(db, member.id, month)) {
-    createMemberMonthlyCapacity(db, { memberId: member.id, month, capacityHours: 160 });
+    createMemberMonthlyCapacity(db, {
+      memberId: member.id,
+      month,
+      capacityHours: 160,
+    });
   }
 
-  const websiteProject = db.select().from(projects).where(eq(projects.code, "WEBSITE")).get();
+  const websiteProject = db
+    .select()
+    .from(projects)
+    .where(eq(projects.code, "WEBSITE"))
+    .get();
   let workLog = findDailyWorkLogByMemberAndDate(db, member.id, workDate);
 
   if (!workLog) {
-    workLog = createDailyWorkLog(db, { memberId: member.id, workDate, totalWorkingHours: 8 });
+    workLog = createDailyWorkLog(db, {
+      memberId: member.id,
+      workDate,
+      totalWorkingHours: 8,
+    });
   }
 
   if (websiteProject && listAllocationsByWorkLog(db, workLog.id).length === 0) {

@@ -9,6 +9,7 @@ import { createProject } from "~/db/repositories/projects";
 import { logRouteError } from "~/lib/log";
 import { parseOptionalYen } from "~/lib/currency";
 import { requireAdministrator } from "~/services/auth";
+import { parseOptionalQuarterHours } from "~/lib/time";
 
 export const loader = async ({ request }: Route.LoaderArgs) => {
   const { db, sqlite } = createDatabaseConnection();
@@ -31,24 +32,55 @@ export const action = async ({ request }: Route.ActionArgs) => {
     const code = String(formData.get("code") ?? "").trim();
     const name = String(formData.get("name") ?? "").trim();
     const projectType = String(formData.get("projectType") ?? "");
-    const clientName = String(formData.get("clientName") ?? "").trim() || undefined;
-    const description = String(formData.get("description") ?? "").trim() || undefined;
-    const contractRevenueAmount = parseOptionalYen(formData.get("contractRevenueAmount"));
-    const laborCostBudgetAmount = parseOptionalYen(formData.get("laborCostBudgetAmount"));
+    const clientName =
+      String(formData.get("clientName") ?? "").trim() || undefined;
+    const description =
+      String(formData.get("description") ?? "").trim() || undefined;
+    const contractRevenueAmount = parseOptionalYen(
+      formData.get("contractRevenueAmount"),
+    );
+    const laborCostBudgetAmount = parseOptionalYen(
+      formData.get("laborCostBudgetAmount"),
+    );
+    const effortBudgetHours = parseOptionalQuarterHours(
+      formData.get("effortBudgetHours"),
+    );
 
     if (!code || !name || !projectType) {
       return { error: "コード、名前、タイプは必須です。" };
     }
 
-    if (projectType !== "billable" && projectType !== "internal" && projectType !== "non_billable") {
+    if (
+      projectType !== "billable" &&
+      projectType !== "internal" &&
+      projectType !== "non_billable"
+    ) {
       return { error: "案件タイプが不正です。" };
     }
 
-    if (contractRevenueAmount === undefined || laborCostBudgetAmount === undefined) {
-      return { error: "契約売上と人件費予算は0以上の整数（円）で入力してください。" };
+    if (
+      contractRevenueAmount === undefined ||
+      laborCostBudgetAmount === undefined
+    ) {
+      return {
+        error: "契約売上と人件費予算は0以上の整数（円）で入力してください。",
+      };
     }
 
-    createProject(db, { code, name, projectType, clientName, description, contractRevenueAmount, laborCostBudgetAmount });
+    if (effortBudgetHours === undefined) {
+      return { error: "工数予算は0以上、0.25時間単位で入力してください。" };
+    }
+
+    createProject(db, {
+      code,
+      name,
+      projectType,
+      clientName,
+      description,
+      contractRevenueAmount,
+      laborCostBudgetAmount,
+      effortBudgetHours,
+    });
 
     return redirect("/projects");
   } catch (error) {
@@ -56,7 +88,9 @@ export const action = async ({ request }: Route.ActionArgs) => {
       throw error;
     }
     logRouteError("projects.new", error);
-    return { error: "案件の作成に失敗しました。コードが重複している可能性があります。" };
+    return {
+      error: "案件の作成に失敗しました。コードが重複している可能性があります。",
+    };
   } finally {
     sqlite.close();
   }
@@ -73,7 +107,10 @@ export default function NewProject({ actionData }: Route.ComponentProps) {
         </CardHeader>
         <CardContent>
           {actionData?.error ? (
-            <p className="mb-4 rounded-lg bg-red-50 p-3 text-sm text-red-700" role="alert">
+            <p
+              className="mb-4 rounded-lg bg-red-50 p-3 text-sm text-red-700"
+              role="alert"
+            >
               {actionData.error}
             </p>
           ) : null}
@@ -85,7 +122,11 @@ export default function NewProject({ actionData }: Route.ComponentProps) {
               <Input name="name" required />
             </Field>
             <Field label="タイプ">
-              <select className="block w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm" name="projectType" required>
+              <select
+                className="block w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm"
+                name="projectType"
+                required
+              >
                 <option value="billable">請求対象</option>
                 <option value="internal">社内</option>
                 <option value="non_billable">非請求</option>
@@ -97,11 +138,38 @@ export default function NewProject({ actionData }: Route.ComponentProps) {
             <Field label="説明">
               <Input name="description" />
             </Field>
-            <Field label="契約売上（税抜・円）" help="請求対象案件の契約金額です。管理者のみ表示されます。">
-              <Input min="0" name="contractRevenueAmount" step="1" type="number" />
+            <Field
+              label="工数予算（時間）"
+              help="案件全体で使える時間です。未設定でも運用できます。"
+            >
+              <Input
+                min="0"
+                name="effortBudgetHours"
+                step="0.25"
+                type="number"
+              />
             </Field>
-            <Field label="人件費予算（税抜・円）" help="直接人件費として使える上限です。管理者のみ表示されます。">
-              <Input min="0" name="laborCostBudgetAmount" step="1" type="number" />
+            <Field
+              label="契約売上（税抜・円）"
+              help="請求対象案件の契約金額です。管理者のみ表示されます。"
+            >
+              <Input
+                min="0"
+                name="contractRevenueAmount"
+                step="1"
+                type="number"
+              />
+            </Field>
+            <Field
+              label="人件費予算（税抜・円）"
+              help="直接人件費として使える上限です。管理者のみ表示されます。"
+            >
+              <Input
+                min="0"
+                name="laborCostBudgetAmount"
+                step="1"
+                type="number"
+              />
             </Field>
             <Button type="submit" variant="primary">
               作成する

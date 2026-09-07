@@ -14,6 +14,7 @@ import {
 } from "../../app/db/repositories/daily-work-logs";
 import { createEffortAllocation } from "../../app/db/repositories/effort-allocations";
 import { createMember } from "../../app/db/repositories/members";
+import { createMonthlyPlan } from "../../app/db/repositories/monthly-plans";
 import { archiveProject } from "../../app/db/repositories/projects";
 import { archiveTask, createTask } from "../../app/db/repositories/tasks";
 import { members } from "../../app/db/schema";
@@ -33,6 +34,10 @@ import {
   action as workLogMonthAction,
   loader as workLogMonthLoader,
 } from "../../app/routes/work-logs.month";
+import {
+  action as workLogWeekAction,
+  loader as workLogWeekLoader,
+} from "../../app/routes/work-logs.week";
 import { loader as workLogsLoader } from "../../app/routes/work-logs";
 import {
   buildContext,
@@ -1297,12 +1302,19 @@ describe("allocation edits keep unassignable references", () => {
       "MOVE-1",
       "Original project",
     );
-    const archived = await seedAllocation(
-      cookie,
-      "2026-07-22",
-      "MOVE-2",
-      "Archived target",
-    );
+    await createProject(cookie, "MOVE-2", "Archived target");
+    const projectsResponse = await (
+      projectsLoader as unknown as RouteLoaderHandler
+    )({
+      request: new Request("http://localhost/projects", {
+        headers: { Cookie: cookie },
+      }),
+      context: buildContext(),
+    });
+    const archived = (
+      projectsResponse as { projects: { id: string; code: string }[] }
+    ).projects.find((candidate) => candidate.code === "MOVE-2")!;
+    await assignAdminToProject(cookie, archived.id);
 
     const connection = createDatabaseConnection();
     try {
@@ -1563,11 +1575,67 @@ describe("unified daily entry", () => {
     );
 
     expect((response as { error: string }).error).toContain("0.25h");
+    expect(
+      (response as { draft: { rows: { allocatedHours: string }[] } }).draft
+        .rows,
+    ).toMatchObject([{ allocatedHours: "4" }, { allocatedHours: "0.1" }]);
 
     const detail = (await loadDetail(cookie, "2026-07-15")) as {
       allocations: unknown[];
     };
     expect(detail.allocations).toHaveLength(0);
+  });
+
+  test("updates retained rows and removes omitted rows in one submission", async () => {
+    const cookie = await setupAndLogin(dataDir, "password123");
+    const first = await setupProject(cookie, "UNI-8", "Eighth project");
+    const second = await setupProject(cookie, "UNI-9", "Ninth project");
+    await (workLogDateAction as unknown as RouteActionHandler)({
+      request: buildRequest(
+        buildSaveDayForm({
+          totalWorkingHours: 8,
+          rows: [
+            { projectId: first.id, allocatedHours: 4 },
+            { projectId: second.id, allocatedHours: 4 },
+          ],
+        }),
+        cookie,
+      ),
+      params: { date: "2026-07-15" },
+      context: buildContext(),
+    });
+    const before = (await loadDetail(cookie, "2026-07-15")) as {
+      allocations: { id: string; projectId: string }[];
+    };
+    const retained = before.allocations.find(
+      (allocation) => allocation.projectId === first.id,
+    )!;
+
+    await (workLogDateAction as unknown as RouteActionHandler)({
+      request: buildRequest(
+        buildSaveDayForm({
+          totalWorkingHours: 9.5,
+          rows: [
+            {
+              allocationId: retained.id,
+              projectId: first.id,
+              allocatedHours: 9.5,
+            },
+          ],
+        }),
+        cookie,
+      ),
+      params: { date: "2026-07-15" },
+      context: buildContext(),
+    });
+    const after = (await loadDetail(cookie, "2026-07-15")) as {
+      workLog: { totalWorkingHours: number };
+      allocations: { id: string; allocatedHours: number }[];
+    };
+    expect(after.workLog.totalWorkingHours).toBe(9.5);
+    expect(after.allocations).toEqual([
+      expect.objectContaining({ id: retained.id, allocatedHours: 9.5 }),
+    ]);
   });
 
   test("rejects a row whose allocation belongs to another date", async () => {
@@ -1591,19 +1659,21 @@ describe("unified daily entry", () => {
     };
     const allocationId = detail.allocations[0].id;
 
-    await expect(
-      (workLogDateAction as unknown as RouteActionHandler)({
-        request: buildRequest(
-          buildSaveDayForm({
-            totalWorkingHours: 8,
-            rows: [{ allocationId, projectId: project.id, allocatedHours: 4 }],
-          }),
-          cookie,
-        ),
-        params: { date: "2026-07-16" },
-        context: buildContext(),
-      }),
-    ).rejects.toBeInstanceOf(Response);
+    const invalid = await (workLogDateAction as unknown as RouteActionHandler)({
+      request: buildRequest(
+        buildSaveDayForm({
+          totalWorkingHours: 8,
+          rows: [{ allocationId, projectId: project.id, allocatedHours: 4 }],
+        }),
+        cookie,
+      ),
+      params: { date: "2026-07-16" },
+      context: buildContext(),
+    });
+    expect((invalid as { error: string }).error).toContain(
+      "対象の実績工数が見つかりません",
+    );
+    expect((invalid as { draft: unknown }).draft).toBeDefined();
 
     const unchanged = (await loadDetail(cookie, "2026-07-15")) as {
       allocations: { allocatedHours: number }[];
@@ -1986,5 +2056,133 @@ describe("recently used project ordering", () => {
       detail as { assignedProjects: { id: string }[] }
     ).assignedProjects.map((project) => project.id);
     expect(ids.indexOf(newer.id)).toBeLessThan(ids.indexOf(older.id));
+  });
+});
+
+describe("weekly entry and member effort context", () => {
+  async function setupAssignedProject(cookie: string) {
+    const form = new FormData();
+    form.append("code", "WEEK-1");
+    form.append("name", "Weekly project");
+    form.append("projectType", "billable");
+    form.append("contractRevenueAmount", "1000000");
+    form.append("laborCostBudgetAmount", "600000");
+    form.append("effortBudgetHours", "120");
+    await (newProjectAction as unknown as RouteActionHandler)({
+      request: buildRequest(form, cookie),
+      params: {},
+      context: buildContext(),
+    });
+    const response = await (projectsLoader as unknown as RouteLoaderHandler)({
+      request: new Request("http://localhost/projects", {
+        headers: { Cookie: cookie },
+      }),
+      context: buildContext(),
+    });
+    const project = (
+      response as { projects: { id: string; code: string }[] }
+    ).projects.find((item) => item.code === "WEEK-1")!;
+    const member = await assignAdminToProject(cookie, project.id);
+    return { project, member };
+  }
+
+  test("loads and atomically saves a representative week", async () => {
+    const cookie = await setupAndLogin(dataDir, "password123");
+    const { project } = await setupAssignedProject(cookie);
+    const loaded = await (workLogWeekLoader as unknown as RouteLoaderHandler)({
+      request: new Request("http://localhost/work-logs/week?date=2026-07-08", {
+        headers: { Cookie: cookie },
+      }),
+      params: {},
+      context: buildContext(),
+    });
+    const data = loaded as {
+      draft: { weekDate: string; dates: string[] };
+      projects: { id: string }[];
+    };
+    expect(data.draft.weekDate).toBe("2026-07-06");
+    expect(data.draft.dates).toHaveLength(7);
+    expect(data.projects.map((item) => item.id)).toContain(project.id);
+
+    const weeklyDraft = {
+      weekDate: data.draft.weekDate,
+      dates: data.draft.dates,
+      totalWorkingHours: {
+        "2026-07-06": "8",
+        "2026-07-07": "9.5",
+      },
+      rows: [
+        {
+          key: "row-1",
+          projectId: project.id,
+          taskId: "",
+          note: "",
+          allocationIds: {},
+          hours: { "2026-07-06": "8", "2026-07-07": "9.5" },
+        },
+      ],
+    };
+    const form = new FormData();
+    form.append("weeklyDraft", JSON.stringify(weeklyDraft));
+    const saved = await (workLogWeekAction as unknown as RouteActionHandler)({
+      request: buildRequest(form, cookie),
+      params: {},
+      context: buildContext(),
+    });
+    expect((saved as { success: string }).success).toContain("2日分");
+
+    weeklyDraft.rows[0].hours["2026-07-07"] = "1.1";
+    const invalidForm = new FormData();
+    invalidForm.append("weeklyDraft", JSON.stringify(weeklyDraft));
+    const invalid = await (workLogWeekAction as unknown as RouteActionHandler)({
+      request: buildRequest(invalidForm, cookie),
+      params: {},
+      context: buildContext(),
+    });
+    expect((invalid as { error: string }).error).toContain("2026-07-07");
+    expect((invalid as { draft: unknown }).draft).toEqual(weeklyDraft);
+  });
+
+  test("member daily loader exposes own hour progress without financial fields", async () => {
+    const cookie = await setupAndLogin(dataDir, "password123");
+    const { project, member } = await setupAssignedProject(cookie);
+    const connection = createDatabaseConnection();
+    createMonthlyPlan(connection.db, {
+      memberId: member.id,
+      projectId: project.id,
+      month: "2026-07",
+      plannedHours: 40,
+      hourlyCostRateSnapshot: 5000,
+    });
+    connection.db
+      .update(members)
+      .set({ role: "member", hourlyCostRate: 5000 })
+      .where(eq(members.id, member.id))
+      .run();
+    connection.sqlite.close();
+
+    const response = await (workLogDateLoader as unknown as RouteLoaderHandler)(
+      {
+        request: new Request("http://localhost/work-logs/2026-07-15", {
+          headers: { Cookie: cookie },
+        }),
+        params: { date: "2026-07-15" },
+        context: buildContext(),
+      },
+    );
+    expect(
+      (
+        response as {
+          projectEffortContext: Record<
+            string,
+            { plannedHours: number; actualHours: number; balanceHours: number }
+          >;
+        }
+      ).projectEffortContext[project.id],
+    ).toEqual({ plannedHours: 40, actualHours: 0, balanceHours: 40 });
+    const payload = JSON.stringify(response);
+    expect(payload).not.toContain("hourlyCostRate");
+    expect(payload).not.toContain("contractRevenueAmount");
+    expect(payload).not.toContain("laborCostBudgetAmount");
   });
 });
