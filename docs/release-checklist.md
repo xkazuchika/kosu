@@ -78,3 +78,12 @@ Use this checklist for each release candidate. Record the version and commit, an
 - A clean Compose build completes `npm ci`, the production build, and migrations. Setup and login succeed, and the initialized workspace remains available after a container restart with the same volume.
 - The production dependency audit reports 0 vulnerabilities. Four moderate development-only Drizzle toolchain advisories remain accepted pending a compatible upstream fix.
 - GitHub Actions run `30225449957` passed both the Quality gate and Browser smoke jobs for the monthly-close implementation commit.
+
+### 2026-09-08 — v0.8.0 candidate
+
+- OpenSpec strict validation passes all 14 current specs, including project effort control and the expanded daily and weekly entry behavior.
+- `npm test` passes 51 files and 294 tests; typecheck, ESLint, the production build, and the production-server Playwright smoke pass.
+- GitHub Actions run `34225797681` passes both the Quality gate and Browser smoke jobs for implementation commit `b761f38`.
+- A clean Node.js 22 Compose build completes `npm ci`, the production build, fresh SQLite migrations, and the foreign-key integrity check. Setup reaches the dashboard, the health endpoint returns 200, and the workspace and authenticated session remain available after a container restart with the same volume.
+- The production dependency audit reports 0 vulnerabilities. The full audit reports only the four accepted moderate development-only Drizzle toolchain advisories; the newly reported `qs`, `brace-expansion`, and `nanoid` advisories are resolved in the committed lockfile.
+- Migration `0004_modern_stephen_strange.sql` only adds the nullable project effort-budget column. Existing SQLite data was upgraded without loss, and rollback can preserve the volume because older application code ignores the added column. The WAL-aware backup and restore guidance remains valid for the current data layout.
