@@ -56,6 +56,8 @@ Use this checklist for each release candidate. Record the version and commit, an
 - npm currently proposes `drizzle-kit@0.18.1` as the automatic fix, which is an incompatible downgrade. Do not apply `npm audit fix --force`; revisit when a compatible dependency path removes the deprecated loader.
 - 2026-07-26: React Router was pinned to `8.3.0` to resolve the production RSC-mode advisory, and `better-sqlite3` was pinned to `12.11.1` for compatibility with the `node:22-slim` container runtime.
 - 2026-07-26: `npm audit --omit=dev` again reported 0 production vulnerabilities. The full audit still reports only the four moderate Drizzle development-toolchain advisories above.
+- 2026-09-08: `qs` was updated from `6.15.3` to `6.16.0`, restoring `npm audit --omit=dev` to 0 production vulnerabilities after the CI quality gate detected two moderate denial-of-service advisories.
+- 2026-09-08: `brace-expansion` and `nanoid` were updated within their existing dependency ranges to remove two high-severity development-toolchain advisories. The full audit still reports only the four accepted moderate Drizzle development-toolchain advisories above.
 
 ## Verification Record
 
