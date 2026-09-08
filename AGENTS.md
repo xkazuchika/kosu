@@ -27,6 +27,10 @@ Write Vitest files as `*.test.ts` or `*.test.tsx` under the matching `tests/` ar
 
 Recent commits use Conventional Commit prefixes with concise Japanese summaries, for example `feat: v0.6の案件財務を追加`, plus `docs:` and `chore:`. Keep each commit focused. PRs should explain the use case, affected workflow, authorization impact, reproduction steps, and expected versus actual behavior. Link related issues or OpenSpec changes, include screenshots for UI changes, and call out migrations or configuration changes.
 
+## Releases
+
+Prepare the version and release documentation in the final main-branch commit and let CI validate that commit. Once CI is green, use the repository's manual `Release` GitHub Actions workflow with a `vMAJOR.MINOR.PATCH` input. The workflow verifies the latest main commit, package version, CI result, and tag availability before creating the tag and GitHub Release. Do not repeat local tests, Docker checks, or browser validation when the same candidate commit already has valid successful evidence.
+
 ## Security & Configuration
 
 Copy settings from `.env.example`; never commit secrets or local SQLite data. Production requires a `KOSU_SESSION_SECRET` of at least 32 characters. Treat `data/` as persistent state and consult `docs/release-checklist.md` before release or Docker deployment.

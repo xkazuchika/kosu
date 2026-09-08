@@ -2,6 +2,8 @@
 
 Use this checklist for each release candidate. Record the version and commit, and mark an item complete only after running it against that candidate.
 
+After the candidate commit passes GitHub Actions, publish it with the manual `Release` workflow in GitHub Actions. The workflow creates the annotated tag and GitHub Release from the latest main commit. Do not rerun checks that already succeeded for the unchanged candidate; use this checklist to identify only missing evidence.
+
 ## Candidate
 
 - Version:
