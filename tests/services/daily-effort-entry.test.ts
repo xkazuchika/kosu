@@ -15,6 +15,7 @@ import {
   listAllocationsByWorkLog,
 } from "../../app/db/repositories/effort-allocations";
 import { createMember } from "../../app/db/repositories/members";
+import { findMonthlyEffortSubmission } from "../../app/db/repositories/monthly-effort-submissions";
 import { createProjectAssignment } from "../../app/db/repositories/project-assignments";
 import {
   archiveProject,
@@ -27,6 +28,7 @@ import {
   saveDailyEffortEntry,
 } from "../../app/services/daily-effort-entry";
 import { startMonthlyCostReview } from "../../app/services/monthly-cost-close";
+import { submitMonthlyEffort } from "../../app/services/monthly-effort-submission";
 import { createTestDatabase } from "../db/helpers";
 
 let connection: DatabaseConnection;
@@ -66,6 +68,46 @@ function setup() {
 }
 
 describe("daily effort entry", () => {
+  test("invalidates a submitted month only after a successful unified save", () => {
+    const { member, first } = setup();
+    saveDailyEffortEntry(db, {
+      memberId: member.id,
+      workDate: "2026-07-01",
+      totalWorkingHours: 8,
+      rows: [{ projectId: first.id, allocatedHours: 8 }],
+    });
+    submitMonthlyEffort(db, {
+      memberId: member.id,
+      month: "2026-07",
+      actorMemberId: member.id,
+    });
+
+    expect(() =>
+      saveDailyEffortEntry(db, {
+        memberId: member.id,
+        workDate: "2026-07-01",
+        totalWorkingHours: 8,
+        rows: [{ projectId: "missing", allocatedHours: 8 }],
+      }),
+    ).toThrow();
+    expect(findMonthlyEffortSubmission(db, member.id, "2026-07")?.status).toBe(
+      "submitted",
+    );
+
+    saveDailyEffortEntry(db, {
+      memberId: member.id,
+      workDate: "2026-07-01",
+      totalWorkingHours: 7.5,
+      rows: [{ projectId: first.id, allocatedHours: 7.5 }],
+    });
+    expect(findMonthlyEffortSubmission(db, member.id, "2026-07")).toMatchObject(
+      {
+        status: "draft",
+        invalidatedByMemberId: member.id,
+      },
+    );
+  });
+
   test("atomically saves several rows and removes omitted persisted rows", () => {
     const { member, first, second } = setup();
     saveDailyEffortEntry(db, {

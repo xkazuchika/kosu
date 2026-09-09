@@ -51,6 +51,7 @@ import {
   isValidDailyHours,
 } from "~/lib/time";
 import { getMonthlyCostCloseState } from "~/services/monthly-cost-close";
+import { invalidateMonthlyEffortSubmission } from "~/services/monthly-effort-submission";
 import { requireUnlockedMonth } from "~/services/period-lock";
 import { getWorkspaceCalendarContext } from "~/services/workspace-calendar";
 import {
@@ -246,15 +247,23 @@ export const action = async ({ request, params }: Route.ActionArgs) => {
         throw new Response("Not found", { status: 404 });
       }
 
-      requireUnlockedMonth(db, allocationLog!.workDate.slice(0, 7));
-      deleteEffortAllocation(db, deleteAllocationId, new Date().toISOString());
+      const occurredAt = new Date().toISOString();
+      db.transaction((transaction) => {
+        const tx = transaction as unknown as KosuDatabase;
+        requireUnlockedMonth(tx, allocationLog!.workDate.slice(0, 7));
+        deleteEffortAllocation(tx, deleteAllocationId, occurredAt);
+        invalidateMonthlyEffortSubmission(tx, {
+          memberId: targetMemberId,
+          month: allocationLog!.workDate.slice(0, 7),
+          actorMemberId: currentMember.id,
+          occurredAt,
+        });
+      });
 
       return { success: "実績工数を 1 件削除しました。" };
     }
 
     if (intent === "saveWorkLog") {
-      requireUnlockedMonth(db, month);
-
       const totalWorkingHours = Number(
         String(formData.get("totalWorkingHours") ?? "").trim(),
       );
@@ -265,21 +274,32 @@ export const action = async ({ request, params }: Route.ActionArgs) => {
         };
       }
 
-      const existing = findDailyWorkLogByMemberAndDate(
-        db,
-        targetMemberId,
-        workDate,
-      );
-
-      if (existing) {
-        updateDailyWorkLog(db, existing.id, { totalWorkingHours });
-      } else {
-        createDailyWorkLog(db, {
-          memberId: targetMemberId,
+      const occurredAt = new Date().toISOString();
+      db.transaction((transaction) => {
+        const tx = transaction as unknown as KosuDatabase;
+        requireUnlockedMonth(tx, month);
+        const existing = findDailyWorkLogByMemberAndDate(
+          tx,
+          targetMemberId,
           workDate,
-          totalWorkingHours,
+        );
+
+        if (existing) {
+          updateDailyWorkLog(tx, existing.id, { totalWorkingHours });
+        } else {
+          createDailyWorkLog(tx, {
+            memberId: targetMemberId,
+            workDate,
+            totalWorkingHours,
+          });
+        }
+        invalidateMonthlyEffortSubmission(tx, {
+          memberId: targetMemberId,
+          month,
+          actorMemberId: currentMember.id,
+          occurredAt,
         });
-      }
+      });
 
       return { success: "総稼働時間を保存しました。" };
     }
@@ -287,7 +307,12 @@ export const action = async ({ request, params }: Route.ActionArgs) => {
     if (intent === "copyPrevious") {
       requireUnlockedMonth(db, month);
 
-      return copyPreviousDayEffort(db, targetMemberId, workDate);
+      return copyPreviousDayEffort(
+        db,
+        targetMemberId,
+        workDate,
+        currentMember.id,
+      );
     }
 
     if (intent === "draftPlan" || intent === "draftRecent") {
@@ -325,6 +350,7 @@ export const action = async ({ request, params }: Route.ActionArgs) => {
       const draft = buildSubmittedDailyDraft(formData);
       try {
         const result = saveDailyEffortEntry(db, {
+          actorMemberId: currentMember.id,
           memberId: targetMemberId,
           workDate,
           totalWorkingHours: Number(draft.totalWorkingHours),
@@ -421,6 +447,7 @@ function copyPreviousDayEffort(
   db: KosuDatabase,
   memberId: string,
   workDate: string,
+  actorMemberId: string,
 ): DailyEntryResult {
   const previousDate = addDays(workDate, -1);
   const currentLog = findDailyWorkLogByMemberAndDate(db, memberId, workDate);
@@ -476,7 +503,9 @@ function copyPreviousDayEffort(
     ) ||
     usable.reduce((sum, allocation) => sum + allocation.allocatedHours, 0) > 24
   ) {
-    return { error: "前日の実績が1日の24h上限を超えているため、複製できません。" };
+    return {
+      error: "前日の実績が1日の24h上限を超えているため、複製できません。",
+    };
   }
 
   const targetMember = findMemberById(db, memberId);
@@ -502,6 +531,11 @@ function copyPreviousDayEffort(
         hourlyCostRateSnapshot: targetMember?.hourlyCostRate ?? null,
       });
     }
+    invalidateMonthlyEffortSubmission(tx, {
+      memberId,
+      month: workDate.slice(0, 7),
+      actorMemberId,
+    });
   });
 
   const skippedNames = [

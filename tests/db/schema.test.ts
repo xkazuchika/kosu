@@ -13,6 +13,7 @@ test("database schema exports all MVP tables", () => {
     "monthlyCostCloseEvents",
     "monthlyCostCloseProjectSnapshots",
     "monthlyCostCloses",
+    "monthlyEffortSubmissions",
     "monthlyPlans",
     "periodLocks",
     "projectAssignments",

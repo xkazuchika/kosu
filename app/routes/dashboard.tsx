@@ -38,6 +38,10 @@ import {
 } from "~/db/repositories/projects";
 import { getSessionMember } from "~/services/auth";
 import { getMonthlyCostCloseState } from "~/services/monthly-cost-close";
+import {
+  getMonthlyEffortSubmissionState,
+  getMonthlyEffortSubmissionSummary,
+} from "~/services/monthly-effort-submission";
 import { getWorkspaceCalendarContext } from "~/services/workspace-calendar";
 
 type DashboardLoaderData = {
@@ -58,6 +62,16 @@ type DashboardLoaderData = {
   assignedProjects: { id: string; name: string; code: string }[];
   incompleteAllocationsCount: number;
   closeStatus: "open" | "in_review" | "approved";
+  monthlySubmission: {
+    isRequired: boolean;
+    status: "draft" | "submitted";
+    submittedAt: string | null;
+  };
+  teamSubmissionStatus: {
+    required: number;
+    submitted: number;
+    drafts: { memberId: string; displayName: string; href: string }[];
+  } | null;
   teamInputStatus: {
     total: number;
     withEntry: number;
@@ -140,6 +154,15 @@ export const loader = async ({
     }).length;
 
     const closeState = getMonthlyCostCloseState(db, currentMonth);
+    const submissionSummary = getMonthlyEffortSubmissionSummary(
+      db,
+      currentMonth,
+    );
+    const memberSubmission = getMonthlyEffortSubmissionState(
+      db,
+      member.id,
+      currentMonth,
+    );
     const base: DashboardLoaderData = {
       isAdmin,
       today,
@@ -167,6 +190,14 @@ export const loader = async ({
       })),
       incompleteAllocationsCount,
       closeStatus: closeState.status,
+      monthlySubmission: {
+        isRequired: submissionSummary.members.some(
+          (entry) => entry.member.id === member.id,
+        ),
+        status: memberSubmission.status,
+        submittedAt: memberSubmission.submittedAt,
+      },
+      teamSubmissionStatus: null,
       teamInputStatus: null,
       memberTodayStatuses: null,
       projectSummaries: null,
@@ -253,6 +284,17 @@ export const loader = async ({
 
     return {
       ...base,
+      teamSubmissionStatus: {
+        required: submissionSummary.requiredCount,
+        submitted: submissionSummary.submittedCount,
+        drafts: submissionSummary.members
+          .filter((entry) => entry.status === "draft")
+          .map((entry) => ({
+            memberId: entry.member.id,
+            displayName: entry.member.displayName,
+            href: `/work-logs/month?month=${currentMonth}&memberId=${entry.member.id}`,
+          })),
+      },
       teamInputStatus: {
         total: activeMembers.length,
         withEntry: memberTodayStatuses.filter((s) => s.hasEntry).length,
@@ -394,7 +436,7 @@ export default function Dashboard() {
           description="予定工数、実績工数、未割当を月単位で確認します。"
           title="今月の状態"
         />
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           <SummaryCard
             icon={<CalendarClock className="h-4 w-4" />}
             label="予定工数"
@@ -435,6 +477,25 @@ export default function Dashboard() {
               {data.incompleteAllocationsCount}
             </p>
             <p className="text-sm text-slate-600">日</p>
+          </SummaryCard>
+
+          <SummaryCard
+            icon={<CheckCircle2 className="h-4 w-4" />}
+            label="月次工数提出"
+            to={`/work-logs/month?month=${data.currentMonth}`}
+          >
+            <p className="text-2xl font-semibold">
+              {!data.monthlySubmission.isRequired
+                ? "対象外"
+                : data.monthlySubmission.status === "submitted"
+                  ? "提出済み"
+                  : "下書き"}
+            </p>
+            {data.monthlySubmission.submittedAt ? (
+              <p className="text-sm text-slate-600">
+                {data.monthlySubmission.submittedAt}
+              </p>
+            ) : null}
           </SummaryCard>
         </div>
       </section>
@@ -515,7 +576,18 @@ function AdminDashboard({ data }: { data: DashboardLoaderData }) {
         title="管理者ダッシュボード"
       />
 
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
+        <SummaryCard
+          icon={<CheckCircle2 className="h-4 w-4" />}
+          label="月次工数提出"
+          to="/period-locks"
+        >
+          <p className="text-3xl font-semibold">
+            {data.teamSubmissionStatus?.submitted}/
+            {data.teamSubmissionStatus?.required}
+          </p>
+          <p className="text-sm text-slate-600">提出済み / 対象</p>
+        </SummaryCard>
         <SummaryCard
           icon={<CheckCircle2 className="h-4 w-4" />}
           label="本日入力状況"
@@ -560,6 +632,28 @@ function AdminDashboard({ data }: { data: DashboardLoaderData }) {
           <p className="text-sm text-slate-600">件</p>
         </SummaryCard>
       </div>
+
+      {data.teamSubmissionStatus?.drafts.length ? (
+        <Card>
+          <CardHeader>
+            <CardTitle>月次工数が下書きのメンバー</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <ul className="flex flex-wrap gap-2">
+              {data.teamSubmissionStatus.drafts.map((entry) => (
+                <li key={entry.memberId}>
+                  <Link
+                    className="text-sm font-medium text-indigo-700 hover:underline"
+                    to={entry.href}
+                  >
+                    {entry.displayName}
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          </CardContent>
+        </Card>
+      ) : null}
 
       <Card>
         <CardHeader>

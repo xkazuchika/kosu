@@ -5,16 +5,28 @@ import { afterEach, beforeEach, describe, expect, test } from "vitest";
 import type { DatabaseConnection, KosuDatabase } from "../../app/db/client";
 import { createDailyAllocationPlan } from "../support/monthly-cost-close-fixtures";
 import { createDailyWorkLog } from "../../app/db/repositories/daily-work-logs";
-import { createEffortAllocation, updateEffortAllocation } from "../../app/db/repositories/effort-allocations";
+import {
+  createEffortAllocation,
+  updateEffortAllocation,
+} from "../../app/db/repositories/effort-allocations";
 import { createMember, updateMember } from "../../app/db/repositories/members";
 import {
   listMonthlyCostCloseEvents,
   listMonthlyCostCloseProjectSnapshots,
 } from "../../app/db/repositories/monthly-cost-closes";
 import { createMonthlyPlan } from "../../app/db/repositories/monthly-plans";
-import { archiveProject, createProject, updateProject } from "../../app/db/repositories/projects";
+import {
+  findMonthlyEffortSubmission,
+  invalidateSubmittedMonthlyEffort,
+} from "../../app/db/repositories/monthly-effort-submissions";
+import {
+  archiveProject,
+  createProject,
+  updateProject,
+} from "../../app/db/repositories/projects";
 import { approveMonthlyCostClose } from "../../app/services/monthly-cost-approval";
 import { getMonthlyCostCompleteness } from "../../app/services/monthly-cost-completeness";
+import { submitMonthlyEffort } from "../../app/services/monthly-effort-submission";
 import {
   correctMissingHourlyCostSnapshot,
   getMonthlyCostCloseState,
@@ -64,8 +76,17 @@ function createBillableProject() {
   });
 }
 
-function createBalancedActual(memberId: string, projectId: string, workDate = "2026-07-15", rate: number | null = 1_000) {
-  const workLog = createDailyWorkLog(db, { memberId, workDate, totalWorkingHours: 8 });
+function createBalancedActual(
+  memberId: string,
+  projectId: string,
+  workDate = "2026-07-15",
+  rate: number | null = 1_000,
+) {
+  const workLog = createDailyWorkLog(db, {
+    memberId,
+    workDate,
+    totalWorkingHours: 8,
+  });
   const allocation = createEffortAllocation(db, {
     dailyWorkLogId: workLog.id,
     memberId,
@@ -80,13 +101,19 @@ describe("monthly cost close lifecycle", () => {
   test("treats a missing row as open and appends audited lifecycle events", () => {
     const { admin } = createActors();
 
-    expect(getMonthlyCostCloseState(db, "2026-07")).toMatchObject({ status: "open", isProtected: false });
+    expect(getMonthlyCostCloseState(db, "2026-07")).toMatchObject({
+      status: "open",
+      isProtected: false,
+    });
     startMonthlyCostReview(db, {
       month: "2026-07",
       actorMemberId: admin.id,
       occurredAt: "2026-08-01T01:00:00.000Z",
     });
-    expect(getMonthlyCostCloseState(db, "2026-07")).toMatchObject({ status: "in_review", isProtected: true });
+    expect(getMonthlyCostCloseState(db, "2026-07")).toMatchObject({
+      status: "in_review",
+      isProtected: true,
+    });
 
     let protectedResponse: unknown;
     try {
@@ -98,7 +125,11 @@ describe("monthly cost close lifecycle", () => {
     expect((protectedResponse as Response).status).toBe(423);
 
     expect(() =>
-      reopenMonthlyCostClose(db, { month: "2026-07", actorMemberId: admin.id, reason: " " }),
+      reopenMonthlyCostClose(db, {
+        month: "2026-07",
+        actorMemberId: admin.id,
+        reason: " ",
+      }),
     ).toThrow("再オープン理由");
     reopenMonthlyCostClose(db, {
       month: "2026-07",
@@ -110,7 +141,11 @@ describe("monthly cost close lifecycle", () => {
     const close = getMonthlyCostCloseState(db, "2026-07").close!;
     expect(close.status).toBe("open");
     expect(listMonthlyCostCloseEvents(db, close.id)).toMatchObject([
-      { eventType: "entered_review", previousStatus: "open", nextStatus: "in_review" },
+      {
+        eventType: "entered_review",
+        previousStatus: "open",
+        nextStatus: "in_review",
+      },
       {
         eventType: "reopened",
         previousStatus: "in_review",
@@ -154,17 +189,21 @@ describe("monthly cost close lifecycle", () => {
     });
 
     const result = getMonthlyCostCompleteness(db, "2026-07");
-    expect(result.blockers.map((issue) => issue.code)).toEqual(expect.arrayContaining([
-      "UNBALANCED_WORK_LOG",
-      "MISSING_MONTHLY_PLAN_COST",
-      "MISSING_MONTHLY_ALLOCATION_COST",
-      "MISSING_BILLABLE_CONTRACT_REVENUE",
-      "MISSING_BILLABLE_LABOR_BUDGET",
-    ]));
-    expect(result.warnings.map((issue) => issue.code)).toContain("DAILY_MONTHLY_PLAN_MISMATCH");
+    expect(result.blockers.map((issue) => issue.code)).toEqual(
+      expect.arrayContaining([
+        "UNBALANCED_WORK_LOG",
+        "MISSING_MONTHLY_PLAN_COST",
+        "MISSING_MONTHLY_ALLOCATION_COST",
+        "MISSING_BILLABLE_CONTRACT_REVENUE",
+        "MISSING_BILLABLE_LABOR_BUDGET",
+      ]),
+    );
+    expect(result.warnings.map((issue) => issue.code)).toContain(
+      "DAILY_MONTHLY_PLAN_MISMATCH",
+    );
   });
 
-  test("does not treat zero activity or absent rows as incomplete", () => {
+  test("requires explicit submission even when required-member activity is zero", () => {
     const { member } = createActors();
     const project = createProject(db, {
       code: "PRJ-001",
@@ -179,7 +218,53 @@ describe("monthly cost close lifecycle", () => {
       hourlyCostRateSnapshot: null,
     });
 
-    expect(getMonthlyCostCompleteness(db, "2026-07")).toEqual({ blockers: [], warnings: [] });
+    expect(getMonthlyCostCompleteness(db, "2026-07").blockers).toEqual([
+      expect.objectContaining({
+        code: "MISSING_EFFORT_SUBMISSION",
+        memberId: member.id,
+        href: `/work-logs/month?month=2026-07&memberId=${member.id}`,
+      }),
+    ]);
+
+    submitMonthlyEffort(db, {
+      memberId: member.id,
+      month: "2026-07",
+      actorMemberId: member.id,
+    });
+    expect(getMonthlyCostCompleteness(db, "2026-07")).toEqual({
+      blockers: [],
+      warnings: [],
+    });
+  });
+
+  test("keeps the month open until all required submissions exist", () => {
+    const { admin, member } = createActors();
+    createMonthlyPlan(db, {
+      memberId: member.id,
+      projectId: createBillableProject().id,
+      month: "2026-07",
+      plannedHours: 0,
+      hourlyCostRateSnapshot: null,
+    });
+
+    expect(() =>
+      startMonthlyCostReview(db, {
+        month: "2026-07",
+        actorMemberId: admin.id,
+      }),
+    ).toThrow("月次工数が未提出");
+    expect(getMonthlyCostCloseState(db, "2026-07").status).toBe("open");
+
+    submitMonthlyEffort(db, {
+      memberId: member.id,
+      month: "2026-07",
+      actorMemberId: member.id,
+    });
+    startMonthlyCostReview(db, {
+      month: "2026-07",
+      actorMemberId: admin.id,
+    });
+    expect(getMonthlyCostCloseState(db, "2026-07").status).toBe("in_review");
   });
 
   test("reports missing historical cost snapshots needed by month-end cumulative values", () => {
@@ -227,7 +312,10 @@ describe("monthly cost close lifecycle", () => {
       occurredAt: "2026-08-01T00:00:00.000Z",
     });
 
-    expect(listProjectFinancialReview(db, { month: "2026-07" })[0].monthlyPlanned.knownCost).toBe(9_600);
+    expect(
+      listProjectFinancialReview(db, { month: "2026-07" })[0].monthlyPlanned
+        .knownCost,
+    ).toBe(9_600);
     const close = getMonthlyCostCloseState(db, "2026-07").close!;
     expect(listMonthlyCostCloseEvents(db, close.id)).toMatchObject([
       {
@@ -246,6 +334,11 @@ describe("monthly cost approval", () => {
     const { admin, member } = createActors();
     const project = createBillableProject();
     createBalancedActual(member.id, project.id);
+    submitMonthlyEffort(db, {
+      memberId: member.id,
+      month: "2026-07",
+      actorMemberId: member.id,
+    });
     startMonthlyCostReview(db, { month: "2026-07", actorMemberId: admin.id });
     const close = getMonthlyCostCloseState(db, "2026-07").close!;
     connection.sqlite.exec(`
@@ -257,12 +350,18 @@ describe("monthly cost approval", () => {
       end
     `);
 
-    expect(() => approveMonthlyCostClose(db, { month: "2026-07", actorMemberId: admin.id }))
-      .toThrow("approval rejected");
+    expect(() =>
+      approveMonthlyCostClose(db, {
+        month: "2026-07",
+        actorMemberId: admin.id,
+      }),
+    ).toThrow("approval rejected");
 
     expect(getMonthlyCostCloseState(db, "2026-07").status).toBe("in_review");
     expect(listMonthlyCostCloseProjectSnapshots(db, close.id)).toEqual([]);
-    expect(listMonthlyCostCloseEvents(db, close.id).map((event) => event.eventType)).toEqual(["entered_review"]);
+    expect(
+      listMonthlyCostCloseEvents(db, close.id).map((event) => event.eventType),
+    ).toEqual(["entered_review"]);
   });
 
   test("keeps approved financial views immutable after master edits and future actuals", () => {
@@ -276,6 +375,11 @@ describe("monthly cost approval", () => {
       hourlyCostRateSnapshot: 1_000,
     });
     createBalancedActual(member.id, project.id);
+    submitMonthlyEffort(db, {
+      memberId: member.id,
+      month: "2026-07",
+      actorMemberId: member.id,
+    });
     startMonthlyCostReview(db, { month: "2026-07", actorMemberId: admin.id });
     approveMonthlyCostClose(db, {
       month: "2026-07",
@@ -301,9 +405,70 @@ describe("monthly cost approval", () => {
     });
     archiveProject(db, project.id, "2026-08-02T00:00:00.000Z");
     updateMember(db, member.id, { hourlyCostRate: 9_999 });
-    const future = createBalancedActual(member.id, project.id, "2026-08-15", 9_999);
+    const future = createBalancedActual(
+      member.id,
+      project.id,
+      "2026-08-15",
+      9_999,
+    );
     updateEffortAllocation(db, future.allocation.id, { allocatedHours: 12 });
 
-    expect(listProjectFinancialReview(db, { month: "2026-07" })[0]).toEqual(approved);
+    expect(listProjectFinancialReview(db, { month: "2026-07" })[0]).toEqual(
+      approved,
+    );
+  });
+
+  test("approval rechecks submissions and reopen or financial-only correction preserves them", () => {
+    const { admin, member } = createActors();
+    const project = createBillableProject();
+    const plan = createMonthlyPlan(db, {
+      memberId: member.id,
+      projectId: project.id,
+      month: "2026-07",
+      plannedHours: 0,
+      hourlyCostRateSnapshot: null,
+    });
+    submitMonthlyEffort(db, {
+      memberId: member.id,
+      month: "2026-07",
+      actorMemberId: member.id,
+    });
+    startMonthlyCostReview(db, { month: "2026-07", actorMemberId: admin.id });
+    invalidateSubmittedMonthlyEffort(db, {
+      memberId: member.id,
+      month: "2026-07",
+      actorMemberId: admin.id,
+      invalidatedAt: "2026-08-01T00:00:00.000Z",
+    });
+
+    expect(() =>
+      approveMonthlyCostClose(db, {
+        month: "2026-07",
+        actorMemberId: admin.id,
+      }),
+    ).toThrow("未解決のブロッカー");
+    expect(getMonthlyCostCloseState(db, "2026-07").status).toBe("in_review");
+
+    reopenMonthlyCostClose(db, {
+      month: "2026-07",
+      actorMemberId: admin.id,
+      reason: "提出をやり直すため",
+    });
+    submitMonthlyEffort(db, {
+      memberId: member.id,
+      month: "2026-07",
+      actorMemberId: member.id,
+    });
+    correctMissingHourlyCostSnapshot(db, {
+      month: "2026-07",
+      actorMemberId: admin.id,
+      targetType: "monthly_plan",
+      targetId: plan.id,
+      hourlyCostRate: 1_000,
+      reason: "原価だけ補正",
+    });
+    expect(findMonthlyEffortSubmission(db, member.id, "2026-07")?.status).toBe(
+      "submitted",
+    );
   });
 });

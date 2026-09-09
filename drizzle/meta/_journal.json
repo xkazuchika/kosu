@@ -43,6 +43,13 @@
       "when": 1788875427650,
       "tag": "0005_tough_lila_cheney",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "6",
+      "when": 1788956610632,
+      "tag": "0006_abnormal_gauntlet",
+      "breakpoints": true
     }
   ]
 }

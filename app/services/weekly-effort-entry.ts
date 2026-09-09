@@ -9,6 +9,7 @@ import {
   validateDailyEffortEntry,
 } from "~/services/daily-effort-entry";
 import { requireUnlockedMonth } from "~/services/period-lock";
+import { invalidateMonthlyEffortSubmission } from "~/services/monthly-effort-submission";
 
 export type WeeklyEffortDraftRow = {
   key: string;
@@ -83,6 +84,7 @@ export function saveWeeklyEffortDraft(
   db: KosuDatabase,
   memberId: string,
   draft: WeeklyEffortDraft,
+  actorMemberId = memberId,
 ) {
   const expectedDates = listWeekDates(draft.weekDate);
   if (
@@ -134,13 +136,25 @@ export function saveWeeklyEffortDraft(
         return validateDailyEffortEntry(tx, input);
       } catch (error) {
         if (error instanceof DailyEffortEntryError) {
-          throw new DailyEffortEntryError(`${input.workDate}: ${error.message}`);
+          throw new DailyEffortEntryError(
+            `${input.workDate}: ${error.message}`,
+          );
         }
         throw error;
       }
     });
     for (const entry of entries) {
       applyValidatedDailyEffortEntry(tx, entry, occurredAt);
+    }
+    for (const month of new Set(
+      entries.map((entry) => entry.workDate.slice(0, 7)),
+    )) {
+      invalidateMonthlyEffortSubmission(tx, {
+        memberId,
+        month,
+        actorMemberId,
+        occurredAt,
+      });
     }
   });
   return {

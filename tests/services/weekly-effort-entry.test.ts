@@ -9,6 +9,7 @@ import {
 } from "../../app/db/repositories/daily-work-logs";
 import { listAllocationsByWorkLog } from "../../app/db/repositories/effort-allocations";
 import { createMember } from "../../app/db/repositories/members";
+import { findMonthlyEffortSubmission } from "../../app/db/repositories/monthly-effort-submissions";
 import { createProjectAssignment } from "../../app/db/repositories/project-assignments";
 import {
   archiveProject,
@@ -16,6 +17,7 @@ import {
 } from "../../app/db/repositories/projects";
 import { listWeekDates } from "../../app/lib/time";
 import { startMonthlyCostReview } from "../../app/services/monthly-cost-close";
+import { submitMonthlyEffort } from "../../app/services/monthly-effort-submission";
 import {
   getWeeklyEffortDraft,
   saveWeeklyEffortDraft,
@@ -66,6 +68,28 @@ function draft(memberProjectId: string): WeeklyEffortDraft {
 }
 
 describe("weekly effort entry", () => {
+  test("invalidates only the successfully changed submitted months", () => {
+    const { member, project } = setup();
+    const input = draft(project.id);
+    saveWeeklyEffortDraft(db, member.id, input);
+    submitMonthlyEffort(db, {
+      memberId: member.id,
+      month: "2026-07",
+      actorMemberId: member.id,
+    });
+
+    input.rows[0].hours[input.dates[0]] = "7.5";
+    input.totalWorkingHours[input.dates[0]] = "7.5";
+    saveWeeklyEffortDraft(db, member.id, input);
+
+    expect(findMonthlyEffortSubmission(db, member.id, "2026-07")).toMatchObject(
+      {
+        status: "draft",
+        invalidatedByMemberId: member.id,
+      },
+    );
+  });
+
   test("saves multiple days atomically and reads them back as a reusable row", () => {
     const { member, project } = setup();
     expect(
@@ -146,6 +170,11 @@ describe("weekly effort entry", () => {
 
   test("rejects a cross-month week when an affected month is protected", () => {
     const { member, project } = setup();
+    submitMonthlyEffort(db, {
+      memberId: member.id,
+      month: "2026-09",
+      actorMemberId: member.id,
+    });
     startMonthlyCostReview(db, { month: "2026-09", actorMemberId: member.id });
     const dates = listWeekDates("2026-08-31");
     const input: WeeklyEffortDraft = {

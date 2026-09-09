@@ -117,7 +117,12 @@ export const action = async ({ request }: Route.ActionArgs) => {
     submittedDraft = JSON.parse(
       String(formData.get("weeklyDraft") ?? ""),
     ) as WeeklyEffortDraft;
-    const result = saveWeeklyEffortDraft(db, targetMemberId, submittedDraft);
+    const result = saveWeeklyEffortDraft(
+      db,
+      targetMemberId,
+      submittedDraft,
+      currentMember.id,
+    );
     return { success: `${result.changedDates}日分の実績工数を保存しました。` };
   } catch (error) {
     if (error instanceof Response) throw error;

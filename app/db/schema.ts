@@ -358,6 +358,51 @@ export const monthlyCostCloses = sqliteTable(
   ],
 );
 
+export const monthlyEffortSubmissions = sqliteTable(
+  "monthly_effort_submissions",
+  {
+    id,
+    memberId: text("member_id")
+      .notNull()
+      .references(() => members.id, { onDelete: "cascade" }),
+    month: text("month").notNull(),
+    status: text("status", { enum: ["draft", "submitted"] })
+      .notNull()
+      .default("draft"),
+    submittedByMemberId: text("submitted_by_member_id").references(
+      () => members.id,
+      { onDelete: "set null" },
+    ),
+    submittedAt: text("submitted_at"),
+    invalidatedByMemberId: text("invalidated_by_member_id").references(
+      () => members.id,
+      { onDelete: "set null" },
+    ),
+    invalidatedAt: text("invalidated_at"),
+    isLegacyMigration: integer("is_legacy_migration", { mode: "boolean" })
+      .notNull()
+      .default(false),
+    createdAt,
+    updatedAt,
+  },
+  (table) => [
+    unique("monthly_effort_submission_member_month_unique").on(
+      table.memberId,
+      table.month,
+    ),
+    index("monthly_effort_submissions_month_status_index").on(
+      table.month,
+      table.status,
+    ),
+    index("monthly_effort_submissions_submitted_by_index").on(
+      table.submittedByMemberId,
+    ),
+    index("monthly_effort_submissions_invalidated_by_index").on(
+      table.invalidatedByMemberId,
+    ),
+  ],
+);
+
 export const monthlyCostCloseEvents = sqliteTable(
   "monthly_cost_close_events",
   {
@@ -489,6 +534,7 @@ export const schema = {
   monthlyCostCloseEvents,
   monthlyCostCloseProjectSnapshots,
   monthlyCostCloses,
+  monthlyEffortSubmissions,
   monthlyPlans,
   periodLocks,
   projectAssignments,

@@ -19,6 +19,7 @@ import { findProjectById } from "~/db/repositories/projects";
 import { findTaskById } from "~/db/repositories/tasks";
 import { isValidCalendarDate, isValidDailyHours } from "~/lib/time";
 import { requireUnlockedMonth } from "~/services/period-lock";
+import { invalidateMonthlyEffortSubmission } from "~/services/monthly-effort-submission";
 
 export type DailyEffortDraftRow = {
   allocationId?: string;
@@ -29,6 +30,7 @@ export type DailyEffortDraftRow = {
 };
 
 export type DailyEffortEntryInput = {
+  actorMemberId?: string;
   memberId: string;
   workDate: string;
   totalWorkingHours: number;
@@ -186,7 +188,15 @@ export function saveDailyEffortEntry(
     const tx = transaction as unknown as KosuDatabase;
     requireUnlockedMonth(tx, input.workDate.slice(0, 7));
     const validated = validateDailyEffortEntry(tx, input);
-    return applyValidatedDailyEffortEntry(tx, validated);
+    const occurredAt = new Date().toISOString();
+    const result = applyValidatedDailyEffortEntry(tx, validated, occurredAt);
+    invalidateMonthlyEffortSubmission(tx, {
+      memberId: input.memberId,
+      month: input.workDate.slice(0, 7),
+      actorMemberId: input.actorMemberId ?? input.memberId,
+      occurredAt,
+    });
+    return result;
   });
 }
 

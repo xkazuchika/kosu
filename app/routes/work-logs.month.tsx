@@ -39,6 +39,14 @@ import {
 } from "~/lib/time";
 import { getSessionMember } from "~/services/auth";
 import { getMonthlyCostCloseState } from "~/services/monthly-cost-close";
+import {
+  getMonthlyEffortSubmissionState,
+  invalidateMonthlyEffortSubmission,
+  listRequiredMonthlyEffortMembers,
+  listUnbalancedMonthlyWorkDates,
+  MonthlyEffortSubmissionError,
+  submitMonthlyEffort,
+} from "~/services/monthly-effort-submission";
 import { requireUnlockedMonth } from "~/services/period-lock";
 import { getWorkspaceCalendarContext } from "~/services/workspace-calendar";
 
@@ -77,6 +85,20 @@ export const loader = async ({ request }: { request: Request }) => {
         : "";
     const closeState = getMonthlyCostCloseState(db, month);
     const isLocked = closeState.isProtected;
+    const submissionState = getMonthlyEffortSubmissionState(
+      db,
+      targetMemberId,
+      month,
+    );
+    const requiredMemberIds = new Set(
+      listRequiredMonthlyEffortMembers(db, month).map((member) => member.id),
+    );
+    const submittedBy = submissionState.submittedByMemberId
+      ? findMemberById(db, submissionState.submittedByMemberId)
+      : undefined;
+    const invalidatedBy = submissionState.invalidatedByMemberId
+      ? findMemberById(db, submissionState.invalidatedByMemberId)
+      : undefined;
     const rows = listMonthDates(month).map((workDate) => {
       const log = logsByDate.get(workDate);
       const allocations = log ? listAllocationsByWorkLog(db, log.id) : [];
@@ -116,6 +138,17 @@ export const loader = async ({ request }: { request: Request }) => {
       members: isAdmin ? listMembers(db).map(withoutMemberFinancials) : [],
       month,
       rows,
+      submission: {
+        ...submissionState,
+        invalidatedByName: invalidatedBy?.displayName ?? null,
+        isRequired: requiredMemberIds.has(targetMemberId),
+        submittedByName: submittedBy?.displayName ?? null,
+        unbalancedDates: listUnbalancedMonthlyWorkDates(
+          db,
+          targetMemberId,
+          month,
+        ),
+      },
       targetMember: withoutMemberFinancials(targetMember),
     };
   } finally {
@@ -150,9 +183,35 @@ export const action = async ({ request }: { request: Request }) => {
       throw new Response("Not found", { status: 404 });
     }
 
+    const formData = await request.formData();
+    const intent = String(formData.get("intent") ?? "saveTotals");
+
+    if (intent === "submitMonth") {
+      try {
+        submitMonthlyEffort(db, {
+          memberId: targetMemberId,
+          month,
+          actorMemberId: currentMember.id,
+        });
+      } catch (error) {
+        if (error instanceof MonthlyEffortSubmissionError) {
+          return {
+            error: error.message,
+            unbalancedDates: error.unbalancedDates,
+          };
+        }
+        throw error;
+      }
+
+      const memberQuery =
+        isAdmin && targetMemberId !== currentMember.id
+          ? `&memberId=${targetMemberId}`
+          : "";
+      return redirect(`/work-logs/month?month=${month}${memberQuery}`);
+    }
+
     requireUnlockedMonth(db, month);
 
-    const formData = await request.formData();
     const dates = formData.getAll("date").map(String);
     const hourValues = formData.getAll("totalWorkingHours").map(String);
 
@@ -227,6 +286,7 @@ export const action = async ({ request }: { request: Request }) => {
 
     db.transaction((transaction) => {
       const tx = transaction as unknown as typeof db;
+      let didWrite = false;
 
       for (const operation of operations) {
         if (operation.kind === "clear") {
@@ -234,6 +294,7 @@ export const action = async ({ request }: { request: Request }) => {
 
           if (existing) {
             deleteDailyWorkLog(tx, existing.id, clearedAt);
+            didWrite = true;
           }
           continue;
         }
@@ -255,6 +316,16 @@ export const action = async ({ request }: { request: Request }) => {
             totalWorkingHours: operation.totalWorkingHours,
           });
         }
+        didWrite = true;
+      }
+
+      if (didWrite) {
+        invalidateMonthlyEffortSubmission(tx, {
+          memberId: targetMemberId,
+          month,
+          actorMemberId: currentMember.id,
+          occurredAt: clearedAt,
+        });
       }
     });
 
@@ -279,9 +350,11 @@ export default function WorkLogMonth() {
     members,
     month,
     rows,
+    submission,
     targetMember,
   } = useLoaderData<typeof loader>();
-  const actionData = useActionData() as { error?: string } | undefined;
+  const actionData = useActionData() as
+    { error?: string; unbalancedDates?: string[] } | undefined;
   const memberQuery =
     isAdmin && targetMember.id !== currentMemberId
       ? `&memberId=${targetMember.id}`
@@ -359,6 +432,85 @@ export default function WorkLogMonth() {
 
       <Card>
         <CardHeader>
+          <CardTitle>月次工数提出</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+            <div className="space-y-2 text-sm text-slate-700">
+              <p>
+                状態:{" "}
+                {submission.status === "submitted" ? (
+                  <Badge tone="success">提出済み</Badge>
+                ) : (
+                  <Badge tone="warning">下書き</Badge>
+                )}
+              </p>
+              {!submission.isRequired ? (
+                <p>このメンバーは対象月の提出対象ではありません。</p>
+              ) : null}
+              {submission.submittedAt ? (
+                <p>
+                  提出: {submission.submittedAt} ·{" "}
+                  {submission.submittedByName ??
+                    (submission.isLegacyMigration
+                      ? "移行時のシステム登録"
+                      : "不明")}
+                </p>
+              ) : null}
+              {submission.invalidatedAt ? (
+                <p>
+                  最終差し戻し: {submission.invalidatedAt} ·{" "}
+                  {submission.invalidatedByName ?? "不明"}
+                </p>
+              ) : null}
+              {submission.unbalancedDates.length > 0 ? (
+                <div>
+                  <p className="font-medium text-amber-800">
+                    勤務時間と配賦時間が一致しない日があります。
+                  </p>
+                  <div className="mt-1 flex flex-wrap gap-2">
+                    {submission.unbalancedDates.map((workDate) => (
+                      <Link
+                        className="text-sky-700 hover:underline"
+                        key={workDate}
+                        to={`/work-logs/${workDate}${memberQuery ? `?${memberQuery.slice(1)}` : ""}`}
+                      >
+                        {workDate}
+                      </Link>
+                    ))}
+                  </div>
+                </div>
+              ) : null}
+              {actionData?.unbalancedDates?.length ? (
+                <p className="text-amber-800">
+                  修正対象: {actionData.unbalancedDates.join("、")}
+                </p>
+              ) : null}
+            </div>
+            <Form
+              action={`/work-logs/month?month=${month}${memberQuery}`}
+              method="post"
+            >
+              <input name="intent" type="hidden" value="submitMonth" />
+              <Button
+                disabled={
+                  isLocked ||
+                  !submission.isRequired ||
+                  submission.status === "submitted" ||
+                  submission.unbalancedDates.length > 0
+                }
+                type="submit"
+                variant="primary"
+              >
+                この月の工数を提出
+              </Button>
+            </Form>
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
           <CardTitle>日別の総稼働時間</CardTitle>
           <p className="mt-1 text-sm text-slate-600">
             空欄は変更なし。0
@@ -370,6 +522,7 @@ export default function WorkLogMonth() {
             method="post"
             action={`/work-logs/month?month=${month}${memberQuery}`}
           >
+            <input name="intent" type="hidden" value="saveTotals" />
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead className="border-b border-slate-200 text-left text-slate-600">

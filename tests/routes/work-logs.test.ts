@@ -13,8 +13,15 @@ import {
   deleteDailyWorkLog,
   findDailyWorkLogByMemberAndDate,
 } from "../../app/db/repositories/daily-work-logs";
-import { createEffortAllocation } from "../../app/db/repositories/effort-allocations";
+import {
+  createEffortAllocation,
+  listAllocationsByWorkLog,
+} from "../../app/db/repositories/effort-allocations";
 import { createMember } from "../../app/db/repositories/members";
+import {
+  findMonthlyEffortSubmission,
+  submitMonthlyEffortSubmission,
+} from "../../app/db/repositories/monthly-effort-submissions";
 import { createMonthlyPlan } from "../../app/db/repositories/monthly-plans";
 import { archiveProject } from "../../app/db/repositories/projects";
 import { archiveTask, createTask } from "../../app/db/repositories/tasks";
@@ -150,6 +157,232 @@ function buildSaveDayForm(input: {
 }
 
 describe("daily work logs and allocations", () => {
+  test("monthly submission exposes member state and rejects actionable unbalanced dates", async () => {
+    const cookie = await setupAndLogin(dataDir, "password123", "member");
+    const month = getCalendarMonth(new Date(), "Asia/Tokyo");
+    const submitForm = new FormData();
+    submitForm.append("intent", "submitMonth");
+
+    const submitResponse = await (
+      workLogMonthAction as unknown as RouteActionHandler
+    )({
+      request: new Request(`http://localhost/work-logs/month?month=${month}`, {
+        method: "POST",
+        body: submitForm,
+        headers: { Cookie: cookie },
+      }),
+      params: {},
+      context: buildContext(),
+    });
+    expect(submitResponse).toBeInstanceOf(Response);
+
+    let loaded = (await (workLogMonthLoader as unknown as RouteLoaderHandler)({
+      request: new Request(`http://localhost/work-logs/month?month=${month}`, {
+        headers: { Cookie: cookie },
+      }),
+      context: buildContext(),
+    })) as {
+      submission: {
+        status: string;
+        submittedByName: string | null;
+        unbalancedDates: string[];
+      };
+    };
+    expect(loaded.submission).toMatchObject({
+      status: "submitted",
+      submittedByName: "Admin",
+      unbalancedDates: [],
+    });
+
+    const workDate = `${month}-01`;
+    const totalsForm = new FormData();
+    totalsForm.append("intent", "saveTotals");
+    totalsForm.append("date", workDate);
+    totalsForm.append("totalWorkingHours", "8");
+    await (workLogMonthAction as unknown as RouteActionHandler)({
+      request: new Request(`http://localhost/work-logs/month?month=${month}`, {
+        method: "POST",
+        body: totalsForm,
+        headers: { Cookie: cookie },
+      }),
+      params: {},
+      context: buildContext(),
+    });
+
+    loaded = (await (workLogMonthLoader as unknown as RouteLoaderHandler)({
+      request: new Request(`http://localhost/work-logs/month?month=${month}`, {
+        headers: { Cookie: cookie },
+      }),
+      context: buildContext(),
+    })) as typeof loaded;
+    expect(loaded.submission).toMatchObject({
+      status: "draft",
+      unbalancedDates: [workDate],
+    });
+
+    const rejected = await (
+      workLogMonthAction as unknown as RouteActionHandler
+    )({
+      request: new Request(`http://localhost/work-logs/month?month=${month}`, {
+        method: "POST",
+        body: submitForm,
+        headers: { Cookie: cookie },
+      }),
+      params: {},
+      context: buildContext(),
+    });
+    expect(rejected).toMatchObject({ unbalancedDates: [workDate] });
+  });
+
+  test("administrator can proxy-submit an inactive member with evidence", async () => {
+    const cookie = await setupAndLogin(dataDir, "password123");
+    const month = getCalendarMonth(new Date(), "Asia/Tokyo");
+    const connection = createDatabaseConnection();
+    const target = createMember(connection.db, {
+      displayName: "Inactive Member",
+      email: "inactive@example.com",
+      passwordHash: "unused",
+      isActive: false,
+    });
+    createDailyWorkLog(connection.db, {
+      memberId: target.id,
+      workDate: `${month}-01`,
+      totalWorkingHours: 0,
+    });
+    connection.sqlite.close();
+    const formData = new FormData();
+    formData.append("intent", "submitMonth");
+
+    await (workLogMonthAction as unknown as RouteActionHandler)({
+      request: new Request(
+        `http://localhost/work-logs/month?month=${month}&memberId=${target.id}`,
+        { method: "POST", body: formData, headers: { Cookie: cookie } },
+      ),
+      params: {},
+      context: buildContext(),
+    });
+    const loaded = (await (workLogMonthLoader as unknown as RouteLoaderHandler)(
+      {
+        request: new Request(
+          `http://localhost/work-logs/month?month=${month}&memberId=${target.id}`,
+          { headers: { Cookie: cookie } },
+        ),
+        context: buildContext(),
+      },
+    )) as {
+      members: { id: string }[];
+      submission: {
+        isRequired: boolean;
+        status: string;
+        submittedByName: string | null;
+      };
+    };
+    expect(loaded.members.map((member) => member.id)).toContain(target.id);
+    expect(loaded.submission).toMatchObject({
+      isRequired: true,
+      status: "submitted",
+      submittedByName: "Admin",
+    });
+  });
+
+  test("total-only, previous-day copy, and allocation delete invalidate in the same route write", async () => {
+    const cookie = await setupAndLogin(dataDir, "password123");
+    await createProject(cookie, "PRJ-INV", "Invalidation", "internal");
+    const projectsResponse = await (
+      projectsLoader as unknown as RouteLoaderHandler
+    )({
+      request: new Request("http://localhost/projects", {
+        headers: { Cookie: cookie },
+      }),
+      params: {},
+      context: buildContext(),
+    });
+    const project = (
+      projectsResponse as { projects: { id: string; code: string }[] }
+    ).projects.find((entry) => entry.code === "PRJ-INV")!;
+    const admin = await assignAdminToProject(cookie, project.id);
+    const connection = createDatabaseConnection();
+    const previous = createDailyWorkLog(connection.db, {
+      memberId: admin.id,
+      workDate: "2026-07-14",
+      totalWorkingHours: 8,
+    });
+    const previousAllocation = createEffortAllocation(connection.db, {
+      dailyWorkLogId: previous.id,
+      memberId: admin.id,
+      projectId: project.id,
+      allocatedHours: 8,
+    });
+    submitMonthlyEffortSubmission(connection.db, {
+      memberId: admin.id,
+      month: "2026-07",
+      actorMemberId: admin.id,
+      submittedAt: "2026-08-01T00:00:00.000Z",
+    });
+    connection.sqlite.close();
+
+    const totalForm = new FormData();
+    totalForm.append("intent", "saveWorkLog");
+    totalForm.append("totalWorkingHours", "4");
+    await (workLogDateAction as unknown as RouteActionHandler)({
+      request: buildRequest(totalForm, cookie),
+      params: { date: "2026-07-16" },
+      context: buildContext(),
+    });
+    let check = createDatabaseConnection();
+    expect(
+      findMonthlyEffortSubmission(check.db, admin.id, "2026-07"),
+    ).toMatchObject({
+      status: "draft",
+      invalidatedByMemberId: admin.id,
+    });
+    submitMonthlyEffortSubmission(check.db, {
+      memberId: admin.id,
+      month: "2026-07",
+      actorMemberId: admin.id,
+      submittedAt: "2026-08-01T01:00:00.000Z",
+    });
+    check.sqlite.close();
+
+    const copyForm = new FormData();
+    copyForm.append("intent", "copyPrevious");
+    await (workLogDateAction as unknown as RouteActionHandler)({
+      request: buildRequest(copyForm, cookie),
+      params: { date: "2026-07-15" },
+      context: buildContext(),
+    });
+    check = createDatabaseConnection();
+    expect(
+      findMonthlyEffortSubmission(check.db, admin.id, "2026-07")?.status,
+    ).toBe("draft");
+    const copiedLog = findDailyWorkLogByMemberAndDate(
+      check.db,
+      admin.id,
+      "2026-07-15",
+    )!;
+    expect(listAllocationsByWorkLog(check.db, copiedLog.id)).toHaveLength(1);
+    submitMonthlyEffortSubmission(check.db, {
+      memberId: admin.id,
+      month: "2026-07",
+      actorMemberId: admin.id,
+      submittedAt: "2026-08-01T02:00:00.000Z",
+    });
+    check.sqlite.close();
+
+    const deleteForm = new FormData();
+    deleteForm.append("deleteAllocationId", previousAllocation.id);
+    await (workLogDateAction as unknown as RouteActionHandler)({
+      request: buildRequest(deleteForm, cookie),
+      params: { date: "2026-07-14" },
+      context: buildContext(),
+    });
+    check = createDatabaseConnection();
+    expect(
+      findMonthlyEffortSubmission(check.db, admin.id, "2026-07")?.status,
+    ).toBe("draft");
+    check.sqlite.close();
+  });
+
   test("member bulk edits monthly daily totals", async () => {
     const cookie = await setupAndLogin(dataDir, "password123", "member");
 

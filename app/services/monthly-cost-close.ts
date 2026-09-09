@@ -10,6 +10,7 @@ import {
   type MonthlyCostCloseStatus,
 } from "~/db/repositories/monthly-cost-closes";
 import { findMonthlyPlanById, updateMonthlyPlan } from "~/db/repositories/monthly-plans";
+import { listMissingMonthlyEffortMemberIds } from "~/db/repositories/monthly-effort-submissions";
 
 export const monthlyCostCloseStatusLabels: Record<MonthlyCostCloseStatus, string> = {
   open: "未締め",
@@ -70,6 +71,13 @@ export function startMonthlyCostReview(
 
     if (close.status !== "open") {
       throw new Error(`${input.month} は未締めではないため、レビューを開始できません。`);
+    }
+
+    const missingMemberIds = listMissingMonthlyEffortMemberIds(tx, input.month);
+    if (missingMemberIds.length > 0) {
+      throw new Error(
+        `月次工数が未提出のメンバーが ${missingMemberIds.length} 名いるため、レビューを開始できません。`,
+      );
     }
 
     const occurredAt = input.occurredAt ?? new Date().toISOString();

@@ -6,8 +6,10 @@ import { listMembers } from "~/db/repositories/members";
 import { listMonthlyPlansByMonth } from "~/db/repositories/monthly-plans";
 import { listProjects } from "~/db/repositories/projects";
 import { validateMonth } from "~/services/monthly-cost-close";
+import { getMonthlyEffortSubmissionSummary } from "~/services/monthly-effort-submission";
 
 export type MonthlyCostBlockingIssueCode =
+  | "MISSING_EFFORT_SUBMISSION"
   | "UNBALANCED_WORK_LOG"
   | "MISSING_MONTHLY_PLAN_COST"
   | "MISSING_MONTHLY_ALLOCATION_COST"
@@ -53,6 +55,20 @@ export function getMonthlyCostCompleteness(db: KosuDatabase, month: string): Mon
   const monthlyActuals = listEffortReportRows(db, { month });
   const historicalActuals = listEffortReportRows(db, { endDate: `${month}-01` })
     .filter((allocation) => allocation.workDate < `${month}-01`);
+
+  for (const entry of getMonthlyEffortSubmissionSummary(db, month).members) {
+    if (entry.status === "submitted") continue;
+
+    blockers.push({
+      code: "MISSING_EFFORT_SUBMISSION",
+      severity: "blocking",
+      key: `MISSING_EFFORT_SUBMISSION:${entry.member.id}:${month}`,
+      title: "月次工数が未提出です",
+      detail: `${entry.member.displayName} / ${month}`,
+      href: `/work-logs/month?month=${month}&memberId=${entry.member.id}`,
+      memberId: entry.member.id,
+    });
+  }
 
   for (const workLog of workLogs) {
     const allocatedHours = listAllocationsByWorkLog(db, workLog.id)

@@ -17,6 +17,7 @@ import {
   listAllocationsByWorkLog,
 } from "../../app/db/repositories/effort-allocations";
 import { createMember } from "../../app/db/repositories/members";
+import { findMonthlyEffortSubmission } from "../../app/db/repositories/monthly-effort-submissions";
 import { createProjectAssignment } from "../../app/db/repositories/project-assignments";
 import { createProject } from "../../app/db/repositories/projects";
 import {
@@ -25,6 +26,7 @@ import {
   saveDailyAllocationPlans,
 } from "../../app/services/daily-allocation-plans";
 import { startMonthlyCostReview } from "../../app/services/monthly-cost-close";
+import { submitMonthlyEffort } from "../../app/services/monthly-effort-submission";
 import { createTestDatabase } from "../db/helpers";
 
 let db: KosuDatabase;
@@ -269,6 +271,65 @@ describe("daily allocation plan service", () => {
     expect(secondSummary.copiedDates).toBe(0);
     expect(secondSummary.createdAllocations).toBe(0);
     expect(secondSummary.skippedExistingActualDates).toBe(3);
+  });
+
+  test("plan-to-actual copy invalidates after copying but skipped and failed copies preserve submission", () => {
+    const { member, project } = setupAssignedProject();
+    upsertDailyAllocationPlan(db, {
+      memberId: member.id,
+      projectId: project.id,
+      planDate: "2026-07-01",
+      plannedHours: 4,
+    });
+    submitMonthlyEffort(db, {
+      memberId: member.id,
+      month: "2026-07",
+      actorMemberId: member.id,
+    });
+
+    copyDailyAllocationPlansToActuals(db, {
+      memberId: member.id,
+      month: "2026-07",
+    });
+    expect(findMonthlyEffortSubmission(db, member.id, "2026-07")?.status).toBe(
+      "draft",
+    );
+
+    submitMonthlyEffort(db, {
+      memberId: member.id,
+      month: "2026-07",
+      actorMemberId: member.id,
+    });
+    expect(
+      copyDailyAllocationPlansToActuals(db, {
+        memberId: member.id,
+        month: "2026-07",
+      }).copiedDates,
+    ).toBe(0);
+    expect(findMonthlyEffortSubmission(db, member.id, "2026-07")?.status).toBe(
+      "submitted",
+    );
+
+    connection.sqlite.exec(`
+      INSERT INTO daily_allocation_plans
+        (id, member_id, project_id, plan_date, planned_hours, created_at, updated_at)
+      VALUES
+        ('invalid-plan', '${member.id}', '${project.id}', '2026-08-01', 25, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+    `);
+    submitMonthlyEffort(db, {
+      memberId: member.id,
+      month: "2026-08",
+      actorMemberId: member.id,
+    });
+    expect(() =>
+      copyDailyAllocationPlansToActuals(db, {
+        memberId: member.id,
+        month: "2026-08",
+      }),
+    ).toThrow("24h以下");
+    expect(findMonthlyEffortSubmission(db, member.id, "2026-08")?.status).toBe(
+      "submitted",
+    );
   });
 
   test("planned-to-actual copy re-enters a cleared day", () => {

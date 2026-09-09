@@ -24,6 +24,7 @@ import {
   listMonthDates,
 } from "~/lib/time";
 import { requireUnlockedMonth } from "~/services/period-lock";
+import { invalidateMonthlyEffortSubmission } from "~/services/monthly-effort-submission";
 
 export class DailyAllocationPlanError extends Error {}
 
@@ -40,6 +41,7 @@ export type SaveDailyAllocationPlansInput = {
 };
 
 export type CopyDailyAllocationPlansInput = {
+  actorMemberId?: string;
   memberId: string;
   month: string;
 };
@@ -223,6 +225,14 @@ export function copyDailyAllocationPlansToActuals(
       }
 
       summary.copiedDates += 1;
+    }
+
+    if (summary.copiedDates > 0) {
+      invalidateMonthlyEffortSubmission(tx, {
+        memberId: input.memberId,
+        month: input.month,
+        actorMemberId: input.actorMemberId ?? input.memberId,
+      });
     }
   });
 

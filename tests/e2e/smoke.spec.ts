@@ -1,9 +1,9 @@
 import { expect, test } from "@playwright/test";
 
-test("fresh setup, login, and supported reports remain deployable", async ({
+test("fresh setup, monthly submission lifecycle, and supported reports remain deployable", async ({
   page,
-}) => {
-  test.setTimeout(60_000);
+}, testInfo) => {
+  test.setTimeout(120_000);
   const browserErrors: string[] = [];
   page.on("console", (message) => {
     if (message.type() === "error") {
@@ -36,6 +36,14 @@ test("fresh setup, login, and supported reports remain deployable", async ({
   await page.getByRole("button", { name: "ログイン" }).click();
 
   await expect(page).toHaveURL(/\/dashboard$/);
+
+  await page.goto("/members");
+  await page.getByRole("link", { name: "E2E Admin" }).click();
+  await page.getByLabel("時間あたり原価（円）").fill("1000");
+  await page.getByRole("button", { name: "保存する" }).click();
+  await expect(
+    page.getByRole("cell", { name: "1000", exact: true }),
+  ).toBeVisible();
 
   await page.goto("/projects/new");
   await page.getByLabel("案件コード").fill("E2E-001");
@@ -100,6 +108,56 @@ test("fresh setup, login, and supported reports remain deployable", async ({
   await page.getByLabel("再オープン理由（必須）").fill("E2E動作確認");
   await page.getByRole("button", { name: "再オープン" }).click();
   await expect(page.getByText("2026-07 · 未締め")).toBeVisible();
+
+  await page.goto("/members/new");
+  await page.locator('input[name="displayName"]').fill("E2E Member");
+  await page.locator('input[name="email"]').fill("member@example.com");
+  await page.locator('input[name="password"]').fill("password123");
+  await page.getByRole("button", { name: "作成する" }).click();
+  await expect(page).toHaveURL(/\/members$/);
+
+  await page.getByRole("button", { name: "ログアウト" }).click();
+  await page.getByLabel("メールアドレス").fill("member@example.com");
+  await page.getByLabel("パスワード").fill("password123");
+  await page.getByRole("button", { name: "ログイン" }).click();
+  await expect(page).toHaveURL(/\/dashboard$/);
+  await page.goto("/work-logs/month?month=2026-09");
+  await page.getByRole("button", { name: "この月の工数を提出" }).click();
+  await expect(page.getByText("提出済み", { exact: true })).toBeVisible();
+
+  await page.getByRole("button", { name: "ログアウト" }).click();
+  await page.getByLabel("メールアドレス").fill("admin@example.com");
+  await page.getByLabel("パスワード").fill("password123");
+  await page.getByRole("button", { name: "ログイン" }).click();
+  await expect(page).toHaveURL(/\/dashboard$/);
+  await page.goto("/work-logs/month?month=2026-09");
+  await page.getByRole("button", { name: "この月の工数を提出" }).click();
+  await expect(page.getByText("提出済み", { exact: true })).toBeVisible();
+
+  const firstMonthlyTotal = page
+    .locator('input[name="totalWorkingHours"]')
+    .first();
+  await firstMonthlyTotal.fill("1");
+  await page.getByRole("button", { name: "総稼働時間を保存" }).click();
+  await expect(page.getByText("下書き", { exact: true })).toBeVisible();
+  await expect(page.getByText("2026-09-01", { exact: true })).toBeVisible();
+  await page.locator('input[name="totalWorkingHours"]').first().fill("0");
+  await page.getByRole("button", { name: "総稼働時間を保存" }).click();
+  await page.getByRole("button", { name: "この月の工数を提出" }).click();
+  await expect(page.getByText("提出済み", { exact: true })).toBeVisible();
+
+  await page.goto("/period-locks?month=2026-09");
+  await expect(page.getByText("承認ブロッカー（0件）")).toBeVisible();
+  await page.getByRole("button", { name: "レビューを開始して保護" }).click();
+  await expect(page.getByText("2026-09 · レビュー中")).toBeVisible();
+  await page.getByRole("button", { name: "完全性を再確認して承認" }).click();
+  await expect(page.getByText("2026-09 · 承認済み")).toBeVisible();
+  const approvedScreenshot = testInfo.outputPath("monthly-effort-approved.png");
+  await page.screenshot({ path: approvedScreenshot });
+  await testInfo.attach("monthly-effort-approved", {
+    path: approvedScreenshot,
+    contentType: "image/png",
+  });
 
   await page.goto("/reports/planned-vs-actual");
   await expect(

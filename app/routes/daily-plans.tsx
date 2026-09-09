@@ -121,7 +121,11 @@ export const action = async ({ request }: Route.ActionArgs) => {
     }
 
     if (intent === "copy") {
-      const copySummary = copyDailyAllocationPlansToActuals(db, { memberId: targetMemberId, month });
+      const copySummary = copyDailyAllocationPlansToActuals(db, {
+        actorMemberId: currentMember.id,
+        memberId: targetMemberId,
+        month,
+      });
       return { copySummary };
     }
 
