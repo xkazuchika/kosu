@@ -17,7 +17,7 @@ import { findMemberById } from "~/db/repositories/members";
 import { findActiveAssignment } from "~/db/repositories/project-assignments";
 import { findProjectById } from "~/db/repositories/projects";
 import { findTaskById } from "~/db/repositories/tasks";
-import { isValidQuarterHour } from "~/lib/time";
+import { isValidCalendarDate, isValidDailyHours } from "~/lib/time";
 import { requireUnlockedMonth } from "~/services/period-lock";
 
 export type DailyEffortDraftRow = {
@@ -50,12 +50,12 @@ export function validateDailyEffortEntry(
   db: KosuDatabase,
   input: DailyEffortEntryInput,
 ) {
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(input.workDate)) {
+  if (!isValidCalendarDate(input.workDate)) {
     throw new DailyEffortEntryError("日付が不正です。");
   }
-  if (!isValidQuarterHour(input.totalWorkingHours)) {
+  if (!isValidDailyHours(input.totalWorkingHours)) {
     throw new DailyEffortEntryError(
-      "総稼働時間は 0.25h 単位で入力してください。",
+      "総稼働時間は 0.25h 単位の正の値で、24h 以下にしてください。",
     );
   }
 
@@ -74,9 +74,9 @@ export function validateDailyEffortEntry(
   const rows = input.rows.map((row) => {
     if (!row.projectId)
       throw new DailyEffortEntryError("案件を選択してください。");
-    if (!isValidQuarterHour(row.allocatedHours)) {
+    if (!isValidDailyHours(row.allocatedHours)) {
       throw new DailyEffortEntryError(
-        "実績工数は 0.25h 単位で入力してください。",
+        "実績工数は 0.25h 単位の正の値で、24h 以下にしてください。",
       );
     }
 
@@ -111,6 +111,12 @@ export function validateDailyEffortEntry(
       note: row.note?.trim() || undefined,
     };
   });
+
+  if (rows.reduce((sum, row) => sum + row.allocatedHours, 0) > 24) {
+    throw new DailyEffortEntryError(
+      "1日の実績工数の合計は 24h 以下にしてください。",
+    );
+  }
 
   return {
     ...input,
@@ -176,14 +182,12 @@ export function saveDailyEffortEntry(
   db: KosuDatabase,
   input: DailyEffortEntryInput,
 ) {
-  requireUnlockedMonth(db, input.workDate.slice(0, 7));
-  const validated = validateDailyEffortEntry(db, input);
-  return db.transaction((transaction) =>
-    applyValidatedDailyEffortEntry(
-      transaction as unknown as KosuDatabase,
-      validated,
-    ),
-  );
+  return db.transaction((transaction) => {
+    const tx = transaction as unknown as KosuDatabase;
+    requireUnlockedMonth(tx, input.workDate.slice(0, 7));
+    const validated = validateDailyEffortEntry(tx, input);
+    return applyValidatedDailyEffortEntry(tx, validated);
+  });
 }
 
 export function getDailyEffortStartingPoint(

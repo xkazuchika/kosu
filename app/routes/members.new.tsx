@@ -7,6 +7,7 @@ import { Field, Input } from "~/components/ui/form";
 import { createDatabaseConnection } from "~/db/client";
 import { createMember } from "~/db/repositories/members";
 import { requireAdministrator } from "~/services/auth";
+import { parseOptionalHourlyCostRate } from "~/lib/currency";
 import { logRouteError } from "~/lib/log";
 import { hashPassword } from "~/lib/password";
 
@@ -20,9 +21,11 @@ export const action = async ({ request }: Route.ActionArgs) => {
     const displayName = String(formData.get("displayName") ?? "").trim();
     const email = String(formData.get("email") ?? "").trim();
     const role = String(formData.get("role") ?? "member");
-    const departmentName = String(formData.get("departmentName") ?? "").trim() || undefined;
-    const hourlyCostRateRaw = String(formData.get("hourlyCostRate") ?? "").trim();
-    const hourlyCostRate = hourlyCostRateRaw ? Number(hourlyCostRateRaw) : undefined;
+    const departmentName =
+      String(formData.get("departmentName") ?? "").trim() || undefined;
+    const hourlyCostRate = parseOptionalHourlyCostRate(
+      formData.get("hourlyCostRate"),
+    );
     const password = String(formData.get("password") ?? "");
 
     if (!displayName || !email || !password || password.length < 8) {
@@ -31,6 +34,10 @@ export const action = async ({ request }: Route.ActionArgs) => {
 
     if (role !== "admin" && role !== "member") {
       return { error: "権限が不正です。" };
+    }
+
+    if (hourlyCostRate === undefined) {
+      return { error: "時間あたり原価は 0 以上の整数で入力してください。" };
     }
 
     const passwordHash = await hashPassword(password);
@@ -47,13 +54,18 @@ export const action = async ({ request }: Route.ActionArgs) => {
     return redirect("/members");
   } catch (error) {
     logRouteError("members.new", error);
-    return { error: "メンバーの作成に失敗しました。メールアドレスが重複している可能性があります。" };
+    return {
+      error:
+        "メンバーの作成に失敗しました。メールアドレスが重複している可能性があります。",
+    };
   } finally {
     sqlite.close();
   }
 };
 
-export const meta: Route.MetaFunction = () => [{ title: "メンバー追加 | kosu" }];
+export const meta: Route.MetaFunction = () => [
+  { title: "メンバー追加 | kosu" },
+];
 
 export default function NewMember({ actionData }: Route.ComponentProps) {
   return (
@@ -64,7 +76,10 @@ export default function NewMember({ actionData }: Route.ComponentProps) {
         </CardHeader>
         <CardContent>
           {actionData?.error ? (
-            <p className="mb-4 rounded-lg bg-red-50 p-3 text-sm text-red-700" role="alert">
+            <p
+              className="mb-4 rounded-lg bg-red-50 p-3 text-sm text-red-700"
+              role="alert"
+            >
               {actionData.error}
             </p>
           ) : null}
@@ -89,7 +104,7 @@ export default function NewMember({ actionData }: Route.ComponentProps) {
               <Input name="departmentName" />
             </Field>
             <Field label="時間あたり原価（円）" help="管理者のみ表示されます">
-              <Input name="hourlyCostRate" type="number" />
+              <Input name="hourlyCostRate" type="number" min={0} step={1} />
             </Field>
             <Field label="パスワード">
               <Input name="password" type="password" minLength={8} required />

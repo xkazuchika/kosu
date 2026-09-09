@@ -13,8 +13,14 @@ import { members, sessions } from "../../app/db/schema";
 import { action as loginAction } from "../../app/routes/login";
 import { action as logoutAction } from "../../app/routes/logout";
 import { action as profileAction } from "../../app/routes/profile";
-import { action as setupAction, loader as setupLoader } from "../../app/routes/setup";
-import { action as memberDetailAction, loader as memberDetailLoader } from "../../app/routes/members.$id";
+import {
+  action as setupAction,
+  loader as setupLoader,
+} from "../../app/routes/setup";
+import {
+  action as memberDetailAction,
+  loader as memberDetailLoader,
+} from "../../app/routes/members.$id";
 import { action as newMemberAction } from "../../app/routes/members.new";
 import { loader as appLayoutLoader } from "../../app/routes/app-layout";
 import { resetLoginRateLimiter } from "../../app/services/login-rate-limit";
@@ -23,7 +29,10 @@ let dataDir: string;
 let originalDataDir: string | undefined;
 
 function tempDataDir() {
-  return path.join(os.tmpdir(), `kosu-auth-routes-${Date.now()}-${Math.random().toString(36).slice(2)}`);
+  return path.join(
+    os.tmpdir(),
+    `kosu-auth-routes-${Date.now()}-${Math.random().toString(36).slice(2)}`,
+  );
 }
 
 beforeEach(() => {
@@ -33,7 +42,9 @@ beforeEach(() => {
   process.env.KOSU_DATA_DIR = dataDir;
   resetLoginRateLimiter();
 
-  const connection = createDatabaseConnection(resolveDatabaseConfig().databaseUrl);
+  const connection = createDatabaseConnection(
+    resolveDatabaseConfig().databaseUrl,
+  );
   runMigrations(connection);
   connection.sqlite.close();
 });
@@ -143,7 +154,9 @@ describe("auth routes", () => {
     expect(response).toBeInstanceOf(Response);
     expect((response as Response).status).toBe(302);
     expect((response as Response).headers.get("Location")).toBe("/dashboard");
-    expect((response as Response).headers.get("Set-Cookie")).toContain("kosu_session=");
+    expect((response as Response).headers.get("Set-Cookie")).toContain(
+      "kosu_session=",
+    );
   });
 
   test("login fails with invalid password", async () => {
@@ -170,7 +183,9 @@ describe("auth routes", () => {
       context: buildContext(),
     });
     expect(response).toBeInstanceOf(Object);
-    expect((response as { error: string }).error).toBe("メールアドレスまたはパスワードが正しくありません。");
+    expect((response as { error: string }).error).toBe(
+      "メールアドレスまたはパスワードが正しくありません。",
+    );
   });
 
   test("authenticated app layout redirects unauthenticated users to login", async () => {
@@ -192,7 +207,9 @@ describe("auth routes", () => {
     expect(response).toBeInstanceOf(Response);
     expect((response as Response).status).toBe(302);
     expect((response as Response).headers.get("Location")).toBe("/login");
-    expect((response as Response).headers.get("Set-Cookie")).toContain("kosu_session=;");
+    expect((response as Response).headers.get("Set-Cookie")).toContain(
+      "kosu_session=;",
+    );
   });
 
   test("login is throttled after repeated failures and returns 429", async () => {
@@ -246,8 +263,14 @@ describe("auth routes", () => {
 
   test("profile password change keeps current session and removes other sessions", async () => {
     const cookie = await setupAndLoginAdmin("password123");
-    const connection = createDatabaseConnection(resolveDatabaseConfig().databaseUrl);
-    const memberId = connection.db.select().from(members).where(eq(members.email, "admin@example.com")).get()!.id;
+    const connection = createDatabaseConnection(
+      resolveDatabaseConfig().databaseUrl,
+    );
+    const memberId = connection.db
+      .select()
+      .from(members)
+      .where(eq(members.email, "admin@example.com"))
+      .get()!.id;
 
     const otherSessionForm = new FormData();
     otherSessionForm.append("email", "admin@example.com");
@@ -258,7 +281,11 @@ describe("auth routes", () => {
       context: buildContext(),
     });
 
-    const before = connection.db.select().from(sessions).where(eq(sessions.memberId, memberId)).all();
+    const before = connection.db
+      .select()
+      .from(sessions)
+      .where(eq(sessions.memberId, memberId))
+      .all();
     expect(before.length).toBe(3);
 
     const form = new FormData();
@@ -272,7 +299,11 @@ describe("auth routes", () => {
     });
     expect(response).toBeInstanceOf(Response);
 
-    const after = connection.db.select().from(sessions).where(eq(sessions.memberId, memberId)).all();
+    const after = connection.db
+      .select()
+      .from(sessions)
+      .where(eq(sessions.memberId, memberId))
+      .all();
     const currentSessionId = cookie.match(/kosu_session=([^;]+)/)![1];
     expect(after.map((session) => session.id)).toEqual([currentSessionId]);
 
@@ -281,7 +312,9 @@ describe("auth routes", () => {
 
   test("admin password reset removes all sessions for the target member", async () => {
     const adminCookie = await setupAndLoginAdmin("password123");
-    const connection = createDatabaseConnection(resolveDatabaseConfig().databaseUrl);
+    const connection = createDatabaseConnection(
+      resolveDatabaseConfig().databaseUrl,
+    );
 
     const createForm = new FormData();
     createForm.append("displayName", "Member");
@@ -295,7 +328,11 @@ describe("auth routes", () => {
       context: buildContext(),
     });
 
-    const target = connection.db.select().from(members).where(eq(members.email, "member@example.com")).get();
+    const target = connection.db
+      .select()
+      .from(members)
+      .where(eq(members.email, "member@example.com"))
+      .get();
     expect(target).toBeDefined();
 
     const targetLoginForm = new FormData();
@@ -308,7 +345,11 @@ describe("auth routes", () => {
     });
     expect(targetLogin).toBeInstanceOf(Response);
 
-    const before = connection.db.select().from(sessions).where(eq(sessions.memberId, target!.id)).all();
+    const before = connection.db
+      .select()
+      .from(sessions)
+      .where(eq(sessions.memberId, target!.id))
+      .all();
     expect(before.length).toBe(1);
 
     const resetForm = new FormData();
@@ -318,14 +359,20 @@ describe("auth routes", () => {
     resetForm.append("role", "member");
     resetForm.append("password", "resetpass123");
 
-    const resetResponse = await (memberDetailAction as unknown as RouteActionHandler)({
+    const resetResponse = await (
+      memberDetailAction as unknown as RouteActionHandler
+    )({
       request: buildRequest(resetForm, adminCookie),
       params: { id: target!.id },
       context: buildContext(),
     });
     expect(resetResponse).toBeInstanceOf(Response);
 
-    const after = connection.db.select().from(sessions).where(eq(sessions.memberId, target!.id)).all();
+    const after = connection.db
+      .select()
+      .from(sessions)
+      .where(eq(sessions.memberId, target!.id))
+      .all();
     expect(after).toHaveLength(0);
 
     connection.sqlite.close();
@@ -333,20 +380,34 @@ describe("auth routes", () => {
 
   test("last active administrator cannot be deactivated or demoted", async () => {
     const adminCookie = await setupAndLoginAdmin("password123");
-    const connection = createDatabaseConnection(resolveDatabaseConfig().databaseUrl);
-    const admin = connection.db.select().from(members).where(eq(members.email, "admin@example.com")).get()!;
+    const connection = createDatabaseConnection(
+      resolveDatabaseConfig().databaseUrl,
+    );
+    const admin = connection.db
+      .select()
+      .from(members)
+      .where(eq(members.email, "admin@example.com"))
+      .get()!;
 
     const deactivateForm = new FormData();
     deactivateForm.append("intent", "deactivate");
 
-    const deactivateResponse = await (memberDetailAction as unknown as RouteActionHandler)({
+    const deactivateResponse = await (
+      memberDetailAction as unknown as RouteActionHandler
+    )({
       request: buildRequest(deactivateForm, adminCookie),
       params: { id: admin.id },
       context: buildContext(),
     });
-    expect((deactivateResponse as { error?: string }).error).toContain("最後のアクティブ管理者");
+    expect((deactivateResponse as { error?: string }).error).toContain(
+      "最後のアクティブ管理者",
+    );
 
-    const stillActive = connection.db.select().from(members).where(eq(members.id, admin.id)).get()!;
+    const stillActive = connection.db
+      .select()
+      .from(members)
+      .where(eq(members.id, admin.id))
+      .get()!;
     expect(stillActive.isActive).toBe(true);
     expect(stillActive.role).toBe("admin");
 
@@ -356,14 +417,22 @@ describe("auth routes", () => {
     demoteForm.append("email", "admin@example.com");
     demoteForm.append("role", "member");
 
-    const demoteResponse = await (memberDetailAction as unknown as RouteActionHandler)({
+    const demoteResponse = await (
+      memberDetailAction as unknown as RouteActionHandler
+    )({
       request: buildRequest(demoteForm, adminCookie),
       params: { id: admin.id },
       context: buildContext(),
     });
-    expect((demoteResponse as { error?: string }).error).toContain("最後のアクティブ管理者");
+    expect((demoteResponse as { error?: string }).error).toContain(
+      "最後のアクティブ管理者",
+    );
 
-    const stillAdmin = connection.db.select().from(members).where(eq(members.id, admin.id)).get()!;
+    const stillAdmin = connection.db
+      .select()
+      .from(members)
+      .where(eq(members.id, admin.id))
+      .get()!;
     expect(stillAdmin.role).toBe("admin");
 
     connection.sqlite.close();
@@ -371,8 +440,14 @@ describe("auth routes", () => {
 
   test("administrator can be demoted while another active administrator remains", async () => {
     const adminCookie = await setupAndLoginAdmin("password123");
-    const connection = createDatabaseConnection(resolveDatabaseConfig().databaseUrl);
-    const admin = connection.db.select().from(members).where(eq(members.email, "admin@example.com")).get()!;
+    const connection = createDatabaseConnection(
+      resolveDatabaseConfig().databaseUrl,
+    );
+    const admin = connection.db
+      .select()
+      .from(members)
+      .where(eq(members.email, "admin@example.com"))
+      .get()!;
 
     const secondAdminForm = new FormData();
     secondAdminForm.append("displayName", "Second Admin");
@@ -392,27 +467,139 @@ describe("auth routes", () => {
     demoteForm.append("email", "admin@example.com");
     demoteForm.append("role", "member");
 
-    const demoteResponse = await (memberDetailAction as unknown as RouteActionHandler)({
+    const demoteResponse = await (
+      memberDetailAction as unknown as RouteActionHandler
+    )({
       request: buildRequest(demoteForm, adminCookie),
       params: { id: admin.id },
       context: buildContext(),
     });
     expect(demoteResponse).toBeInstanceOf(Response);
-    expect((demoteResponse as Response).headers.get("Location")).toBe("/members");
+    expect((demoteResponse as Response).headers.get("Location")).toBe(
+      "/members",
+    );
 
-    const demoted = connection.db.select().from(members).where(eq(members.id, admin.id)).get()!;
+    const demoted = connection.db
+      .select()
+      .from(members)
+      .where(eq(members.id, admin.id))
+      .get()!;
     expect(demoted.role).toBe("member");
 
     connection.sqlite.close();
   });
 
+  test("member create and edit require an optional non-negative integer hourly cost", async () => {
+    const adminCookie = await setupAndLoginAdmin("password123");
+    const invalidCreate = new FormData();
+    invalidCreate.append("displayName", "Invalid Rate");
+    invalidCreate.append("email", "invalid-rate@example.com");
+    invalidCreate.append("role", "member");
+    invalidCreate.append("hourlyCostRate", "-1");
+    invalidCreate.append("password", "password123");
+
+    const invalidCreateResponse = await (
+      newMemberAction as unknown as RouteActionHandler
+    )({
+      request: buildRequest(invalidCreate, adminCookie),
+      params: {},
+      context: buildContext(),
+    });
+    expect((invalidCreateResponse as { error: string }).error).toContain(
+      "0 以上の整数",
+    );
+
+    const validCreate = new FormData();
+    validCreate.append("displayName", "Zero Rate");
+    validCreate.append("email", "zero-rate@example.com");
+    validCreate.append("role", "member");
+    validCreate.append("hourlyCostRate", "0");
+    validCreate.append("password", "password123");
+    await (newMemberAction as unknown as RouteActionHandler)({
+      request: buildRequest(validCreate, adminCookie),
+      params: {},
+      context: buildContext(),
+    });
+
+    const connection = createDatabaseConnection(
+      resolveDatabaseConfig().databaseUrl,
+    );
+    expect(
+      connection.db
+        .select()
+        .from(members)
+        .where(eq(members.email, "invalid-rate@example.com"))
+        .get(),
+    ).toBeUndefined();
+    const target = connection.db
+      .select()
+      .from(members)
+      .where(eq(members.email, "zero-rate@example.com"))
+      .get()!;
+    expect(target.hourlyCostRate).toBe(0);
+
+    const invalidEdit = new FormData();
+    invalidEdit.append("intent", "update");
+    invalidEdit.append("displayName", target.displayName);
+    invalidEdit.append("email", target.email);
+    invalidEdit.append("role", target.role);
+    invalidEdit.append("hourlyCostRate", "1.5");
+    const invalidEditResponse = await (
+      memberDetailAction as unknown as RouteActionHandler
+    )({
+      request: buildRequest(invalidEdit, adminCookie),
+      params: { id: target.id },
+      context: buildContext(),
+    });
+    expect((invalidEditResponse as { error: string }).error).toContain(
+      "0 以上の整数",
+    );
+    expect(
+      connection.db
+        .select()
+        .from(members)
+        .where(eq(members.id, target.id))
+        .get()?.hourlyCostRate,
+    ).toBe(0);
+
+    const emptyEdit = new FormData();
+    emptyEdit.append("intent", "update");
+    emptyEdit.append("displayName", target.displayName);
+    emptyEdit.append("email", target.email);
+    emptyEdit.append("role", target.role);
+    emptyEdit.append("hourlyCostRate", "");
+    await (memberDetailAction as unknown as RouteActionHandler)({
+      request: buildRequest(emptyEdit, adminCookie),
+      params: { id: target.id },
+      context: buildContext(),
+    });
+    expect(
+      connection.db
+        .select()
+        .from(members)
+        .where(eq(members.id, target.id))
+        .get()?.hourlyCostRate,
+    ).toBeNull();
+    connection.sqlite.close();
+  });
+
   test("member detail loader does not expose password hash", async () => {
     const adminCookie = await setupAndLoginAdmin("password123");
-    const connection = createDatabaseConnection(resolveDatabaseConfig().databaseUrl);
-    const admin = connection.db.select().from(members).where(eq(members.email, "admin@example.com")).get()!;
+    const connection = createDatabaseConnection(
+      resolveDatabaseConfig().databaseUrl,
+    );
+    const admin = connection.db
+      .select()
+      .from(members)
+      .where(eq(members.email, "admin@example.com"))
+      .get()!;
 
-    const response = await (memberDetailLoader as unknown as RouteLoaderHandler)({
-      request: new Request("http://localhost/members", { headers: { Cookie: adminCookie } }),
+    const response = await (
+      memberDetailLoader as unknown as RouteLoaderHandler
+    )({
+      request: new Request("http://localhost/members", {
+        headers: { Cookie: adminCookie },
+      }),
       params: { id: admin.id },
       context: buildContext(),
     });
@@ -458,5 +645,13 @@ type AppLoadContext = {
   set: (key: string, value: unknown) => void;
 };
 
-type RouteActionHandler = (args: { request: Request; params: Record<string, string | undefined>; context: AppLoadContext }) => Promise<unknown>;
-type RouteLoaderHandler = (args: { request: Request; params?: Record<string, string | undefined>; context: AppLoadContext }) => Promise<unknown>;
+type RouteActionHandler = (args: {
+  request: Request;
+  params: Record<string, string | undefined>;
+  context: AppLoadContext;
+}) => Promise<unknown>;
+type RouteLoaderHandler = (args: {
+  request: Request;
+  params?: Record<string, string | undefined>;
+  context: AppLoadContext;
+}) => Promise<unknown>;

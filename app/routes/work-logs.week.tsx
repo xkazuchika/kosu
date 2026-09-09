@@ -21,7 +21,11 @@ import {
   findTaskById,
   listActiveTasksByProject,
 } from "~/db/repositories/tasks";
-import { addCalendarDays, getWeekdayLabel } from "~/lib/time";
+import {
+  addCalendarDays,
+  getWeekdayLabel,
+  isValidCalendarDate,
+} from "~/lib/time";
 import { getSessionMember } from "~/services/auth";
 import { DailyEffortEntryError } from "~/services/daily-effort-entry";
 import { getMonthlyCostCloseState } from "~/services/monthly-cost-close";
@@ -40,7 +44,7 @@ export const loader = async ({ request }: Route.LoaderArgs) => {
     const url = new URL(request.url);
     const { today } = getWorkspaceCalendarContext(db);
     const requestedDate = url.searchParams.get("date") ?? today;
-    const selectedDate = /^\d{4}-\d{2}-\d{2}$/.test(requestedDate)
+    const selectedDate = isValidCalendarDate(requestedDate)
       ? requestedDate
       : today;
     const requestedMemberId = url.searchParams.get("memberId");

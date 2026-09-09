@@ -10,6 +10,7 @@ import { beforeEach, describe, expect, test } from "vitest";
 import { createDatabaseConnection } from "../../app/db/client";
 import {
   createDailyWorkLog,
+  deleteDailyWorkLog,
   findDailyWorkLogByMemberAndDate,
 } from "../../app/db/repositories/daily-work-logs";
 import { createEffortAllocation } from "../../app/db/repositories/effort-allocations";
@@ -229,6 +230,44 @@ describe("daily work logs and allocations", () => {
     expect((response as { error: string }).error).toContain("0.25h");
   });
 
+  test("monthly work log rejects impossible dates and values over 24 hours", async () => {
+    const cookie = await setupAndLogin(dataDir, "password123", "member");
+    const impossibleDate = new FormData();
+    impossibleDate.append("date", "2026-07-32");
+    impossibleDate.append("totalWorkingHours", "8");
+
+    const invalidDateResponse = await (
+      workLogMonthAction as unknown as RouteActionHandler
+    )({
+      request: new Request("http://localhost/work-logs/month?month=2026-07", {
+        method: "POST",
+        body: impossibleDate,
+        headers: { Cookie: cookie },
+      }),
+      params: {},
+      context: buildContext(),
+    });
+    expect((invalidDateResponse as { error: string }).error).toContain(
+      "対象月の日付",
+    );
+
+    const overDay = new FormData();
+    overDay.append("date", "2026-07-01");
+    overDay.append("totalWorkingHours", "24.25");
+    const overDayResponse = await (
+      workLogMonthAction as unknown as RouteActionHandler
+    )({
+      request: new Request("http://localhost/work-logs/month?month=2026-07", {
+        method: "POST",
+        body: overDay,
+        headers: { Cookie: cookie },
+      }),
+      params: {},
+      context: buildContext(),
+    });
+    expect((overDayResponse as { error: string }).error).toContain("24h 以下");
+  });
+
   test("monthly bulk edit does not save valid rows when a later row is invalid", async () => {
     const cookie = await setupAndLogin(dataDir, "password123", "member");
 
@@ -326,6 +365,38 @@ describe("daily work logs and allocations", () => {
     expect(rows.find((row) => row.workDate === "2026-07-01")?.status).toBe(
       "missing",
     );
+
+    const reenterForm = new FormData();
+    reenterForm.append("date", "2026-07-01");
+    reenterForm.append("totalWorkingHours", "7");
+    const reenterResponse = await (
+      workLogMonthAction as unknown as RouteActionHandler
+    )({
+      request: new Request("http://localhost/work-logs/month?month=2026-07", {
+        method: "POST",
+        body: reenterForm,
+        headers: { Cookie: cookie },
+      }),
+      params: {},
+      context: buildContext(),
+    });
+    expect(reenterResponse).toBeInstanceOf(Response);
+
+    const restoredMonth = await (
+      workLogMonthLoader as unknown as RouteLoaderHandler
+    )({
+      request: new Request("http://localhost/work-logs/month?month=2026-07", {
+        headers: { Cookie: cookie },
+      }),
+      context: buildContext(),
+    });
+    expect(
+      (
+        restoredMonth as {
+          rows: { totalWorkingHours: number; workDate: string }[];
+        }
+      ).rows.find((row) => row.workDate === "2026-07-01")?.totalWorkingHours,
+    ).toBe(7);
   });
 
   test("monthly bulk edit rejects zero for a day with allocations", async () => {
@@ -1486,7 +1557,7 @@ describe("unified daily entry", () => {
     expect((response as { success: string }).success).toContain("2 件");
 
     const detail = (await loadDetail(cookie, "2026-07-15")) as {
-      workLog: { totalWorkingHours: number } | null;
+      workLog: { id: string; totalWorkingHours: number } | null;
       allocations: { projectId: string; allocatedHours: number }[];
     };
     expect(detail.workLog?.totalWorkingHours).toBe(8);
@@ -1752,7 +1823,7 @@ describe("unified daily entry", () => {
     expect((response as { success: string }).success).toContain("総稼働時間");
 
     const detail = (await loadDetail(cookie, "2026-07-15")) as {
-      workLog: { totalWorkingHours: number } | null;
+      workLog: { id: string; totalWorkingHours: number } | null;
       allocations: unknown[];
     };
     expect(detail.workLog?.totalWorkingHours).toBe(7.5);
@@ -1776,11 +1847,36 @@ describe("unified daily entry", () => {
     expect((response as { error?: string }).error).toBeUndefined();
 
     const detail = (await loadDetail(cookie, "2026-07-15")) as {
-      workLog: { totalWorkingHours: number } | null;
+      workLog: { id: string; totalWorkingHours: number } | null;
       allocations: unknown[];
     };
     expect(detail.workLog?.totalWorkingHours).toBe(6);
     expect(detail.allocations).toHaveLength(0);
+
+    const connection = createDatabaseConnection();
+    deleteDailyWorkLog(
+      connection.db,
+      detail.workLog!.id,
+      "2026-07-16T00:00:00.000Z",
+    );
+    connection.sqlite.close();
+
+    form.set("totalWorkingHours", "7");
+    const restoredResponse = await (
+      workLogDateAction as unknown as RouteActionHandler
+    )({
+      request: buildRequest(form, cookie),
+      params: { date: "2026-07-15" },
+      context: buildContext(),
+    });
+    expect((restoredResponse as { error?: string }).error).toBeUndefined();
+    const restored = (await loadDetail(cookie, "2026-07-15")) as {
+      workLog: { id: string; totalWorkingHours: number } | null;
+    };
+    expect(restored.workLog).toMatchObject({
+      id: detail.workLog!.id,
+      totalWorkingHours: 7,
+    });
   });
 
   test("rejects an invalid total in the total-only save", async () => {
@@ -1798,6 +1894,14 @@ describe("unified daily entry", () => {
       },
     );
     expect((response as { error: string }).error).toContain("0.25h");
+
+    form.set("totalWorkingHours", "24.25");
+    const overDay = await (workLogDateAction as unknown as RouteActionHandler)({
+      request: buildRequest(form, cookie),
+      params: { date: "2026-07-15" },
+      context: buildContext(),
+    });
+    expect((overDay as { error: string }).error).toContain("24h 以下");
   });
 
   test("total-only save is refused for a protected month", async () => {

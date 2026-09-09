@@ -6,9 +6,14 @@ import type { DatabaseConnection, KosuDatabase } from "../../app/db/client";
 import { createDailyAllocationPlan } from "../support/daily-effort-fixtures";
 import {
   createDailyWorkLog,
+  deleteDailyWorkLog,
   findDailyWorkLogByMemberAndDate,
 } from "../../app/db/repositories/daily-work-logs";
-import { listAllocationsByWorkLog } from "../../app/db/repositories/effort-allocations";
+import {
+  createEffortAllocation,
+  deleteEffortAllocation,
+  listAllocationsByWorkLog,
+} from "../../app/db/repositories/effort-allocations";
 import { createMember } from "../../app/db/repositories/members";
 import { createProjectAssignment } from "../../app/db/repositories/project-assignments";
 import {
@@ -241,5 +246,70 @@ describe("daily effort entry", () => {
         rows: [{ projectId: first.id, allocatedHours: 8 }],
       }),
     ).toThrow();
+  });
+
+  test("rejects impossible dates and values beyond a day", () => {
+    const { member, first, second } = setup();
+
+    expect(() =>
+      saveDailyEffortEntry(db, {
+        memberId: member.id,
+        workDate: "2026-02-29",
+        totalWorkingHours: 8,
+        rows: [{ projectId: first.id, allocatedHours: 8 }],
+      }),
+    ).toThrow("日付が不正");
+    expect(() =>
+      saveDailyEffortEntry(db, {
+        memberId: member.id,
+        workDate: "2026-07-01",
+        totalWorkingHours: 24.25,
+        rows: [{ projectId: first.id, allocatedHours: 8 }],
+      }),
+    ).toThrow("24h 以下");
+    expect(() =>
+      saveDailyEffortEntry(db, {
+        memberId: member.id,
+        workDate: "2026-07-01",
+        totalWorkingHours: 24,
+        rows: [
+          { projectId: first.id, allocatedHours: 16 },
+          { projectId: second.id, allocatedHours: 8.25 },
+        ],
+      }),
+    ).toThrow("合計は 24h 以下");
+  });
+
+  test("re-enters a cleared day without restoring deleted allocations", () => {
+    const { member, first } = setup();
+    const original = createDailyWorkLog(db, {
+      memberId: member.id,
+      workDate: "2026-07-06",
+      totalWorkingHours: 8,
+    });
+    const allocation = createEffortAllocation(db, {
+      dailyWorkLogId: original.id,
+      memberId: member.id,
+      projectId: first.id,
+      allocatedHours: 8,
+    });
+    deleteEffortAllocation(db, allocation.id, "2026-07-07T00:00:00.000Z");
+    deleteDailyWorkLog(db, original.id, "2026-07-07T00:00:00.000Z");
+
+    saveDailyEffortEntry(db, {
+      memberId: member.id,
+      workDate: "2026-07-06",
+      totalWorkingHours: 6,
+      rows: [],
+    });
+
+    const restored = findDailyWorkLogByMemberAndDate(
+      db,
+      member.id,
+      "2026-07-06",
+    )!;
+    expect(restored.id).toBe(original.id);
+    expect(restored.totalWorkingHours).toBe(6);
+    expect(listAllocationsByWorkLog(db, restored.id)).toEqual([]);
   });
 });

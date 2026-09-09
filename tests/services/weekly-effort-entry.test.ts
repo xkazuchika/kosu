@@ -2,7 +2,11 @@
 
 import { afterEach, beforeEach, describe, expect, test } from "vitest";
 import type { DatabaseConnection, KosuDatabase } from "../../app/db/client";
-import { findDailyWorkLogByMemberAndDate } from "../../app/db/repositories/daily-work-logs";
+import {
+  createDailyWorkLog,
+  deleteDailyWorkLog,
+  findDailyWorkLogByMemberAndDate,
+} from "../../app/db/repositories/daily-work-logs";
 import { listAllocationsByWorkLog } from "../../app/db/repositories/effort-allocations";
 import { createMember } from "../../app/db/repositories/members";
 import { createProjectAssignment } from "../../app/db/repositories/project-assignments";
@@ -91,6 +95,38 @@ describe("weekly effort entry", () => {
     expect(
       findDailyWorkLogByMemberAndDate(db, member.id, input.dates[0]),
     ).toBeUndefined();
+  });
+
+  test("rejects impossible week dates and totals over 24 hours", () => {
+    const { member, project } = setup();
+    expect(() => getWeeklyEffortDraft(db, member.id, "2026-02-29")).toThrow(
+      "週の基準日が不正",
+    );
+
+    const input = draft(project.id);
+    input.totalWorkingHours[input.dates[1]] = "24.25";
+    expect(() => saveWeeklyEffortDraft(db, member.id, input)).toThrow(
+      /2026-07-07.*24h 以下/,
+    );
+    expect(
+      findDailyWorkLogByMemberAndDate(db, member.id, input.dates[0]),
+    ).toBeUndefined();
+  });
+
+  test("re-enters a cleared day through weekly save", () => {
+    const { member, project } = setup();
+    const original = createDailyWorkLog(db, {
+      memberId: member.id,
+      workDate: "2026-07-06",
+      totalWorkingHours: 4,
+    });
+    deleteDailyWorkLog(db, original.id, "2026-07-07T00:00:00.000Z");
+
+    saveWeeklyEffortDraft(db, member.id, draft(project.id));
+
+    expect(
+      findDailyWorkLogByMemberAndDate(db, member.id, "2026-07-06"),
+    ).toMatchObject({ id: original.id, totalWorkingHours: 8 });
   });
 
   test("preserves persisted IDs when editing archived historical rows", () => {

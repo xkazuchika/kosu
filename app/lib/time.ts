@@ -4,6 +4,10 @@ export function isValidQuarterHour(value: number) {
   );
 }
 
+export function isValidDailyHours(value: number) {
+  return isValidQuarterHour(value) && value <= 24;
+}
+
 export function isNonNegativeQuarterHour(value: number) {
   return (
     Number.isFinite(value) && value >= 0 && value * 4 === Math.round(value * 4)
@@ -27,6 +31,17 @@ export function formatHours(value: number) {
 
 export function isValidMonth(value: string) {
   return /^\d{4}-(0[1-9]|1[0-2])$/.test(value);
+}
+
+export function isValidCalendarDate(value: string) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value) || value.startsWith("0000-")) {
+    return false;
+  }
+
+  const date = new Date(`${value}T00:00:00.000Z`);
+  return (
+    !Number.isNaN(date.getTime()) && date.toISOString().slice(0, 10) === value
+  );
 }
 
 export function normalizeTimeZone(value: string) {
@@ -114,7 +129,7 @@ export function addCalendarDays(dateString: string, days: number) {
 }
 
 export function listWeekDates(dateString: string) {
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(dateString)) return [];
+  if (!isValidCalendarDate(dateString)) return [];
   const weekday = getWeekdayIndex(dateString);
   const mondayOffset = weekday === 0 ? -6 : 1 - weekday;
   const monday = addCalendarDays(dateString, mondayOffset);

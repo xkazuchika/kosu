@@ -5,6 +5,7 @@ import { addCalendarDays, listWeekDates } from "~/lib/time";
 import {
   DailyEffortEntryError,
   applyValidatedDailyEffortEntry,
+  type DailyEffortEntryInput,
   validateDailyEffortEntry,
 } from "~/services/daily-effort-entry";
 import { requireUnlockedMonth } from "~/services/period-lock";
@@ -91,7 +92,7 @@ export function saveWeeklyEffortDraft(
     throw new DailyEffortEntryError("週の対象日が不正です。");
   }
 
-  const entries: ReturnType<typeof validateDailyEffortEntry>[] = [];
+  const inputs: DailyEffortEntryInput[] = [];
   for (const date of expectedDates) {
     const totalRaw = draft.totalWorkingHours[date]?.trim() ?? "";
     const rows = draft.rows
@@ -111,14 +112,12 @@ export function saveWeeklyEffortDraft(
 
     try {
       requireUnlockedMonth(db, date.slice(0, 7));
-      entries.push(
-        validateDailyEffortEntry(db, {
-          memberId,
-          workDate: date,
-          totalWorkingHours: Number(totalRaw),
-          rows,
-        }),
-      );
+      inputs.push({
+        memberId,
+        workDate: date,
+        totalWorkingHours: Number(totalRaw),
+        rows,
+      });
     } catch (error) {
       if (error instanceof DailyEffortEntryError)
         throw new DailyEffortEntryError(`${date}: ${error.message}`);
@@ -129,11 +128,23 @@ export function saveWeeklyEffortDraft(
   const occurredAt = new Date().toISOString();
   db.transaction((transaction) => {
     const tx = transaction as unknown as KosuDatabase;
-    for (const entry of entries)
+    const entries = inputs.map((input) => {
+      try {
+        requireUnlockedMonth(tx, input.workDate.slice(0, 7));
+        return validateDailyEffortEntry(tx, input);
+      } catch (error) {
+        if (error instanceof DailyEffortEntryError) {
+          throw new DailyEffortEntryError(`${input.workDate}: ${error.message}`);
+        }
+        throw error;
+      }
+    });
+    for (const entry of entries) {
       applyValidatedDailyEffortEntry(tx, entry, occurredAt);
+    }
   });
   return {
-    changedDates: entries.length,
+    changedDates: inputs.length,
     nextWeekDate: addCalendarDays(expectedDates[0], 7),
   };
 }

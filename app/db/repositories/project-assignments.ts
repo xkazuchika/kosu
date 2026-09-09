@@ -34,7 +34,11 @@ export function listAssignmentsByProject(db: KosuDatabase, projectId: string) {
     .all();
 }
 
-export function findActiveAssignment(db: KosuDatabase, memberId: string, projectId: string) {
+export function findActiveAssignment(
+  db: KosuDatabase,
+  memberId: string,
+  projectId: string,
+) {
   return db
     .select()
     .from(projectAssignments)
@@ -48,7 +52,18 @@ export function findActiveAssignment(db: KosuDatabase, memberId: string, project
     .get();
 }
 
-export function createProjectAssignment(db: KosuDatabase, input: ProjectAssignmentInsert) {
+export function findProjectAssignmentById(db: KosuDatabase, id: string) {
+  return db
+    .select()
+    .from(projectAssignments)
+    .where(eq(projectAssignments.id, id))
+    .get();
+}
+
+export function createProjectAssignment(
+  db: KosuDatabase,
+  input: ProjectAssignmentInsert,
+) {
   return db
     .insert(projectAssignments)
     .values({
@@ -62,7 +77,11 @@ export function createProjectAssignment(db: KosuDatabase, input: ProjectAssignme
     .get();
 }
 
-export function updateProjectAssignment(db: KosuDatabase, id: string, input: ProjectAssignmentUpdate) {
+export function updateProjectAssignment(
+  db: KosuDatabase,
+  id: string,
+  input: ProjectAssignmentUpdate,
+) {
   return db
     .update(projectAssignments)
     .set({
@@ -74,7 +93,11 @@ export function updateProjectAssignment(db: KosuDatabase, id: string, input: Pro
     .get();
 }
 
-export function removeProjectAssignment(db: KosuDatabase, id: string, removedAt: string) {
+export function removeProjectAssignment(
+  db: KosuDatabase,
+  id: string,
+  removedAt: string,
+) {
   return db
     .update(projectAssignments)
     .set({ removedAt })
@@ -83,19 +106,35 @@ export function removeProjectAssignment(db: KosuDatabase, id: string, removedAt:
     .get();
 }
 
-export function listActiveAssignmentsByMember(db: KosuDatabase, memberId: string) {
+export function listActiveAssignmentsByMember(
+  db: KosuDatabase,
+  memberId: string,
+) {
   return db
     .select()
     .from(projectAssignments)
-    .where(and(eq(projectAssignments.memberId, memberId), isNull(projectAssignments.removedAt)))
+    .where(
+      and(
+        eq(projectAssignments.memberId, memberId),
+        isNull(projectAssignments.removedAt),
+      ),
+    )
     .orderBy(asc(projectAssignments.assignedAt))
     .all();
 }
 
 export function listSelfAssignedProjectIds(db: KosuDatabase) {
   return db
-    .select({ memberId: projectAssignments.memberId, projectId: projectAssignments.projectId })
+    .select({
+      memberId: projectAssignments.memberId,
+      projectId: projectAssignments.projectId,
+    })
     .from(projectAssignments)
-    .where(and(eq(projectAssignments.assignmentSource, "self_assigned"), isNull(projectAssignments.removedAt)))
+    .where(
+      and(
+        eq(projectAssignments.assignmentSource, "self_assigned"),
+        isNull(projectAssignments.removedAt),
+      ),
+    )
     .all();
 }

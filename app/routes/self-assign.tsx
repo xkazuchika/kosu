@@ -5,9 +5,16 @@ import { Button } from "~/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "~/components/ui/card";
 import { DataTable } from "~/components/ui/table";
 import { createDatabaseConnection } from "~/db/client";
-import { listActiveAssignmentsByMember, createProjectAssignment } from "~/db/repositories/project-assignments";
-import { findProjectById, listActiveProjects, withoutProjectFinancials } from "~/db/repositories/projects";
+import { listActiveAssignmentsByMember } from "~/db/repositories/project-assignments";
+import {
+  listActiveProjects,
+  withoutProjectFinancials,
+} from "~/db/repositories/projects";
 import { getSessionMember } from "~/services/auth";
+import {
+  createValidatedProjectAssignment,
+  ProjectAssignmentError,
+} from "~/services/project-assignment";
 
 export const loader = async ({ request }: { request: Request }) => {
   const { db, sqlite } = createDatabaseConnection();
@@ -21,9 +28,16 @@ export const loader = async ({ request }: { request: Request }) => {
 
     const assignments = listActiveAssignmentsByMember(db, member.id);
     const assignedProjectIds = new Set(assignments.map((a) => a.projectId));
-    const availableProjects = listActiveProjects(db).filter((p) => !assignedProjectIds.has(p.id));
+    const availableProjects = listActiveProjects(db).filter(
+      (p) => !assignedProjectIds.has(p.id),
+    );
 
-    return { availableProjects: member.role === "admin" ? availableProjects : availableProjects.map(withoutProjectFinancials) };
+    return {
+      availableProjects:
+        member.role === "admin"
+          ? availableProjects
+          : availableProjects.map(withoutProjectFinancials),
+    };
   } finally {
     sqlite.close();
   }
@@ -46,27 +60,18 @@ export const action = async ({ request }: Route.ActionArgs) => {
       return { error: "案件を選択してください。" };
     }
 
-    const project = findProjectById(db, projectId);
-
-    if (!project) {
-      throw new Response("Not found", { status: 404 });
+    try {
+      createValidatedProjectAssignment(db, {
+        memberId: member.id,
+        projectId,
+        assignmentSource: "self_assigned",
+      });
+    } catch (error) {
+      if (error instanceof ProjectAssignmentError) {
+        return { error: error.message };
+      }
+      throw error;
     }
-
-    if (project.isArchived) {
-      return { error: "アーカイブ済みの案件には自己アサインできません。" };
-    }
-
-    const assignments = listActiveAssignmentsByMember(db, member.id);
-
-    if (assignments.some((assignment) => assignment.projectId === projectId)) {
-      return redirect("/projects");
-    }
-
-    createProjectAssignment(db, {
-      memberId: member.id,
-      projectId,
-      assignmentSource: "self_assigned",
-    });
 
     return redirect("/projects");
   } finally {
@@ -74,7 +79,9 @@ export const action = async ({ request }: Route.ActionArgs) => {
   }
 };
 
-export const meta: Route.MetaFunction = () => [{ title: "自己アサイン | kosu" }];
+export const meta: Route.MetaFunction = () => [
+  { title: "自己アサイン | kosu" },
+];
 
 export default function SelfAssign({ actionData }: Route.ComponentProps) {
   const { availableProjects } = useLoaderData<typeof loader>();
@@ -87,7 +94,10 @@ export default function SelfAssign({ actionData }: Route.ComponentProps) {
         </CardHeader>
         <CardContent>
           {actionData?.error ? (
-            <p className="mb-4 rounded-lg bg-red-50 p-3 text-sm text-red-700" role="alert">
+            <p
+              className="mb-4 rounded-lg bg-red-50 p-3 text-sm text-red-700"
+              role="alert"
+            >
               {actionData.error}
             </p>
           ) : null}

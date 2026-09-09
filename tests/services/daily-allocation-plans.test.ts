@@ -3,13 +3,27 @@
 import { afterEach, beforeEach, describe, expect, test } from "vitest";
 
 import type { DatabaseConnection, KosuDatabase } from "../../app/db/client";
-import { listDailyAllocationPlansByMemberAndDate, upsertDailyAllocationPlan } from "../../app/db/repositories/daily-allocation-plans";
-import { createDailyWorkLog, findDailyWorkLogByMemberAndDate } from "../../app/db/repositories/daily-work-logs";
-import { createEffortAllocation, listAllocationsByWorkLog } from "../../app/db/repositories/effort-allocations";
+import {
+  listDailyAllocationPlansByMemberAndDate,
+  upsertDailyAllocationPlan,
+} from "../../app/db/repositories/daily-allocation-plans";
+import {
+  createDailyWorkLog,
+  deleteDailyWorkLog,
+  findDailyWorkLogByMemberAndDate,
+} from "../../app/db/repositories/daily-work-logs";
+import {
+  createEffortAllocation,
+  listAllocationsByWorkLog,
+} from "../../app/db/repositories/effort-allocations";
 import { createMember } from "../../app/db/repositories/members";
 import { createProjectAssignment } from "../../app/db/repositories/project-assignments";
 import { createProject } from "../../app/db/repositories/projects";
-import { DailyAllocationPlanError, copyDailyAllocationPlansToActuals, saveDailyAllocationPlans } from "../../app/services/daily-allocation-plans";
+import {
+  DailyAllocationPlanError,
+  copyDailyAllocationPlansToActuals,
+  saveDailyAllocationPlans,
+} from "../../app/services/daily-allocation-plans";
 import { startMonthlyCostReview } from "../../app/services/monthly-cost-close";
 import { createTestDatabase } from "../db/helpers";
 
@@ -32,7 +46,11 @@ function setupAssignedProject() {
     passwordHash: "hash",
     hourlyCostRate: 5000,
   });
-  const project = createProject(db, { code: "PRJ-001", name: "Website", projectType: "billable" });
+  const project = createProject(db, {
+    code: "PRJ-001",
+    name: "Website",
+    projectType: "billable",
+  });
   createProjectAssignment(db, { memberId: member.id, projectId: project.id });
 
   return { member, project };
@@ -51,23 +69,36 @@ describe("daily allocation plan service", () => {
     saveDailyAllocationPlans(db, {
       memberId: member.id,
       month: "2026-07",
-      cells: [{ planDate: "2026-07-01", projectId: project.id, plannedHours: "0" }],
+      cells: [
+        { planDate: "2026-07-01", projectId: project.id, plannedHours: "0" },
+      ],
     });
-    expect(listDailyAllocationPlansByMemberAndDate(db, member.id, "2026-07-01")).toHaveLength(0);
+    expect(
+      listDailyAllocationPlansByMemberAndDate(db, member.id, "2026-07-01"),
+    ).toHaveLength(0);
 
     saveDailyAllocationPlans(db, {
       memberId: member.id,
       month: "2026-07",
-      cells: [{ planDate: "2026-07-01", projectId: project.id, plannedHours: "6" }],
+      cells: [
+        { planDate: "2026-07-01", projectId: project.id, plannedHours: "6" },
+      ],
     });
-    expect(listDailyAllocationPlansByMemberAndDate(db, member.id, "2026-07-01")[0].plannedHours).toBe(6);
+    expect(
+      listDailyAllocationPlansByMemberAndDate(db, member.id, "2026-07-01")[0]
+        .plannedHours,
+    ).toBe(6);
 
     saveDailyAllocationPlans(db, {
       memberId: member.id,
       month: "2026-07",
-      cells: [{ planDate: "2026-07-01", projectId: project.id, plannedHours: "" }],
+      cells: [
+        { planDate: "2026-07-01", projectId: project.id, plannedHours: "" },
+      ],
     });
-    expect(listDailyAllocationPlansByMemberAndDate(db, member.id, "2026-07-01")).toHaveLength(0);
+    expect(
+      listDailyAllocationPlansByMemberAndDate(db, member.id, "2026-07-01"),
+    ).toHaveLength(0);
   });
 
   test("bulk save rejects invalid values and daily totals over 24 hours", () => {
@@ -77,7 +108,13 @@ describe("daily allocation plan service", () => {
       saveDailyAllocationPlans(db, {
         memberId: member.id,
         month: "2026-07",
-        cells: [{ planDate: "2026-07-01", projectId: project.id, plannedHours: "1.1" }],
+        cells: [
+          {
+            planDate: "2026-07-01",
+            projectId: project.id,
+            plannedHours: "1.1",
+          },
+        ],
       }),
     ).toThrow(DailyAllocationPlanError);
 
@@ -85,20 +122,46 @@ describe("daily allocation plan service", () => {
       saveDailyAllocationPlans(db, {
         memberId: member.id,
         month: "2026-07",
-        cells: [{ planDate: "2026-07-01", projectId: project.id, plannedHours: "24.25" }],
+        cells: [
+          { planDate: "2026-07-32", projectId: project.id, plannedHours: "4" },
+        ],
+      }),
+    ).toThrow("対象月の日付");
+
+    expect(() =>
+      saveDailyAllocationPlans(db, {
+        memberId: member.id,
+        month: "2026-07",
+        cells: [
+          {
+            planDate: "2026-07-01",
+            projectId: project.id,
+            plannedHours: "24.25",
+          },
+        ],
       }),
     ).toThrow(DailyAllocationPlanError);
   });
 
   test("bulk save rejects unassigned projects and locked months", () => {
     const { member } = setupAssignedProject();
-    const unassignedProject = createProject(db, { code: "PRJ-002", name: "App", projectType: "internal" });
+    const unassignedProject = createProject(db, {
+      code: "PRJ-002",
+      name: "App",
+      projectType: "internal",
+    });
 
     expect(() =>
       saveDailyAllocationPlans(db, {
         memberId: member.id,
         month: "2026-07",
-        cells: [{ planDate: "2026-07-01", projectId: unassignedProject.id, plannedHours: "4" }],
+        cells: [
+          {
+            planDate: "2026-07-01",
+            projectId: unassignedProject.id,
+            plannedHours: "4",
+          },
+        ],
       }),
     ).toThrow(DailyAllocationPlanError);
 
@@ -107,23 +170,64 @@ describe("daily allocation plan service", () => {
       saveDailyAllocationPlans(db, {
         memberId: member.id,
         month: "2026-07",
-        cells: [{ planDate: "2026-07-01", projectId: unassignedProject.id, plannedHours: "" }],
+        cells: [
+          {
+            planDate: "2026-07-01",
+            projectId: unassignedProject.id,
+            plannedHours: "",
+          },
+        ],
       }),
     ).toThrow(Response);
   });
 
   test("copy creates actuals, fills empty work logs, skips existing allocations, and is idempotent", () => {
     const { member, project } = setupAssignedProject();
-    const projectB = createProject(db, { code: "PRJ-002", name: "App", projectType: "internal" });
-    createProjectAssignment(db, { memberId: member.id, projectId: projectB.id });
+    const projectB = createProject(db, {
+      code: "PRJ-002",
+      name: "App",
+      projectType: "internal",
+    });
+    createProjectAssignment(db, {
+      memberId: member.id,
+      projectId: projectB.id,
+    });
 
-    upsertDailyAllocationPlan(db, { memberId: member.id, projectId: project.id, planDate: "2026-07-01", plannedHours: 4 });
-    upsertDailyAllocationPlan(db, { memberId: member.id, projectId: projectB.id, planDate: "2026-07-01", plannedHours: 2 });
-    upsertDailyAllocationPlan(db, { memberId: member.id, projectId: project.id, planDate: "2026-07-02", plannedHours: 3 });
-    upsertDailyAllocationPlan(db, { memberId: member.id, projectId: project.id, planDate: "2026-07-03", plannedHours: 5 });
+    upsertDailyAllocationPlan(db, {
+      memberId: member.id,
+      projectId: project.id,
+      planDate: "2026-07-01",
+      plannedHours: 4,
+    });
+    upsertDailyAllocationPlan(db, {
+      memberId: member.id,
+      projectId: projectB.id,
+      planDate: "2026-07-01",
+      plannedHours: 2,
+    });
+    upsertDailyAllocationPlan(db, {
+      memberId: member.id,
+      projectId: project.id,
+      planDate: "2026-07-02",
+      plannedHours: 3,
+    });
+    upsertDailyAllocationPlan(db, {
+      memberId: member.id,
+      projectId: project.id,
+      planDate: "2026-07-03",
+      plannedHours: 5,
+    });
 
-    createDailyWorkLog(db, { memberId: member.id, workDate: "2026-07-02", totalWorkingHours: 1 });
-    const existingLog = createDailyWorkLog(db, { memberId: member.id, workDate: "2026-07-03", totalWorkingHours: 8 });
+    createDailyWorkLog(db, {
+      memberId: member.id,
+      workDate: "2026-07-02",
+      totalWorkingHours: 1,
+    });
+    const existingLog = createDailyWorkLog(db, {
+      memberId: member.id,
+      workDate: "2026-07-03",
+      totalWorkingHours: 8,
+    });
     createEffortAllocation(db, {
       dailyWorkLogId: existingLog.id,
       memberId: member.id,
@@ -132,20 +236,102 @@ describe("daily allocation plan service", () => {
       hourlyCostRateSnapshot: 5000,
     });
 
-    const firstSummary = copyDailyAllocationPlansToActuals(db, { memberId: member.id, month: "2026-07" });
-    expect(firstSummary).toMatchObject({ copiedDates: 2, createdAllocations: 3, skippedExistingActualDates: 1 });
+    const firstSummary = copyDailyAllocationPlansToActuals(db, {
+      memberId: member.id,
+      month: "2026-07",
+    });
+    expect(firstSummary).toMatchObject({
+      copiedDates: 2,
+      createdAllocations: 3,
+      skippedExistingActualDates: 1,
+    });
 
-    const createdLog = findDailyWorkLogByMemberAndDate(db, member.id, "2026-07-01")!;
+    const createdLog = findDailyWorkLogByMemberAndDate(
+      db,
+      member.id,
+      "2026-07-01",
+    )!;
     expect(createdLog.totalWorkingHours).toBe(6);
     expect(listAllocationsByWorkLog(db, createdLog.id)).toHaveLength(2);
 
-    const filledLog = findDailyWorkLogByMemberAndDate(db, member.id, "2026-07-02")!;
+    const filledLog = findDailyWorkLogByMemberAndDate(
+      db,
+      member.id,
+      "2026-07-02",
+    )!;
     expect(filledLog.totalWorkingHours).toBe(3);
     expect(listAllocationsByWorkLog(db, filledLog.id)).toHaveLength(1);
 
-    const secondSummary = copyDailyAllocationPlansToActuals(db, { memberId: member.id, month: "2026-07" });
+    const secondSummary = copyDailyAllocationPlansToActuals(db, {
+      memberId: member.id,
+      month: "2026-07",
+    });
     expect(secondSummary.copiedDates).toBe(0);
     expect(secondSummary.createdAllocations).toBe(0);
     expect(secondSummary.skippedExistingActualDates).toBe(3);
+  });
+
+  test("planned-to-actual copy re-enters a cleared day", () => {
+    const { member, project } = setupAssignedProject();
+    upsertDailyAllocationPlan(db, {
+      memberId: member.id,
+      projectId: project.id,
+      planDate: "2026-07-01",
+      plannedHours: 4,
+    });
+    const original = createDailyWorkLog(db, {
+      memberId: member.id,
+      workDate: "2026-07-01",
+      totalWorkingHours: 8,
+    });
+    deleteDailyWorkLog(db, original.id, "2026-07-02T00:00:00.000Z");
+
+    copyDailyAllocationPlansToActuals(db, {
+      memberId: member.id,
+      month: "2026-07",
+    });
+
+    const restored = findDailyWorkLogByMemberAndDate(
+      db,
+      member.id,
+      "2026-07-01",
+    )!;
+    expect(restored).toMatchObject({ id: original.id, totalWorkingHours: 4 });
+    expect(listAllocationsByWorkLog(db, restored.id)).toHaveLength(1);
+  });
+
+  test("planned-to-actual copy rejects legacy values over a day atomically", () => {
+    const { member, project } = setupAssignedProject();
+    const second = createProject(db, {
+      code: "PRJ-002",
+      name: "Second",
+      projectType: "internal",
+    });
+    createProjectAssignment(db, {
+      memberId: member.id,
+      projectId: second.id,
+    });
+    upsertDailyAllocationPlan(db, {
+      memberId: member.id,
+      projectId: project.id,
+      planDate: "2026-07-01",
+      plannedHours: 20,
+    });
+    upsertDailyAllocationPlan(db, {
+      memberId: member.id,
+      projectId: second.id,
+      planDate: "2026-07-01",
+      plannedHours: 5,
+    });
+
+    expect(() =>
+      copyDailyAllocationPlansToActuals(db, {
+        memberId: member.id,
+        month: "2026-07",
+      }),
+    ).toThrow("24h以下");
+    expect(
+      findDailyWorkLogByMemberAndDate(db, member.id, "2026-07-01"),
+    ).toBeUndefined();
   });
 });

@@ -1,4 +1,4 @@
-import { and, asc, eq, isNull, like } from "drizzle-orm";
+import { and, asc, eq, isNull, like, sql } from "drizzle-orm";
 
 import { createId } from "~/lib/id";
 
@@ -17,12 +17,21 @@ export function listDailyWorkLogsByMember(db: KosuDatabase, memberId: string) {
   return db
     .select()
     .from(dailyWorkLogs)
-    .where(and(eq(dailyWorkLogs.memberId, memberId), isNull(dailyWorkLogs.deletedAt)))
+    .where(
+      and(
+        eq(dailyWorkLogs.memberId, memberId),
+        isNull(dailyWorkLogs.deletedAt),
+      ),
+    )
     .orderBy(asc(dailyWorkLogs.workDate))
     .all();
 }
 
-export function listDailyWorkLogsByMemberAndMonth(db: KosuDatabase, memberId: string, month: string) {
+export function listDailyWorkLogsByMemberAndMonth(
+  db: KosuDatabase,
+  memberId: string,
+  month: string,
+) {
   return db
     .select()
     .from(dailyWorkLogs)
@@ -41,7 +50,12 @@ export function listDailyWorkLogsByMonth(db: KosuDatabase, month: string) {
   return db
     .select()
     .from(dailyWorkLogs)
-    .where(and(like(dailyWorkLogs.workDate, `${month}%`), isNull(dailyWorkLogs.deletedAt)))
+    .where(
+      and(
+        like(dailyWorkLogs.workDate, `${month}%`),
+        isNull(dailyWorkLogs.deletedAt),
+      ),
+    )
     .orderBy(asc(dailyWorkLogs.workDate), asc(dailyWorkLogs.memberId))
     .all();
 }
@@ -50,15 +64,63 @@ export function findDailyWorkLogById(db: KosuDatabase, id: string) {
   return db.select().from(dailyWorkLogs).where(eq(dailyWorkLogs.id, id)).get();
 }
 
-export function findDailyWorkLogByMemberAndDate(db: KosuDatabase, memberId: string, workDate: string) {
+export function findDailyWorkLogByMemberAndDate(
+  db: KosuDatabase,
+  memberId: string,
+  workDate: string,
+) {
   return db
     .select()
     .from(dailyWorkLogs)
-    .where(and(eq(dailyWorkLogs.memberId, memberId), eq(dailyWorkLogs.workDate, workDate), isNull(dailyWorkLogs.deletedAt)))
+    .where(
+      and(
+        eq(dailyWorkLogs.memberId, memberId),
+        eq(dailyWorkLogs.workDate, workDate),
+        isNull(dailyWorkLogs.deletedAt),
+      ),
+    )
     .get();
 }
 
-export function createDailyWorkLog(db: KosuDatabase, input: DailyWorkLogInsert) {
+export function findDailyWorkLogByMemberAndDateIncludingDeleted(
+  db: KosuDatabase,
+  memberId: string,
+  workDate: string,
+) {
+  return db
+    .select()
+    .from(dailyWorkLogs)
+    .where(
+      and(
+        eq(dailyWorkLogs.memberId, memberId),
+        eq(dailyWorkLogs.workDate, workDate),
+      ),
+    )
+    .get();
+}
+
+export function createDailyWorkLog(
+  db: KosuDatabase,
+  input: DailyWorkLogInsert,
+) {
+  const deleted = findDailyWorkLogByMemberAndDateIncludingDeleted(
+    db,
+    input.memberId,
+    input.workDate,
+  );
+  if (deleted?.deletedAt) {
+    return db
+      .update(dailyWorkLogs)
+      .set({
+        totalWorkingHours: input.totalWorkingHours,
+        deletedAt: null,
+        updatedAt: sql`CURRENT_TIMESTAMP`,
+      })
+      .where(eq(dailyWorkLogs.id, deleted.id))
+      .returning()
+      .get();
+  }
+
   return db
     .insert(dailyWorkLogs)
     .values({
@@ -71,7 +133,11 @@ export function createDailyWorkLog(db: KosuDatabase, input: DailyWorkLogInsert) 
     .get();
 }
 
-export function updateDailyWorkLog(db: KosuDatabase, id: string, input: DailyWorkLogUpdate) {
+export function updateDailyWorkLog(
+  db: KosuDatabase,
+  id: string,
+  input: DailyWorkLogUpdate,
+) {
   return db
     .update(dailyWorkLogs)
     .set({
@@ -83,6 +149,15 @@ export function updateDailyWorkLog(db: KosuDatabase, id: string, input: DailyWor
     .get();
 }
 
-export function deleteDailyWorkLog(db: KosuDatabase, id: string, deletedAt: string) {
-  return db.update(dailyWorkLogs).set({ deletedAt }).where(eq(dailyWorkLogs.id, id)).returning().get();
+export function deleteDailyWorkLog(
+  db: KosuDatabase,
+  id: string,
+  deletedAt: string,
+) {
+  return db
+    .update(dailyWorkLogs)
+    .set({ deletedAt })
+    .where(eq(dailyWorkLogs.id, id))
+    .returning()
+    .get();
 }

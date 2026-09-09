@@ -12,15 +12,26 @@ import { listImportJobs } from "../../app/db/repositories/import-jobs";
 import { findMemberByEmail } from "../../app/db/repositories/members";
 import { projects } from "../../app/db/schema";
 import { verifyPassword } from "../../app/lib/password";
-import { action as importsAction, loader as importsLoader } from "../../app/routes/imports";
+import {
+  action as importsAction,
+  loader as importsLoader,
+} from "../../app/routes/imports";
 import { startMonthlyCostReview } from "../../app/services/monthly-cost-close";
-import { buildContext, setupAndLogin, type RouteActionHandler, type RouteLoaderHandler } from "./helpers";
+import {
+  buildContext,
+  setupAndLogin,
+  type RouteActionHandler,
+  type RouteLoaderHandler,
+} from "./helpers";
 
 let dataDir: string;
 let originalDataDir: string | undefined;
 
 function tempDataDir() {
-  return path.join(os.tmpdir(), `kosu-imports-${Date.now()}-${Math.random().toString(36).slice(2)}`);
+  return path.join(
+    os.tmpdir(),
+    `kosu-imports-${Date.now()}-${Math.random().toString(36).slice(2)}`,
+  );
 }
 
 beforeEach(() => {
@@ -54,7 +65,9 @@ describe("imports", () => {
     const cookie = await setupAndLogin(dataDir, "password123");
 
     const response = await (importsLoader as unknown as RouteLoaderHandler)({
-      request: new Request("http://localhost/imports", { headers: { Cookie: cookie } }),
+      request: new Request("http://localhost/imports", {
+        headers: { Cookie: cookie },
+      }),
       context: buildContext(),
     });
     expect((response as { type: string }).type).toBe("members");
@@ -65,7 +78,9 @@ describe("imports", () => {
 
     await expect(
       (importsLoader as unknown as RouteLoaderHandler)({
-        request: new Request("http://localhost/imports", { headers: { Cookie: cookie } }),
+        request: new Request("http://localhost/imports", {
+          headers: { Cookie: cookie },
+        }),
         context: buildContext(),
       }),
     ).rejects.toBeInstanceOf(Response);
@@ -87,6 +102,20 @@ describe("imports", () => {
     const body = await (response as Response).text();
     expect(body).toContain("email");
     expect(body).toContain("displayName");
+
+    const projectForm = new FormData();
+    projectForm.append("intent", "template");
+    projectForm.append("type", "projects");
+    const projectResponse = await (
+      importsAction as unknown as RouteActionHandler
+    )({
+      request: buildMultipartRequest(projectForm, cookie),
+      params: {},
+      context: buildContext(),
+    });
+    expect(await (projectResponse as Response).text()).toContain(
+      "effortBudgetHours",
+    );
   });
 
   test("invalid import type is rejected", async () => {
@@ -106,7 +135,8 @@ describe("imports", () => {
   test("preview validates member rows", async () => {
     const cookie = await setupAndLogin(dataDir, "password123");
 
-    const csv = "email,displayName,role,departmentName,hourlyCostRate,isActive\ninvalid,missing email role,,,x\n";
+    const csv =
+      "email,displayName,role,departmentName,hourlyCostRate,isActive\ninvalid,missing email role,,,x\n";
     const file = new File([csv], "members.csv", { type: "text/csv" });
     const formData = new FormData();
     formData.append("intent", "preview");
@@ -118,7 +148,9 @@ describe("imports", () => {
       params: {},
       context: buildContext(),
     });
-    const preview = (response as { preview: { validRows: number; invalidRows: number } }).preview;
+    const preview = (
+      response as { preview: { validRows: number; invalidRows: number } }
+    ).preview;
     expect(preview.validRows).toBe(0);
     expect(preview.invalidRows).toBe(1);
   });
@@ -126,7 +158,8 @@ describe("imports", () => {
   test("preview reports a missing required column instead of failing the whole import", async () => {
     const cookie = await setupAndLogin(dataDir, "password123");
 
-    const csv = "memberEmail,month\nadmin@example.com,2026-01\nadmin@example.com,2026-02\n";
+    const csv =
+      "memberEmail,month\nadmin@example.com,2026-01\nadmin@example.com,2026-02\n";
     const file = new File([csv], "capacities.csv", { type: "text/csv" });
     const formData = new FormData();
     formData.append("intent", "preview");
@@ -139,19 +172,29 @@ describe("imports", () => {
       context: buildContext(),
     });
 
-    const preview = (response as {
-      preview: { validRows: number; invalidRows: number; missingColumns: string[]; rows: { errors: string[] }[] };
-    }).preview;
+    const preview = (
+      response as {
+        preview: {
+          validRows: number;
+          invalidRows: number;
+          missingColumns: string[];
+          rows: { errors: string[] }[];
+        };
+      }
+    ).preview;
     expect(preview.validRows).toBe(0);
     expect(preview.invalidRows).toBe(2);
     expect(preview.missingColumns).toEqual(["capacityHours"]);
-    expect(preview.rows[0].errors.join(" ")).toContain("必須列「capacityHours」が CSV に存在しません");
+    expect(preview.rows[0].errors.join(" ")).toContain(
+      "必須列「capacityHours」が CSV に存在しません",
+    );
   });
 
   test("preview rejects duplicate keys in the csv", async () => {
     const cookie = await setupAndLogin(dataDir, "password123");
 
-    const csv = "code,name,projectType,clientName,revenueOrBudgetAmount\nPRJ-001,Website,internal,,\nPRJ-001,Website Copy,internal,,\n";
+    const csv =
+      "code,name,projectType,clientName,revenueOrBudgetAmount\nPRJ-001,Website,internal,,\nPRJ-001,Website Copy,internal,,\n";
     const file = new File([csv], "projects.csv", { type: "text/csv" });
     const formData = new FormData();
     formData.append("intent", "preview");
@@ -163,16 +206,29 @@ describe("imports", () => {
       params: {},
       context: buildContext(),
     });
-    const preview = (response as { preview: { validRows: number; invalidRows: number; rows: { errors: string[] }[] } }).preview;
+    const preview = (
+      response as {
+        preview: {
+          validRows: number;
+          invalidRows: number;
+          rows: { errors: string[] }[];
+        };
+      }
+    ).preview;
     expect(preview.validRows).toBe(0);
     expect(preview.invalidRows).toBe(2);
-    expect(preview.rows.every((row) => row.errors.some((error) => error.includes("重複")))).toBe(true);
+    expect(
+      preview.rows.every((row) =>
+        row.errors.some((error) => error.includes("重複")),
+      ),
+    ).toBe(true);
   });
 
   test("preview accepts a byte order mark prefixed csv", async () => {
     const cookie = await setupAndLogin(dataDir, "password123");
 
-    const csv = "\uFEFFcode,name,projectType,clientName,revenueOrBudgetAmount\nPRJ-001,Website,internal,,\n";
+    const csv =
+      "\uFEFFcode,name,projectType,clientName,revenueOrBudgetAmount\nPRJ-001,Website,internal,,\n";
     const file = new File([csv], "projects-bom.csv", { type: "text/csv" });
     const formData = new FormData();
     formData.append("intent", "preview");
@@ -184,7 +240,15 @@ describe("imports", () => {
       params: {},
       context: buildContext(),
     });
-    const preview = (response as { preview: { validRows: number; invalidRows: number; rows: { errors: string[] }[] } }).preview;
+    const preview = (
+      response as {
+        preview: {
+          validRows: number;
+          invalidRows: number;
+          rows: { errors: string[] }[];
+        };
+      }
+    ).preview;
     expect(preview.validRows).toBe(1);
     expect(preview.invalidRows).toBe(0);
     expect(preview.rows[0].errors).toHaveLength(0);
@@ -193,7 +257,8 @@ describe("imports", () => {
   test("preview rejects non-calendar months for monthly capacities", async () => {
     const cookie = await setupAndLogin(dataDir, "password123");
 
-    const csv = "memberEmail,month,capacityHours\nadmin@example.com,2026-13,160\n";
+    const csv =
+      "memberEmail,month,capacityHours\nadmin@example.com,2026-13,160\n";
     const file = new File([csv], "capacities.csv", { type: "text/csv" });
     const formData = new FormData();
     formData.append("intent", "preview");
@@ -205,13 +270,17 @@ describe("imports", () => {
       params: {},
       context: buildContext(),
     });
-    const preview = (response as { preview: { rows: { errors: string[] }[] } }).preview;
-    expect(preview.rows[0].errors.some((error) => error.includes("実在する月"))).toBe(true);
+    const preview = (response as { preview: { rows: { errors: string[] }[] } })
+      .preview;
+    expect(
+      preview.rows[0].errors.some((error) => error.includes("実在する月")),
+    ).toBe(true);
   });
 
   test("member import commit requires explicit initial password", async () => {
     const cookie = await setupAndLogin(dataDir, "password123");
-    const csv = "email,displayName,role,departmentName,hourlyCostRate,isActive\nnew@example.com,New User,member,Engineering,3000,true\n";
+    const csv =
+      "email,displayName,role,departmentName,hourlyCostRate,isActive\nnew@example.com,New User,member,Engineering,3000,true\n";
     const file = new File([csv], "members.csv", { type: "text/csv" });
     const formData = new FormData();
     formData.append("intent", "commit");
@@ -228,7 +297,8 @@ describe("imports", () => {
 
   test("member import updates existing member without resetting password", async () => {
     const cookie = await setupAndLogin(dataDir, "password123");
-    const csv = "email,displayName,role,departmentName,hourlyCostRate,isActive\nadmin@example.com,Admin Renamed,admin,Engineering,5000,true\n";
+    const csv =
+      "email,displayName,role,departmentName,hourlyCostRate,isActive\nadmin@example.com,Admin Renamed,admin,Engineering,5000,true\n";
     const file = new File([csv], "members.csv", { type: "text/csv" });
     const formData = new FormData();
     formData.append("intent", "commit");
@@ -241,19 +311,26 @@ describe("imports", () => {
       params: {},
       context: buildContext(),
     });
-    expect((response as { result: { imported: number } }).result.imported).toBe(1);
+    expect((response as { result: { imported: number } }).result.imported).toBe(
+      1,
+    );
 
-    const connection = createDatabaseConnection(resolveDatabaseConfig().databaseUrl);
+    const connection = createDatabaseConnection(
+      resolveDatabaseConfig().databaseUrl,
+    );
     const member = findMemberByEmail(connection.db, "admin@example.com")!;
     expect(member.displayName).toBe("Admin Renamed");
     expect(await verifyPassword("password123", member.passwordHash)).toBe(true);
-    expect(await verifyPassword("newpassword", member.passwordHash)).toBe(false);
+    expect(await verifyPassword("newpassword", member.passwordHash)).toBe(
+      false,
+    );
     connection.sqlite.close();
   });
 
   test("commit records an import job", async () => {
     const cookie = await setupAndLogin(dataDir, "password123");
-    const csv = "code,name,projectType,clientName,revenueOrBudgetAmount\nPRJ-001,Website,internal,,\n";
+    const csv =
+      "code,name,projectType,clientName,revenueOrBudgetAmount\nPRJ-001,Website,internal,,\n";
     const file = new File([csv], "projects.csv", { type: "text/csv" });
     const formData = new FormData();
     formData.append("intent", "commit");
@@ -265,13 +342,17 @@ describe("imports", () => {
       params: {},
       context: buildContext(),
     });
-    expect((response as { result: { imported: number; failed: number } }).result).toEqual({
+    expect(
+      (response as { result: { imported: number; failed: number } }).result,
+    ).toEqual({
       imported: 1,
       failed: 0,
       createdByMemberId: expect.any(String),
     });
 
-    const connection = createDatabaseConnection(resolveDatabaseConfig().databaseUrl);
+    const connection = createDatabaseConnection(
+      resolveDatabaseConfig().databaseUrl,
+    );
     const jobs = listImportJobs(connection.db);
     expect(jobs).toHaveLength(1);
     expect(jobs[0]).toMatchObject({
@@ -287,12 +368,18 @@ describe("imports", () => {
 
   test("monthly import commit cannot bypass a protected month", async () => {
     const cookie = await setupAndLogin(dataDir, "password123");
-    const connection = createDatabaseConnection(resolveDatabaseConfig().databaseUrl);
+    const connection = createDatabaseConnection(
+      resolveDatabaseConfig().databaseUrl,
+    );
     const admin = findMemberByEmail(connection.db, "admin@example.com")!;
-    startMonthlyCostReview(connection.db, { month: "2026-07", actorMemberId: admin.id });
+    startMonthlyCostReview(connection.db, {
+      month: "2026-07",
+      actorMemberId: admin.id,
+    });
     connection.sqlite.close();
 
-    const csv = "memberEmail,month,capacityHours\nadmin@example.com,2026-07,160\n";
+    const csv =
+      "memberEmail,month,capacityHours\nadmin@example.com,2026-07,160\n";
     const file = new File([csv], "capacities.csv", { type: "text/csv" });
     const formData = new FormData();
     formData.append("intent", "commit");
@@ -310,7 +397,8 @@ describe("imports", () => {
 
   test("project import keeps legacy amount separate from financial baseline", async () => {
     const cookie = await setupAndLogin(dataDir, "password123");
-    const csv = "code,name,projectType,clientName,revenueOrBudgetAmount,contractRevenueAmount,laborCostBudgetAmount\nPRJ-001,Website,billable,,100000,1200000,600000\n";
+    const csv =
+      "code,name,projectType,clientName,revenueOrBudgetAmount,contractRevenueAmount,laborCostBudgetAmount\nPRJ-001,Website,billable,,100000,1200000,600000\n";
     const file = new File([csv], "projects.csv", { type: "text/csv" });
     const formData = new FormData();
     formData.append("intent", "commit");
@@ -323,15 +411,20 @@ describe("imports", () => {
       context: buildContext(),
     });
 
-    const connection = createDatabaseConnection(resolveDatabaseConfig().databaseUrl);
+    const connection = createDatabaseConnection(
+      resolveDatabaseConfig().databaseUrl,
+    );
     const project = connection.db.select().from(projects).get()!;
     expect(project.revenueOrBudgetAmount).toBe(100_000);
     expect(project.contractRevenueAmount).toBe(1_200_000);
     expect(project.laborCostBudgetAmount).toBe(600_000);
     connection.sqlite.close();
 
-    const updateCsv = "code,name,projectType,clientName,revenueOrBudgetAmount,contractRevenueAmount,laborCostBudgetAmount\nPRJ-001,Website,billable,,,1300000,650000\n";
-    const updateFile = new File([updateCsv], "projects-update.csv", { type: "text/csv" });
+    const updateCsv =
+      "code,name,projectType,clientName,revenueOrBudgetAmount,contractRevenueAmount,laborCostBudgetAmount\nPRJ-001,Website,billable,,,1300000,650000\n";
+    const updateFile = new File([updateCsv], "projects-update.csv", {
+      type: "text/csv",
+    });
     const updateFormData = new FormData();
     updateFormData.append("intent", "commit");
     updateFormData.append("type", "projects");
@@ -343,7 +436,9 @@ describe("imports", () => {
       context: buildContext(),
     });
 
-    const updatedConnection = createDatabaseConnection(resolveDatabaseConfig().databaseUrl);
+    const updatedConnection = createDatabaseConnection(
+      resolveDatabaseConfig().databaseUrl,
+    );
     const updatedProject = updatedConnection.db.select().from(projects).get()!;
     expect(updatedProject.revenueOrBudgetAmount).toBe(100_000);
     expect(updatedProject.contractRevenueAmount).toBe(1_300_000);
@@ -366,6 +461,36 @@ describe("imports", () => {
     expect(response).toBeInstanceOf(Response);
     const body = await (response as Response).text();
     expect(body).toContain("admin@example.com");
-    expect((response as Response).headers.get("Content-Disposition")).toContain("kosu-members-export.csv");
+    expect((response as Response).headers.get("Content-Disposition")).toContain(
+      "kosu-members-export.csv",
+    );
+
+    const projectConnection = createDatabaseConnection(
+      resolveDatabaseConfig().databaseUrl,
+    );
+    projectConnection.db
+      .insert(projects)
+      .values({
+        id: "export-project",
+        code: "EXPORT-1",
+        name: "Export project",
+        projectType: "internal",
+        effortBudgetHours: 80.25,
+      })
+      .run();
+    projectConnection.sqlite.close();
+    const projectForm = new FormData();
+    projectForm.append("intent", "export");
+    projectForm.append("type", "projects");
+    const projectExport = await (
+      importsAction as unknown as RouteActionHandler
+    )({
+      request: buildMultipartRequest(projectForm, cookie),
+      params: {},
+      context: buildContext(),
+    });
+    const projectCsv = await (projectExport as Response).text();
+    expect(projectCsv).toContain("effortBudgetHours");
+    expect(projectCsv).toContain("80.25");
   });
 });

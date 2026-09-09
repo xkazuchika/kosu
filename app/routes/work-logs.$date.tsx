@@ -47,7 +47,8 @@ import {
   getWeekdayLabel,
   isSaturdayDate,
   isSundayDate,
-  isValidQuarterHour,
+  isValidCalendarDate,
+  isValidDailyHours,
 } from "~/lib/time";
 import { getMonthlyCostCloseState } from "~/services/monthly-cost-close";
 import { requireUnlockedMonth } from "~/services/period-lock";
@@ -88,6 +89,9 @@ export const loader = async ({
     }
 
     const workDate = params.date;
+    if (!isValidCalendarDate(workDate)) {
+      throw new Response("Bad Request", { status: 400 });
+    }
     const month = workDate.slice(0, 7);
     const workLog = findDailyWorkLogByMemberAndDate(
       db,
@@ -215,6 +219,9 @@ export const action = async ({ request, params }: Route.ActionArgs) => {
     }
 
     const workDate = params.date;
+    if (!isValidCalendarDate(workDate)) {
+      throw new Response("Bad Request", { status: 400 });
+    }
     const month = workDate.slice(0, 7);
     const formData = await request.formData();
     const deleteAllocationId = String(
@@ -252,8 +259,10 @@ export const action = async ({ request, params }: Route.ActionArgs) => {
         String(formData.get("totalWorkingHours") ?? "").trim(),
       );
 
-      if (!isValidQuarterHour(totalWorkingHours)) {
-        return { error: "総稼働時間は 0.25h 単位で入力してください。" };
+      if (!isValidDailyHours(totalWorkingHours)) {
+        return {
+          error: "総稼働時間は 0.25h 単位の正の値で、24h 以下にしてください。",
+        };
       }
 
       const existing = findDailyWorkLogByMemberAndDate(
@@ -458,6 +467,16 @@ function copyPreviousDayEffort(
 
   if (usable.length === 0) {
     return { error: "前日の実績に複製できる案件がないため、複製できません。" };
+  }
+
+  if (
+    !isValidDailyHours(previousLog.totalWorkingHours) ||
+    usable.some(
+      (allocation) => !isValidDailyHours(allocation.allocatedHours),
+    ) ||
+    usable.reduce((sum, allocation) => sum + allocation.allocatedHours, 0) > 24
+  ) {
+    return { error: "前日の実績が1日の24h上限を超えているため、複製できません。" };
   }
 
   const targetMember = findMemberById(db, memberId);

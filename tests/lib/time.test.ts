@@ -7,6 +7,8 @@ import {
   getWeekdayLabel,
   isSaturdayDate,
   isSundayDate,
+  isValidCalendarDate,
+  isValidDailyHours,
   isValidMonth,
   isValidQuarterHour,
   isValidTimeZone,
@@ -29,6 +31,23 @@ test("isValidQuarterHour rejects invalid increments", () => {
   expect(isValidQuarterHour(0.33)).toBe(false);
   expect(isValidQuarterHour(1.23)).toBe(false);
   expect(isValidQuarterHour(-1)).toBe(false);
+});
+
+test("daily hours are bounded to 24 hours", () => {
+  expect(isValidDailyHours(0.25)).toBe(true);
+  expect(isValidDailyHours(24)).toBe(true);
+  expect(isValidDailyHours(24.25)).toBe(false);
+  expect(isValidDailyHours(0)).toBe(false);
+});
+
+test("calendar date validation rejects normalized and impossible dates", () => {
+  expect(isValidCalendarDate("2026-02-28")).toBe(true);
+  expect(isValidCalendarDate("2028-02-29")).toBe(true);
+  expect(isValidCalendarDate("2026-02-29")).toBe(false);
+  expect(isValidCalendarDate("2026-04-31")).toBe(false);
+  expect(isValidCalendarDate("2026-2-03")).toBe(false);
+  expect(isValidCalendarDate("0000-01-01")).toBe(false);
+  expect(listWeekDates("2026-02-29")).toEqual([]);
 });
 
 test("listMonthDates returns UTC-safe month dates", () => {

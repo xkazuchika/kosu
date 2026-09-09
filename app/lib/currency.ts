@@ -8,3 +8,7 @@ export function parseOptionalYen(value: unknown) {
   const amount = Number(raw);
   return Number.isSafeInteger(amount) && amount >= 0 ? amount : undefined;
 }
+
+export function parseOptionalHourlyCostRate(value: unknown) {
+  return parseOptionalYen(value);
+}

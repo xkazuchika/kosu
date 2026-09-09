@@ -25,9 +25,13 @@ After the candidate commit passes GitHub Actions, publish it with the manual `Re
 
 - [ ] `npm run db:migrate` succeeds against a fresh SQLite data directory.
 - [ ] Existing data upgrades without unexpected loss; review the migrations included since the previous release.
+- [ ] Assignment migration keeps the newest active member/project row, marks older duplicates removed, preserves every row, and enforces one active assignment per pair.
+- [ ] Cleared daily work logs can be re-entered through monthly, daily, weekly, unified, and planned-to-actual paths without restoring deleted allocations.
 - [ ] Active legacy `period_locks` rows migrate to `in_review`; unlocked rows remain open and the legacy table remains present.
 - [ ] Monthly close review, blocker display, explicit cost correction, approval snapshot, and reason-required reopen work against upgraded data.
 - [ ] In-review and approved months reject member and administrator writes through work logs, allocations, plans, capacities, copy-to-actual, and CSV imports.
+- [ ] CSV templates and exports include optional project `effortBudgetHours`; an older project header preserves an existing budget when the column is absent.
+- [ ] CSV commit revalidates member/project/assignment/month state atomically and imports zero rows when any row is invalid.
 - [ ] Approved project financial views remain unchanged after project baseline, member-rate, archive-state, and future-actual edits.
 - [ ] `docker compose up --build -d` starts with a unique 32+ character `KOSU_SESSION_SECRET`.
 - [ ] The container serves the setup screen for fresh data or the login screen for initialized data.
@@ -49,6 +53,7 @@ After the candidate commit passes GitHub Actions, publish it with the manual `Re
 - [ ] Full resource planning, accounting, invoicing, payroll, expenses, procurement, and multi-instance operation remain clearly out of scope.
 - [ ] Monthly-close release notes state that snapshots cover direct labor cost only and exclude external, subcontractor, expense, and indirect costs.
 - [ ] Rollback preserves the SQLite volume and does not require reversing a destructive migration.
+- [ ] Rollback notes state that assignment rows normalized to removed history are not automatically reactivated by older application code.
 - [ ] Release notes identify new migrations, configuration changes, accepted risks, and rollback limits.
 
 ## Current Dependency Review

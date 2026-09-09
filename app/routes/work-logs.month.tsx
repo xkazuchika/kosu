@@ -1,6 +1,15 @@
-import { Form, Link, redirect, useActionData, useLoaderData } from "react-router";
+import {
+  Form,
+  Link,
+  redirect,
+  useActionData,
+  useLoaderData,
+} from "react-router";
 
-import { MonthlyCloseReadOnlyNotice, MonthlyCloseStatusBadge } from "~/components/monthly-close-status";
+import {
+  MonthlyCloseReadOnlyNotice,
+  MonthlyCloseStatusBadge,
+} from "~/components/monthly-close-status";
 import { Badge } from "~/components/ui/badge";
 import { Button } from "~/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "~/components/ui/card";
@@ -13,8 +22,21 @@ import {
   updateDailyWorkLog,
 } from "~/db/repositories/daily-work-logs";
 import { listAllocationsByWorkLog } from "~/db/repositories/effort-allocations";
-import { findMemberById, listMembers, withoutMemberFinancials } from "~/db/repositories/members";
-import { getWeekdayLabel, isSaturdayDate, isSundayDate, isValidMonth, isValidQuarterHour, isWeekendDate, listMonthDates } from "~/lib/time";
+import {
+  findMemberById,
+  listMembers,
+  withoutMemberFinancials,
+} from "~/db/repositories/members";
+import {
+  getWeekdayLabel,
+  isSaturdayDate,
+  isSundayDate,
+  isValidCalendarDate,
+  isValidDailyHours,
+  isValidMonth,
+  isWeekendDate,
+  listMonthDates,
+} from "~/lib/time";
 import { getSessionMember } from "~/services/auth";
 import { getMonthlyCostCloseState } from "~/services/monthly-cost-close";
 import { requireUnlockedMonth } from "~/services/period-lock";
@@ -33,10 +55,14 @@ export const loader = async ({ request }: { request: Request }) => {
     const url = new URL(request.url);
     const { currentMonth } = getWorkspaceCalendarContext(db);
     const requestedMonth = url.searchParams.get("month");
-    const month = requestedMonth && isValidMonth(requestedMonth) ? requestedMonth : currentMonth;
+    const month =
+      requestedMonth && isValidMonth(requestedMonth)
+        ? requestedMonth
+        : currentMonth;
     const requestedMemberId = url.searchParams.get("memberId");
     const isAdmin = currentMember.role === "admin";
-    const targetMemberId = isAdmin && requestedMemberId ? requestedMemberId : currentMember.id;
+    const targetMemberId =
+      isAdmin && requestedMemberId ? requestedMemberId : currentMember.id;
     const targetMember = findMemberById(db, targetMemberId);
 
     if (!targetMember) {
@@ -45,16 +71,28 @@ export const loader = async ({ request }: { request: Request }) => {
 
     const logs = listDailyWorkLogsByMemberAndMonth(db, targetMemberId, month);
     const logsByDate = new Map(logs.map((log) => [log.workDate, log]));
-    const memberQuery = isAdmin && targetMemberId !== currentMember.id ? `&memberId=${targetMemberId}` : "";
+    const memberQuery =
+      isAdmin && targetMemberId !== currentMember.id
+        ? `&memberId=${targetMemberId}`
+        : "";
     const closeState = getMonthlyCostCloseState(db, month);
     const isLocked = closeState.isProtected;
     const rows = listMonthDates(month).map((workDate) => {
       const log = logsByDate.get(workDate);
       const allocations = log ? listAllocationsByWorkLog(db, log.id) : [];
       const totalWorkingHours = log?.totalWorkingHours ?? 0;
-      const allocatedTotal = allocations.reduce((sum, allocation) => sum + allocation.allocatedHours, 0);
+      const allocatedTotal = allocations.reduce(
+        (sum, allocation) => sum + allocation.allocatedHours,
+        0,
+      );
       const variance = totalWorkingHours - allocatedTotal;
-      const status = getStatus({ allocatedTotal, isLocked, hasLog: Boolean(log), totalWorkingHours, variance });
+      const status = getStatus({
+        allocatedTotal,
+        isLocked,
+        hasLog: Boolean(log),
+        totalWorkingHours,
+        variance,
+      });
 
       return {
         isSaturday: isSaturdayDate(workDate),
@@ -98,10 +136,14 @@ export const action = async ({ request }: { request: Request }) => {
     const url = new URL(request.url);
     const { currentMonth } = getWorkspaceCalendarContext(db);
     const requestedMonth = url.searchParams.get("month");
-    const month = requestedMonth && isValidMonth(requestedMonth) ? requestedMonth : currentMonth;
+    const month =
+      requestedMonth && isValidMonth(requestedMonth)
+        ? requestedMonth
+        : currentMonth;
     const requestedMemberId = url.searchParams.get("memberId");
     const isAdmin = currentMember.role === "admin";
-    const targetMemberId = isAdmin && requestedMemberId ? requestedMemberId : currentMember.id;
+    const targetMemberId =
+      isAdmin && requestedMemberId ? requestedMemberId : currentMember.id;
     const targetMember = findMemberById(db, targetMemberId);
 
     if (!targetMember) {
@@ -128,15 +170,17 @@ export const action = async ({ request }: { request: Request }) => {
         continue;
       }
 
-      if (!/^\d{4}-\d{2}-\d{2}$/.test(workDate) || !workDate.startsWith(`${month}-`)) {
+      if (!isValidCalendarDate(workDate) || !workDate.startsWith(`${month}-`)) {
         return { error: "対象月の日付だけ入力できます。" };
       }
 
       const totalWorkingHours = Number(rawHours);
       const isZero = totalWorkingHours === 0;
 
-      if (!isZero && !isValidQuarterHour(totalWorkingHours)) {
-        return { error: "総稼働時間は 0.25h 単位で入力してください。" };
+      if (!isZero && !isValidDailyHours(totalWorkingHours)) {
+        return {
+          error: "総稼働時間は 0.25h 単位の正の値で、24h 以下にしてください。",
+        };
       }
 
       if (isZero) {
@@ -149,7 +193,14 @@ export const action = async ({ request }: { request: Request }) => {
     const existingLogs = new Map(
       operations
         .filter((operation) => operation.kind === "clear")
-        .map((operation) => [operation.workDate, findDailyWorkLogByMemberAndDate(db, targetMemberId, operation.workDate)]),
+        .map((operation) => [
+          operation.workDate,
+          findDailyWorkLogByMemberAndDate(
+            db,
+            targetMemberId,
+            operation.workDate,
+          ),
+        ]),
     );
 
     for (const operation of operations) {
@@ -166,7 +217,9 @@ export const action = async ({ request }: { request: Request }) => {
       const allocations = listAllocationsByWorkLog(db, existing.id);
 
       if (allocations.length > 0) {
-        return { error: `${operation.workDate} は案件別実績工数があるため 0h にできません。先に案件別実績工数を削除してください。` };
+        return {
+          error: `${operation.workDate} は案件別実績工数があるため 0h にできません。先に案件別実績工数を削除してください。`,
+        };
       }
     }
 
@@ -185,17 +238,30 @@ export const action = async ({ request }: { request: Request }) => {
           continue;
         }
 
-        const existing = findDailyWorkLogByMemberAndDate(tx, targetMemberId, operation.workDate);
+        const existing = findDailyWorkLogByMemberAndDate(
+          tx,
+          targetMemberId,
+          operation.workDate,
+        );
 
         if (existing) {
-          updateDailyWorkLog(tx, existing.id, { totalWorkingHours: operation.totalWorkingHours });
+          updateDailyWorkLog(tx, existing.id, {
+            totalWorkingHours: operation.totalWorkingHours,
+          });
         } else {
-          createDailyWorkLog(tx, { memberId: targetMemberId, workDate: operation.workDate, totalWorkingHours: operation.totalWorkingHours });
+          createDailyWorkLog(tx, {
+            memberId: targetMemberId,
+            workDate: operation.workDate,
+            totalWorkingHours: operation.totalWorkingHours,
+          });
         }
       }
     });
 
-    const memberQuery = isAdmin && targetMemberId !== currentMember.id ? `&memberId=${targetMemberId}` : "";
+    const memberQuery =
+      isAdmin && targetMemberId !== currentMember.id
+        ? `&memberId=${targetMemberId}`
+        : "";
     return redirect(`/work-logs/month?month=${month}${memberQuery}`);
   } finally {
     sqlite.close();
@@ -205,18 +271,33 @@ export const action = async ({ request }: { request: Request }) => {
 export const meta = () => [{ title: "月別総稼働時間入力 | kosu" }];
 
 export default function WorkLogMonth() {
-  const { closeStatus, currentMemberId, isAdmin, isLocked, members, month, rows, targetMember } = useLoaderData<typeof loader>();
+  const {
+    closeStatus,
+    currentMemberId,
+    isAdmin,
+    isLocked,
+    members,
+    month,
+    rows,
+    targetMember,
+  } = useLoaderData<typeof loader>();
   const actionData = useActionData() as { error?: string } | undefined;
-  const memberQuery = isAdmin && targetMember.id !== currentMemberId ? `&memberId=${targetMember.id}` : "";
+  const memberQuery =
+    isAdmin && targetMember.id !== currentMemberId
+      ? `&memberId=${targetMember.id}`
+      : "";
   const readOnly = isLocked;
 
   return (
     <div className="space-y-6">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight text-slate-950">月別総稼働時間入力</h1>
+          <h1 className="text-2xl font-bold tracking-tight text-slate-950">
+            月別総稼働時間入力
+          </h1>
           <p className="text-sm text-slate-600">
-            {targetMember.displayName} · {month} · 日別の総稼働時間をまとめて入力します。案件別実績工数は日別詳細で編集します。
+            {targetMember.displayName} · {month} ·
+            日別の総稼働時間をまとめて入力します。案件別実績工数は日別詳細で編集します。
           </p>
         </div>
         <MonthlyCloseStatusBadge status={closeStatus} />
@@ -225,7 +306,10 @@ export default function WorkLogMonth() {
       <MonthlyCloseReadOnlyNotice month={month} status={closeStatus} />
 
       {actionData?.error ? (
-        <p className="rounded-lg bg-red-50 p-3 text-sm text-red-700" role="alert">
+        <p
+          className="rounded-lg bg-red-50 p-3 text-sm text-red-700"
+          role="alert"
+        >
           {actionData.error}
         </p>
       ) : null}
@@ -235,11 +319,20 @@ export default function WorkLogMonth() {
           <CardTitle>対象</CardTitle>
         </CardHeader>
         <CardContent>
-          <Form className="flex flex-col gap-4 sm:flex-row sm:items-end" method="get">
+          <Form
+            className="flex flex-col gap-4 sm:flex-row sm:items-end"
+            method="get"
+          >
             {isAdmin ? (
               <div>
-                <label className="text-sm font-medium text-slate-800">対象メンバー</label>
-                <select className="mt-1 block w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm" defaultValue={targetMember.id} name="memberId">
+                <label className="text-sm font-medium text-slate-800">
+                  対象メンバー
+                </label>
+                <select
+                  className="mt-1 block w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm"
+                  defaultValue={targetMember.id}
+                  name="memberId"
+                >
                   {members.map((member) => (
                     <option key={member.id} value={member.id}>
                       {member.displayName}
@@ -250,7 +343,12 @@ export default function WorkLogMonth() {
             ) : null}
             <div>
               <label className="text-sm font-medium text-slate-800">月</label>
-              <input className="mt-1 block w-full rounded-lg border border-slate-300 px-3 py-2 text-sm" defaultValue={month} name="month" type="month" />
+              <input
+                className="mt-1 block w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
+                defaultValue={month}
+                name="month"
+                type="month"
+              />
             </div>
             <Button type="submit" variant="primary">
               表示
@@ -262,10 +360,16 @@ export default function WorkLogMonth() {
       <Card>
         <CardHeader>
           <CardTitle>日別の総稼働時間</CardTitle>
-          <p className="mt-1 text-sm text-slate-600">空欄は変更なし。0 を入力するとその日の総稼働を削除します（案件別実績工数がある日は削除できません）。</p>
+          <p className="mt-1 text-sm text-slate-600">
+            空欄は変更なし。0
+            を入力するとその日の総稼働を削除します（案件別実績工数がある日は削除できません）。
+          </p>
         </CardHeader>
         <CardContent>
-          <Form method="post" action={`/work-logs/month?month=${month}${memberQuery}`}>
+          <Form
+            method="post"
+            action={`/work-logs/month?month=${month}${memberQuery}`}
+          >
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead className="border-b border-slate-200 text-left text-slate-600">
@@ -281,12 +385,19 @@ export default function WorkLogMonth() {
                 </thead>
                 <tbody>
                   {rows.map((row) => (
-                    <tr className={`border-b border-slate-100 ${row.isSunday ? "bg-rose-50/45" : row.isSaturday ? "bg-indigo-50/35" : ""}`} key={row.workDate}>
+                    <tr
+                      className={`border-b border-slate-100 ${row.isSunday ? "bg-rose-50/45" : row.isSaturday ? "bg-indigo-50/35" : ""}`}
+                      key={row.workDate}
+                    >
                       <td className="py-2 pr-4 font-medium">
                         <input name="date" type="hidden" value={row.workDate} />
                         {row.workDate.slice(5)}
                       </td>
-                      <td className={`py-2 pr-4 ${row.isSunday ? "font-medium text-rose-700" : row.isSaturday ? "font-medium text-indigo-700" : "text-slate-600"}`}>{row.weekday}</td>
+                      <td
+                        className={`py-2 pr-4 ${row.isSunday ? "font-medium text-rose-700" : row.isSaturday ? "font-medium text-indigo-700" : "text-slate-600"}`}
+                      >
+                        {row.weekday}
+                      </td>
                       <td className="py-2 pr-4 text-right">
                         <input
                           className="w-24 rounded-lg border border-slate-300 px-3 py-2 text-right text-sm disabled:bg-slate-100"
@@ -297,15 +408,23 @@ export default function WorkLogMonth() {
                           type="number"
                         />
                       </td>
-                      <td className="py-2 pr-4 text-right">{row.allocatedTotal}h</td>
-                      <td className={`py-2 pr-4 text-right ${row.variance === 0 ? "text-slate-700" : "text-amber-700"}`}>
-                        {row.variance >= 0 ? "+" : ""}{row.variance}h
+                      <td className="py-2 pr-4 text-right">
+                        {row.allocatedTotal}h
+                      </td>
+                      <td
+                        className={`py-2 pr-4 text-right ${row.variance === 0 ? "text-slate-700" : "text-amber-700"}`}
+                      >
+                        {row.variance >= 0 ? "+" : ""}
+                        {row.variance}h
                       </td>
                       <td className="py-2 pr-4">
                         <StatusBadge status={row.status} />
                       </td>
                       <td className="py-2">
-                        <Link className="text-sky-700 hover:underline" to={row.dailyDetailUrl}>
+                        <Link
+                          className="text-sky-700 hover:underline"
+                          to={row.dailyDetailUrl}
+                        >
                           入力
                         </Link>
                       </td>
@@ -326,12 +445,19 @@ export default function WorkLogMonth() {
   );
 }
 
-function getStatus(input: { allocatedTotal: number; hasLog: boolean; isLocked: boolean; totalWorkingHours: number; variance: number }) {
+function getStatus(input: {
+  allocatedTotal: number;
+  hasLog: boolean;
+  isLocked: boolean;
+  totalWorkingHours: number;
+  variance: number;
+}) {
   if (input.isLocked) return "locked";
   if (!input.hasLog) return "missing";
   if (input.variance === 0) return "complete";
   if (input.variance < 0) return "overallocated";
-  if (input.allocatedTotal === 0 && input.totalWorkingHours > 0) return "unallocated";
+  if (input.allocatedTotal === 0 && input.totalWorkingHours > 0)
+    return "unallocated";
   return "incomplete";
 }
 

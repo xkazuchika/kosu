@@ -390,6 +390,35 @@ describe("projects, tasks, assignments, and plans routes", () => {
       (updatedAssignments as { assignments: { assignmentRole: string }[] })
         .assignments[0].assignmentRole,
     ).toBe("Engineer");
+
+    const updateRoleForm = new FormData();
+    updateRoleForm.append("intent", "updateRole");
+    updateRoleForm.append("memberId", adminMember.id);
+    updateRoleForm.append("assignmentRole", "Lead");
+    await (projectAssignmentsAction as unknown as RouteActionHandler)({
+      request: buildRequest(updateRoleForm, cookie),
+      params: { id: project.id },
+      context: buildContext(),
+    });
+    const roleUpdated = await (
+      projectAssignmentsLoader as unknown as RouteLoaderHandler
+    )({
+      request: new Request(
+        `http://localhost/projects/${project.id}/assignments`,
+        { headers: { Cookie: cookie } },
+      ),
+      params: { id: project.id },
+      context: buildContext(),
+    });
+    expect(
+      (
+        roleUpdated as {
+          assignments: { assignmentRole: string; removedAt: string | null }[];
+        }
+      ).assignments,
+    ).toEqual([
+      expect.objectContaining({ assignmentRole: "Lead", removedAt: null }),
+    ]);
   });
 
   test("member self-assigns to existing active project", async () => {
@@ -953,13 +982,16 @@ describe("projects, tasks, assignments, and plans routes", () => {
 
     const unknownForm = new FormData();
     unknownForm.append("projectId", "missing-project-id");
-    await expect(
-      (selfAssignAction as unknown as RouteActionHandler)({
-        request: buildRequest(unknownForm, cookie),
-        params: {},
-        context: buildContext(),
-      }),
-    ).rejects.toMatchObject({ status: 404 });
+    const unknownResponse = await (
+      selfAssignAction as unknown as RouteActionHandler
+    )({
+      request: buildRequest(unknownForm, cookie),
+      params: {},
+      context: buildContext(),
+    });
+    expect((unknownResponse as { error: string }).error).toContain(
+      "案件が存在しません",
+    );
   });
 
   test("monthly plan responses do not expose member credential or cost fields", async () => {

@@ -6,6 +6,7 @@ import {
   sqliteTable,
   text,
   unique,
+  uniqueIndex,
 } from "drizzle-orm/sqlite-core";
 
 const id = text("id").primaryKey();
@@ -145,6 +146,9 @@ export const projectAssignments = sqliteTable(
       table.memberId,
     ),
     index("project_assignments_source_index").on(table.assignmentSource),
+    uniqueIndex("project_assignments_active_member_project_unique")
+      .on(table.memberId, table.projectId)
+      .where(sql`${table.removedAt} IS NULL`),
   ],
 );
 

@@ -5,12 +5,24 @@ import {
   listDailyAllocationPlansByMemberAndMonth,
   upsertDailyAllocationPlan,
 } from "~/db/repositories/daily-allocation-plans";
-import { createDailyWorkLog, findDailyWorkLogByMemberAndDate, updateDailyWorkLog } from "~/db/repositories/daily-work-logs";
-import { createEffortAllocation, listAllocationsByWorkLog } from "~/db/repositories/effort-allocations";
+import {
+  createDailyWorkLog,
+  findDailyWorkLogByMemberAndDate,
+  updateDailyWorkLog,
+} from "~/db/repositories/daily-work-logs";
+import {
+  createEffortAllocation,
+  listAllocationsByWorkLog,
+} from "~/db/repositories/effort-allocations";
 import { findMemberById } from "~/db/repositories/members";
 import { findActiveAssignment } from "~/db/repositories/project-assignments";
 import { findProjectById } from "~/db/repositories/projects";
-import { isValidMonth, isValidQuarterHour, listMonthDates } from "~/lib/time";
+import {
+  isValidCalendarDate,
+  isValidDailyHours,
+  isValidMonth,
+  listMonthDates,
+} from "~/lib/time";
 import { requireUnlockedMonth } from "~/services/period-lock";
 
 export class DailyAllocationPlanError extends Error {}
@@ -32,11 +44,16 @@ export type CopyDailyAllocationPlansInput = {
   month: string;
 };
 
-export function saveDailyAllocationPlans(db: KosuDatabase, input: SaveDailyAllocationPlansInput) {
+export function saveDailyAllocationPlans(
+  db: KosuDatabase,
+  input: SaveDailyAllocationPlansInput,
+) {
   validateMonth(input.month);
   requireUnlockedMonth(db, input.month);
 
-  const parsedCells = input.cells.map((cell) => parseDailyPlanCell(input.month, cell));
+  const parsedCells = input.cells.map((cell) =>
+    parseDailyPlanCell(input.month, cell),
+  );
   const seenKeys = new Set<string>();
   const finalPlansByDate = new Map<string, Map<string, number>>();
 
@@ -44,7 +61,9 @@ export function saveDailyAllocationPlans(db: KosuDatabase, input: SaveDailyAlloc
     const key = `${cell.planDate}|${cell.projectId}`;
 
     if (seenKeys.has(key)) {
-      throw new DailyAllocationPlanError("同じ日付と案件の予定が重複しています。");
+      throw new DailyAllocationPlanError(
+        "同じ日付と案件の予定が重複しています。",
+      );
     }
     seenKeys.add(key);
 
@@ -52,10 +71,11 @@ export function saveDailyAllocationPlans(db: KosuDatabase, input: SaveDailyAlloc
       finalPlansByDate.set(
         cell.planDate,
         new Map(
-          listDailyAllocationPlansByMemberAndDate(db, input.memberId, cell.planDate).map((plan) => [
-            plan.projectId,
-            plan.plannedHours,
-          ]),
+          listDailyAllocationPlansByMemberAndDate(
+            db,
+            input.memberId,
+            cell.planDate,
+          ).map((plan) => [plan.projectId, plan.plannedHours]),
         ),
       );
     }
@@ -71,10 +91,15 @@ export function saveDailyAllocationPlans(db: KosuDatabase, input: SaveDailyAlloc
   }
 
   for (const [planDate, projectPlans] of finalPlansByDate.entries()) {
-    const total = [...projectPlans.values()].reduce((sum, plannedHours) => sum + plannedHours, 0);
+    const total = [...projectPlans.values()].reduce(
+      (sum, plannedHours) => sum + plannedHours,
+      0,
+    );
 
     if (total > 24) {
-      throw new DailyAllocationPlanError(`${planDate} の予定合計は24h以下にしてください。`);
+      throw new DailyAllocationPlanError(
+        `${planDate} の予定合計は24h以下にしてください。`,
+      );
     }
   }
 
@@ -83,7 +108,12 @@ export function saveDailyAllocationPlans(db: KosuDatabase, input: SaveDailyAlloc
 
   for (const cell of parsedCells) {
     if (cell.plannedHours === null) {
-      const removed = deleteDailyAllocationPlanByMemberDateProject(db, input.memberId, cell.planDate, cell.projectId);
+      const removed = deleteDailyAllocationPlanByMemberDateProject(
+        db,
+        input.memberId,
+        cell.planDate,
+        cell.projectId,
+      );
       if (removed) deleted += 1;
       continue;
     }
@@ -100,7 +130,10 @@ export function saveDailyAllocationPlans(db: KosuDatabase, input: SaveDailyAlloc
   return { deleted, upserted };
 }
 
-export function copyDailyAllocationPlansToActuals(db: KosuDatabase, input: CopyDailyAllocationPlansInput) {
+export function copyDailyAllocationPlansToActuals(
+  db: KosuDatabase,
+  input: CopyDailyAllocationPlansInput,
+) {
   validateMonth(input.month);
   requireUnlockedMonth(db, input.month);
 
@@ -110,7 +143,11 @@ export function copyDailyAllocationPlansToActuals(db: KosuDatabase, input: CopyD
     throw new DailyAllocationPlanError("対象メンバーが見つかりません。");
   }
 
-  const plans = listDailyAllocationPlansByMemberAndMonth(db, input.memberId, input.month);
+  const plans = listDailyAllocationPlansByMemberAndMonth(
+    db,
+    input.memberId,
+    input.month,
+  );
   const plansByDate = new Map<string, typeof plans>();
 
   for (const plan of plans) {
@@ -137,18 +174,39 @@ export function copyDailyAllocationPlansToActuals(db: KosuDatabase, input: CopyD
         continue;
       }
 
-      const workLog = findDailyWorkLogByMemberAndDate(tx, input.memberId, planDate);
-      const existingAllocations = workLog ? listAllocationsByWorkLog(tx, workLog.id) : [];
+      const workLog = findDailyWorkLogByMemberAndDate(
+        tx,
+        input.memberId,
+        planDate,
+      );
+      const existingAllocations = workLog
+        ? listAllocationsByWorkLog(tx, workLog.id)
+        : [];
 
       if (existingAllocations.length > 0) {
         summary.skippedExistingActualDates += 1;
         continue;
       }
 
-      const totalWorkingHours = datePlans.reduce((sum, plan) => sum + plan.plannedHours, 0);
+      const totalWorkingHours = datePlans.reduce(
+        (sum, plan) => sum + plan.plannedHours,
+        0,
+      );
+      if (
+        datePlans.some((plan) => !isValidDailyHours(plan.plannedHours)) ||
+        totalWorkingHours > 24
+      ) {
+        throw new DailyAllocationPlanError(
+          `${planDate} の予定は各値と合計を24h以下にしてください。`,
+        );
+      }
       const targetWorkLog = workLog
         ? updateDailyWorkLog(tx, workLog.id, { totalWorkingHours })
-        : createDailyWorkLog(tx, { memberId: input.memberId, workDate: planDate, totalWorkingHours });
+        : createDailyWorkLog(tx, {
+            memberId: input.memberId,
+            workDate: planDate,
+            totalWorkingHours,
+          });
 
       for (const plan of datePlans) {
         validateAssignedActiveProject(tx, input.memberId, plan.projectId);
@@ -171,11 +229,18 @@ export function copyDailyAllocationPlansToActuals(db: KosuDatabase, input: CopyD
   return summary;
 }
 
-export function getDailyPlanTotalsByDate(db: KosuDatabase, memberId: string, month: string) {
+export function getDailyPlanTotalsByDate(
+  db: KosuDatabase,
+  memberId: string,
+  month: string,
+) {
   return new Map(
     listMonthDates(month).map((planDate) => [
       planDate,
-      listDailyAllocationPlansByMemberAndDate(db, memberId, planDate).reduce((sum, plan) => sum + plan.plannedHours, 0),
+      listDailyAllocationPlansByMemberAndDate(db, memberId, planDate).reduce(
+        (sum, plan) => sum + plan.plannedHours,
+        0,
+      ),
     ]),
   );
 }
@@ -187,7 +252,10 @@ function validateMonth(month: string) {
 }
 
 function parseDailyPlanCell(month: string, cell: DailyAllocationPlanCellInput) {
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(cell.planDate) || !cell.planDate.startsWith(`${month}-`)) {
+  if (
+    !isValidCalendarDate(cell.planDate) ||
+    !cell.planDate.startsWith(`${month}-`)
+  ) {
     throw new DailyAllocationPlanError("対象月の日付だけ入力できます。");
   }
 
@@ -198,23 +266,37 @@ function parseDailyPlanCell(month: string, cell: DailyAllocationPlanCellInput) {
   const raw = cell.plannedHours.trim();
 
   if (raw === "") {
-    return { planDate: cell.planDate, projectId: cell.projectId, plannedHours: null as number | null };
+    return {
+      planDate: cell.planDate,
+      projectId: cell.projectId,
+      plannedHours: null as number | null,
+    };
   }
 
   const plannedHours = Number(raw);
 
   if (plannedHours === 0) {
-    return { planDate: cell.planDate, projectId: cell.projectId, plannedHours: null as number | null };
+    return {
+      planDate: cell.planDate,
+      projectId: cell.projectId,
+      plannedHours: null as number | null,
+    };
   }
 
-  if (!isValidQuarterHour(plannedHours)) {
-    throw new DailyAllocationPlanError("予定工数は 0.25h 単位の正の値で入力してください。");
+  if (!isValidDailyHours(plannedHours)) {
+    throw new DailyAllocationPlanError(
+      "予定工数は 0.25h 単位の正の値で、24h 以下にしてください。",
+    );
   }
 
   return { planDate: cell.planDate, projectId: cell.projectId, plannedHours };
 }
 
-function validateAssignedActiveProject(db: KosuDatabase, memberId: string, projectId: string) {
+function validateAssignedActiveProject(
+  db: KosuDatabase,
+  memberId: string,
+  projectId: string,
+) {
   const project = findProjectById(db, projectId);
 
   if (!project || project.isArchived) {
@@ -222,6 +304,8 @@ function validateAssignedActiveProject(db: KosuDatabase, memberId: string, proje
   }
 
   if (!findActiveAssignment(db, memberId, projectId)) {
-    throw new DailyAllocationPlanError("アサインされていない案件は日別予定工数に登録できません。");
+    throw new DailyAllocationPlanError(
+      "アサインされていない案件は日別予定工数に登録できません。",
+    );
   }
 }

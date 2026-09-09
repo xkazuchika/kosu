@@ -10,12 +10,17 @@ import {
   withoutMemberFinancials,
 } from "~/db/repositories/members";
 import {
-  createProjectAssignment,
+  findProjectAssignmentById,
   listAssignmentsByProject,
   removeProjectAssignment,
 } from "~/db/repositories/project-assignments";
 import { findProjectById } from "~/db/repositories/projects";
 import { requireAdministrator } from "~/services/auth";
+import {
+  createValidatedProjectAssignment,
+  ProjectAssignmentError,
+  updateActiveProjectAssignmentRole,
+} from "~/services/project-assignment";
 
 export const loader = async ({
   request,
@@ -54,8 +59,35 @@ export const action = async ({ request, params }: Route.ActionArgs) => {
 
     if (intent === "remove") {
       const assignmentId = String(formData.get("assignmentId") ?? "");
+      const assignment = findProjectAssignmentById(db, assignmentId);
+      if (
+        !assignment ||
+        assignment.projectId !== params.id ||
+        assignment.removedAt
+      ) {
+        return { error: "有効なアサインが見つかりません。" };
+      }
       removeProjectAssignment(db, assignmentId, new Date().toISOString());
       return null;
+    }
+
+    if (intent === "updateRole") {
+      const memberId = String(formData.get("memberId") ?? "");
+      const assignmentRole =
+        String(formData.get("assignmentRole") ?? "").trim() || null;
+      try {
+        updateActiveProjectAssignmentRole(db, {
+          memberId,
+          projectId: params.id,
+          assignmentRole,
+        });
+        return null;
+      } catch (error) {
+        if (error instanceof ProjectAssignmentError) {
+          return { error: error.message };
+        }
+        throw error;
+      }
     }
 
     const memberId = String(formData.get("memberId") ?? "");
@@ -66,12 +98,19 @@ export const action = async ({ request, params }: Route.ActionArgs) => {
       return { error: "メンバーを選択してください。" };
     }
 
-    createProjectAssignment(db, {
-      memberId,
-      projectId: params.id,
-      assignmentRole,
-    });
-    return null;
+    try {
+      createValidatedProjectAssignment(db, {
+        memberId,
+        projectId: params.id,
+        assignmentRole,
+      });
+      return null;
+    } catch (error) {
+      if (error instanceof ProjectAssignmentError) {
+        return { error: error.message };
+      }
+      throw error;
+    }
   } finally {
     sqlite.close();
   }
@@ -171,21 +210,43 @@ export default function ProjectAssignments({
               assignment.assignmentSource === "self_assigned"
                 ? "自己アサイン"
                 : "管理者",
-              <Form
-                key={assignment.id}
-                method="post"
-                action={`/projects/${project.id}/assignments`}
-              >
-                <input name="intent" type="hidden" value="remove" />
-                <input
-                  name="assignmentId"
-                  type="hidden"
-                  value={assignment.id}
-                />
-                <Button type="submit" variant="outline">
-                  解除
-                </Button>
-              </Form>,
+              <div key={assignment.id} className="flex flex-wrap gap-2">
+                <Form
+                  method="post"
+                  action={`/projects/${project.id}/assignments`}
+                  className="flex gap-2"
+                >
+                  <input name="intent" type="hidden" value="updateRole" />
+                  <input
+                    name="memberId"
+                    type="hidden"
+                    value={assignment.memberId}
+                  />
+                  <input
+                    aria-label={`${member?.displayName ?? "メンバー"}の担当ロール`}
+                    className="w-36 rounded-lg border border-slate-300 px-2 py-1 text-sm"
+                    name="assignmentRole"
+                    defaultValue={assignment.assignmentRole ?? ""}
+                  />
+                  <Button type="submit" variant="outline">
+                    ロール保存
+                  </Button>
+                </Form>
+                <Form
+                  method="post"
+                  action={`/projects/${project.id}/assignments`}
+                >
+                  <input name="intent" type="hidden" value="remove" />
+                  <input
+                    name="assignmentId"
+                    type="hidden"
+                    value={assignment.id}
+                  />
+                  <Button type="submit" variant="outline">
+                    解除
+                  </Button>
+                </Form>
+              </div>,
             ];
           })}
       />

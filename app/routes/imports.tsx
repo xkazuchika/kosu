@@ -13,7 +13,14 @@ import { listAssignmentsByMember } from "~/db/repositories/project-assignments";
 import { findProjectById, listProjects } from "~/db/repositories/projects";
 import { requireAdministrator } from "~/services/auth";
 import { parseCsv, stringifyCsv } from "~/lib/csv";
-import { commitImport, getImportTemplate, isImportType, previewImport, type ImportType, type ImportPreview } from "~/services/import";
+import {
+  commitImport,
+  getImportTemplate,
+  isImportType,
+  previewImport,
+  type ImportType,
+  type ImportPreview,
+} from "~/services/import";
 
 type ImportActionData =
   | { error: string }
@@ -111,10 +118,19 @@ export const action = async ({ request }: Route.ActionArgs) => {
       const defaultPassword = String(formData.get("defaultPassword") ?? "");
 
       if (type === "members" && defaultPassword.length < 8) {
-        return { error: "新規メンバー作成用の初期パスワードを 8 文字以上で入力してください。" };
+        return {
+          error:
+            "新規メンバー作成用の初期パスワードを 8 文字以上で入力してください。",
+        };
       }
 
-      const result = await commitImport(db, type, rows, defaultPassword || undefined, member.id);
+      const result = await commitImport(
+        db,
+        type,
+        rows,
+        defaultPassword || undefined,
+        member.id,
+      );
       createImportJob(db, {
         importType: type,
         status: result.failed === 0 ? "committed" : "failed",
@@ -122,7 +138,10 @@ export const action = async ({ request }: Route.ActionArgs) => {
         totalRows: result.imported + result.failed,
         validRows: result.imported,
         invalidRows: result.failed,
-        resultSummary: JSON.stringify({ imported: result.imported, failed: result.failed }),
+        resultSummary: JSON.stringify({
+          imported: result.imported,
+          failed: result.failed,
+        }),
         createdByMemberId: member.id,
       });
       return { result };
@@ -134,9 +153,14 @@ export const action = async ({ request }: Route.ActionArgs) => {
   }
 };
 
-export const meta: Route.MetaFunction = () => [{ title: "データインポート | kosu" }];
+export const meta: Route.MetaFunction = () => [
+  { title: "データインポート | kosu" },
+];
 
-function buildExportRows(db: ReturnType<typeof createDatabaseConnection>["db"], type: ImportType): string[][] {
+function buildExportRows(
+  db: ReturnType<typeof createDatabaseConnection>["db"],
+  type: ImportType,
+): string[][] {
   if (type === "members") {
     return [
       getImportTemplate(type).split(","),
@@ -162,6 +186,7 @@ function buildExportRows(db: ReturnType<typeof createDatabaseConnection>["db"], 
         project.revenueOrBudgetAmount?.toString() ?? "",
         project.contractRevenueAmount?.toString() ?? "",
         project.laborCostBudgetAmount?.toString() ?? "",
+        project.effortBudgetHours?.toString() ?? "",
       ]),
     ];
   }
@@ -172,7 +197,12 @@ function buildExportRows(db: ReturnType<typeof createDatabaseConnection>["db"], 
       ...listMembers(db).flatMap((member) =>
         listAssignmentsByMember(db, member.id).map((assignment) => {
           const project = findProjectById(db, assignment.projectId);
-          return [member.email, project?.code ?? assignment.projectId, assignment.assignmentRole ?? "", assignment.assignmentSource];
+          return [
+            member.email,
+            project?.code ?? assignment.projectId,
+            assignment.assignmentRole ?? "",
+            assignment.assignmentSource,
+          ];
         }),
       ),
     ];
@@ -196,7 +226,13 @@ function buildExportRows(db: ReturnType<typeof createDatabaseConnection>["db"], 
     ...listMembers(db).flatMap((member) =>
       listMonthlyPlansByMember(db, member.id).map((plan) => {
         const project = findProjectById(db, plan.projectId);
-        return [member.email, project?.code ?? plan.projectId, plan.month, plan.assignmentRole, plan.plannedHours.toString()];
+        return [
+          member.email,
+          project?.code ?? plan.projectId,
+          plan.month,
+          plan.assignmentRole,
+          plan.plannedHours.toString(),
+        ];
       }),
     ),
   ];
@@ -205,11 +241,14 @@ function buildExportRows(db: ReturnType<typeof createDatabaseConnection>["db"], 
 export default function Imports() {
   const { type, jobs } = useLoaderData<typeof loader>();
   const actionData = useActionData<ImportActionData>();
-  const preview = actionData && "preview" in actionData ? actionData.preview : null;
+  const preview =
+    actionData && "preview" in actionData ? actionData.preview : null;
 
   return (
     <div className="space-y-6">
-      <h1 className="text-2xl font-bold tracking-tight text-slate-950">データインポート</h1>
+      <h1 className="text-2xl font-bold tracking-tight text-slate-950">
+        データインポート
+      </h1>
 
       <Card>
         <CardHeader>
@@ -217,19 +256,32 @@ export default function Imports() {
         </CardHeader>
         <CardContent className="space-y-4">
           {actionData && "error" in actionData ? (
-            <p className="rounded-lg bg-red-50 p-3 text-sm text-red-700" role="alert">
+            <p
+              className="rounded-lg bg-red-50 p-3 text-sm text-red-700"
+              role="alert"
+            >
               {actionData.error}
             </p>
           ) : null}
           {actionData && "result" in actionData && actionData.result ? (
-            <p className="rounded-lg bg-emerald-50 p-3 text-sm text-emerald-700" role="status">
-              {actionData.result.imported} 件をインポートしました（失敗 {actionData.result.failed} 件）
+            <p
+              className="rounded-lg bg-emerald-50 p-3 text-sm text-emerald-700"
+              role="status"
+            >
+              {actionData.result.imported} 件をインポートしました（失敗{" "}
+              {actionData.result.failed} 件）
             </p>
           ) : null}
 
-          <Form className="space-y-4" encType="multipart/form-data" method="post">
+          <Form
+            className="space-y-4"
+            encType="multipart/form-data"
+            method="post"
+          >
             <div>
-              <label className="text-sm font-medium text-slate-800">インポート種別</label>
+              <label className="text-sm font-medium text-slate-800">
+                インポート種別
+              </label>
               <select
                 className="mt-1 block w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm"
                 name="type"
@@ -243,15 +295,30 @@ export default function Imports() {
               </select>
             </div>
             <div>
-              <Button formNoValidate name="intent" type="submit" value="template" variant="outline">
+              <Button
+                formNoValidate
+                name="intent"
+                type="submit"
+                value="template"
+                variant="outline"
+              >
                 テンプレート DL
               </Button>
-              <Button className="ml-2" formNoValidate name="intent" type="submit" value="export" variant="outline">
+              <Button
+                className="ml-2"
+                formNoValidate
+                name="intent"
+                type="submit"
+                value="export"
+                variant="outline"
+              >
                 現在データをエクスポート
               </Button>
             </div>
             <div>
-              <label className="text-sm font-medium text-slate-800">CSV ファイル</label>
+              <label className="text-sm font-medium text-slate-800">
+                CSV ファイル
+              </label>
               <input
                 className="mt-1 block w-full text-sm file:mr-4 file:rounded-lg file:border-0 file:bg-slate-100 file:px-4 file:py-2 file:font-medium"
                 name="file"
@@ -261,7 +328,9 @@ export default function Imports() {
               />
             </div>
             <div>
-              <label className="text-sm font-medium text-slate-800">初期パスワード（メンバー新規作成時のみ）</label>
+              <label className="text-sm font-medium text-slate-800">
+                初期パスワード（メンバー新規作成時のみ）
+              </label>
               <input
                 className="mt-1 block w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
                 name="defaultPassword"
@@ -271,10 +340,20 @@ export default function Imports() {
               />
             </div>
             <div className="flex gap-2">
-              <Button name="intent" type="submit" value="preview" variant="primary">
+              <Button
+                name="intent"
+                type="submit"
+                value="preview"
+                variant="primary"
+              >
                 プレビュー
               </Button>
-              <Button name="intent" type="submit" value="commit" variant="outline">
+              <Button
+                name="intent"
+                type="submit"
+                value="commit"
+                variant="outline"
+              >
                 確定インポート
               </Button>
             </div>
@@ -286,14 +365,19 @@ export default function Imports() {
         <Card>
           <CardHeader>
             <CardTitle>
-              プレビュー: {importTypes.find((t) => t.value === preview.type)?.label}（有効 {preview.validRows} /{" "}
-              {preview.totalRows} 件）
+              プレビュー:{" "}
+              {importTypes.find((t) => t.value === preview.type)?.label}（有効{" "}
+              {preview.validRows} / {preview.totalRows} 件）
             </CardTitle>
           </CardHeader>
           <CardContent>
             {preview.missingColumns.length > 0 ? (
-              <p className="mb-4 rounded-lg bg-red-50 p-3 text-sm text-red-700" role="alert">
-                テンプレートの必須列が不足しています: {preview.missingColumns.join(", ")}
+              <p
+                className="mb-4 rounded-lg bg-red-50 p-3 text-sm text-red-700"
+                role="alert"
+              >
+                テンプレートの必須列が不足しています:{" "}
+                {preview.missingColumns.join(", ")}
                 <br />
                 テンプレートをダウンロードして列を見直してください。
               </p>
@@ -309,16 +393,32 @@ export default function Imports() {
                   </tr>
                 </thead>
                 <tbody>
-                  {preview.rows.map((row: { lineNumber: number; isValid: boolean; raw: string[]; errors: string[] }) => (
-                    <tr key={row.lineNumber} className="border-b border-slate-100">
-                      <td className="py-2 pr-4">{row.lineNumber}</td>
-                      <td className="py-2 pr-4">
-                        {row.isValid ? <Badge tone="success">有効</Badge> : <Badge tone="danger">無効</Badge>}
-                      </td>
-                      <td className="py-2 pr-4">{row.raw.join(", ")}</td>
-                      <td className="py-2 text-red-700">{row.errors.join(" / ")}</td>
-                    </tr>
-                  ))}
+                  {preview.rows.map(
+                    (row: {
+                      lineNumber: number;
+                      isValid: boolean;
+                      raw: string[];
+                      errors: string[];
+                    }) => (
+                      <tr
+                        key={row.lineNumber}
+                        className="border-b border-slate-100"
+                      >
+                        <td className="py-2 pr-4">{row.lineNumber}</td>
+                        <td className="py-2 pr-4">
+                          {row.isValid ? (
+                            <Badge tone="success">有効</Badge>
+                          ) : (
+                            <Badge tone="danger">無効</Badge>
+                          )}
+                        </td>
+                        <td className="py-2 pr-4">{row.raw.join(", ")}</td>
+                        <td className="py-2 text-red-700">
+                          {row.errors.join(" / ")}
+                        </td>
+                      </tr>
+                    ),
+                  )}
                 </tbody>
               </table>
             </div>
@@ -336,8 +436,12 @@ export default function Imports() {
           ) : (
             <ul className="space-y-2 text-sm">
               {jobs.map((job) => (
-                <li key={job.id} className="rounded-lg border border-slate-200 p-3">
-                  {job.importType} · {job.status} · 有効 {job.validRows} / 合計 {job.totalRows}
+                <li
+                  key={job.id}
+                  className="rounded-lg border border-slate-200 p-3"
+                >
+                  {job.importType} · {job.status} · 有効 {job.validRows} / 合計{" "}
+                  {job.totalRows}
                 </li>
               ))}
             </ul>
