@@ -791,6 +791,15 @@ describe("daily work logs and allocations", () => {
 
   test("locked month prevents member monthly bulk edit", async () => {
     const cookie = await setupAndLogin(dataDir, "password123");
+    let connection = createDatabaseConnection();
+    const admin = connection.db.select().from(members).get()!;
+    submitMonthlyEffortSubmission(connection.db, {
+      memberId: admin.id,
+      month: "2026-07",
+      actorMemberId: admin.id,
+      submittedAt: "2026-08-01T00:00:00.000Z",
+    });
+    connection.sqlite.close();
     const lockForm = new FormData();
     lockForm.append("intent", "startReview");
     lockForm.append("month", "2026-07");
@@ -800,7 +809,7 @@ describe("daily work logs and allocations", () => {
       context: buildContext(),
     });
 
-    const connection = createDatabaseConnection();
+    connection = createDatabaseConnection();
     connection.db
       .update(members)
       .set({ role: "member" })
@@ -823,6 +832,15 @@ describe("daily work logs and allocations", () => {
         context: buildContext(),
       }),
     ).rejects.toBeInstanceOf(Response);
+
+    const check = createDatabaseConnection();
+    expect(
+      findDailyWorkLogByMemberAndDate(check.db, admin.id, "2026-07-01"),
+    ).toBeUndefined();
+    expect(
+      findMonthlyEffortSubmission(check.db, admin.id, "2026-07")?.status,
+    ).toBe("submitted");
+    check.sqlite.close();
   });
 
   test("member creates and lists daily work log", async () => {
@@ -2240,6 +2258,58 @@ describe("copy previous day effort", () => {
       allocatedHours: 6,
       note: "Note",
     });
+  });
+
+  test("previous-day copy checks protection inside its mutation transaction", async () => {
+    const cookie = await setupAndLogin(dataDir, "password123");
+    const project = await setupProject(cookie, "CPY-LOCK", "Protected copy");
+    await (workLogDateAction as unknown as RouteActionHandler)({
+      request: buildRequest(
+        buildSaveDayForm({
+          totalWorkingHours: 8,
+          rows: [{ projectId: project.id, allocatedHours: 8 }],
+        }),
+        cookie,
+      ),
+      params: { date: "2026-07-15" },
+      context: buildContext(),
+    });
+
+    let connection = createDatabaseConnection();
+    const admin = connection.db.select().from(members).get()!;
+    submitMonthlyEffortSubmission(connection.db, {
+      memberId: admin.id,
+      month: "2026-07",
+      actorMemberId: admin.id,
+      submittedAt: "2026-08-01T00:00:00.000Z",
+    });
+    connection.sqlite.close();
+
+    const lockForm = new FormData();
+    lockForm.append("intent", "startReview");
+    lockForm.append("month", "2026-07");
+    await (periodLocksAction as unknown as RouteActionHandler)({
+      request: buildRequest(lockForm, cookie),
+      params: {},
+      context: buildContext(),
+    });
+
+    await expect(
+      (workLogDateAction as unknown as RouteActionHandler)({
+        request: buildRequest(copyForm(), cookie),
+        params: { date: "2026-07-16" },
+        context: buildContext(),
+      }),
+    ).rejects.toBeInstanceOf(Response);
+
+    connection = createDatabaseConnection();
+    expect(
+      findDailyWorkLogByMemberAndDate(connection.db, admin.id, "2026-07-16"),
+    ).toBeUndefined();
+    expect(
+      findMonthlyEffortSubmission(connection.db, admin.id, "2026-07")?.status,
+    ).toBe("submitted");
+    connection.sqlite.close();
   });
 
   test("refuses to copy when the day already has allocations", async () => {

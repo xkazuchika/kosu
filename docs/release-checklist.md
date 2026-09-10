@@ -29,6 +29,7 @@ After the candidate commit passes GitHub Actions, publish it with the manual `Re
 - [ ] Cleared daily work logs can be re-entered through monthly, daily, weekly, unified, and planned-to-actual paths without restoring deleted allocations.
 - [ ] Active legacy `period_locks` rows migrate to `in_review`; unlocked rows remain open and the legacy table remains present.
 - [ ] Existing in-review and approved months backfill system-marked submissions for the shared required-member set; open months remain draft.
+- [ ] The monthly-submission integrity migration preserves valid draft, submitted, invalidated, and legacy rows with actor/timestamp metadata, and rejects malformed status or `YYYY-MM` values without a partial migration.
 - [ ] Member submission, administrator proxy submission (including inactive members with evidence), zero-hour submission, and actionable balance errors work.
 - [ ] Successful actual-effort writes invalidate only affected submitted member/months; failed, skipped, plan-only, capacity-only, and financial-only writes preserve submission state.
 - [ ] Review start and approval both reject missing submissions using a fresh transactional check; reopen preserves submissions until actual effort changes.
@@ -56,9 +57,9 @@ After the candidate commit passes GitHub Actions, publish it with the manual `Re
 - [ ] Supported reports are limited to effort, planned-versus-actual, and administrator-only project financial review.
 - [ ] Full resource planning, accounting, invoicing, payroll, expenses, procurement, and multi-instance operation remain clearly out of scope.
 - [ ] Monthly-close release notes state that snapshots cover direct labor cost only and exclude external, subcontractor, expense, and indirect costs.
-- [ ] Rollback preserves the SQLite volume and does not require reversing a destructive migration.
+- [ ] Application rollback preserves the SQLite volume because older code remains compatible with valid constrained submission rows; restoring the pre-migration backup is required only when the database schema itself must be rolled back.
 - [ ] Rollback notes state that assignment rows normalized to removed history are not automatically reactivated by older application code.
-- [ ] Rollback notes state that older application code ignores `monthly_effort_submissions` but does not enforce submission gates or automatic invalidation.
+- [ ] Rollback notes state that older application code ignores `monthly_effort_submissions` but does not enforce submission gates or automatic invalidation, and that database migrations are forward-only.
 - [ ] Release notes identify new migrations, configuration changes, accepted risks, and rollback limits.
 
 ## Current Dependency Review

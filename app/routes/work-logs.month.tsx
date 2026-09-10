@@ -47,7 +47,7 @@ import {
   MonthlyEffortSubmissionError,
   submitMonthlyEffort,
 } from "~/services/monthly-effort-submission";
-import { requireUnlockedMonth } from "~/services/period-lock";
+import { runInUnlockedMonthTransaction } from "~/services/period-lock";
 import { getWorkspaceCalendarContext } from "~/services/workspace-calendar";
 
 export const loader = async ({ request }: { request: Request }) => {
@@ -210,8 +210,6 @@ export const action = async ({ request }: { request: Request }) => {
       return redirect(`/work-logs/month?month=${month}${memberQuery}`);
     }
 
-    requireUnlockedMonth(db, month);
-
     const dates = formData.getAll("date").map(String);
     const hourValues = formData.getAll("totalWorkingHours").map(String);
 
@@ -284,8 +282,7 @@ export const action = async ({ request }: { request: Request }) => {
 
     const clearedAt = new Date().toISOString();
 
-    db.transaction((transaction) => {
-      const tx = transaction as unknown as typeof db;
+    runInUnlockedMonthTransaction(db, month, (tx) => {
       let didWrite = false;
 
       for (const operation of operations) {

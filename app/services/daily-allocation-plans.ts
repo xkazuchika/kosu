@@ -23,7 +23,10 @@ import {
   isValidMonth,
   listMonthDates,
 } from "~/lib/time";
-import { requireUnlockedMonth } from "~/services/period-lock";
+import {
+  requireUnlockedMonth,
+  runInUnlockedMonthTransaction,
+} from "~/services/period-lock";
 import { invalidateMonthlyEffortSubmission } from "~/services/monthly-effort-submission";
 
 export class DailyAllocationPlanError extends Error {}
@@ -137,7 +140,6 @@ export function copyDailyAllocationPlansToActuals(
   input: CopyDailyAllocationPlansInput,
 ) {
   validateMonth(input.month);
-  requireUnlockedMonth(db, input.month);
 
   const targetMember = findMemberById(db, input.memberId);
 
@@ -165,9 +167,7 @@ export function copyDailyAllocationPlansToActuals(
     skippedNoPlanDates: 0,
   };
 
-  db.transaction((transaction) => {
-    const tx = transaction as unknown as KosuDatabase;
-
+  runInUnlockedMonthTransaction(db, input.month, (tx) => {
     for (const planDate of listMonthDates(input.month)) {
       const datePlans = plansByDate.get(planDate) ?? [];
 

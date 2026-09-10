@@ -63,6 +63,14 @@ The system SHALL present the dashboard as a role-aware starting point that highl
 - **WHEN** any authenticated user opens the dashboard
 - **THEN** the system places today's relevant work or team status ahead of lower-priority monthly summaries
 
+#### Scenario: Member sees monthly workflow status
+- **WHEN** a non-administrator opens the dashboard
+- **THEN** the system summarizes current-month planned effort, actual effort, allocation issues, and lock state in a way that guides the user to the relevant workflow when attention is needed
+
+#### Scenario: Administrator sees team next actions
+- **WHEN** an administrator opens the dashboard
+- **THEN** the system highlights team input status, incomplete actual effort, overplanned members, project status, and lock state as operational next actions
+
 ### Requirement: Monthly submission dashboard status
 The system SHALL present role-appropriate monthly effort submission status and next actions on the dashboard.
 
@@ -81,14 +89,6 @@ The system SHALL present role-appropriate monthly effort submission status and n
 #### Scenario: Zero-hour submission is complete
 - **WHEN** a required member has submitted a month with no saved effort
 - **THEN** the dashboard counts the member as submitted rather than missing input
-
-#### Scenario: Member sees monthly workflow status
-- **WHEN** a non-administrator opens the dashboard
-- **THEN** the system summarizes current-month planned effort, actual effort, allocation issues, and lock state in a way that guides the user to the relevant workflow when attention is needed
-
-#### Scenario: Administrator sees team next actions
-- **WHEN** an administrator opens the dashboard
-- **THEN** the system highlights team input status, incomplete actual effort, overplanned members, project status, and lock state as operational next actions
 
 ### Requirement: Dashboard navigation is contextual
 The system SHALL link dashboard items to relevant workflows only when the link is contextual to the displayed status.

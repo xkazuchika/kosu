@@ -332,6 +332,38 @@ describe("daily allocation plan service", () => {
     );
   });
 
+  test("plan-to-actual copy checks protection inside its mutation transaction", () => {
+    const { member, project } = setupAssignedProject();
+    upsertDailyAllocationPlan(db, {
+      memberId: member.id,
+      projectId: project.id,
+      planDate: "2026-07-01",
+      plannedHours: 4,
+    });
+    submitMonthlyEffort(db, {
+      memberId: member.id,
+      month: "2026-07",
+      actorMemberId: member.id,
+    });
+    startMonthlyCostReview(db, {
+      month: "2026-07",
+      actorMemberId: member.id,
+    });
+
+    expect(() =>
+      copyDailyAllocationPlansToActuals(db, {
+        memberId: member.id,
+        month: "2026-07",
+      }),
+    ).toThrow(Response);
+    expect(
+      findDailyWorkLogByMemberAndDate(db, member.id, "2026-07-01"),
+    ).toBeUndefined();
+    expect(findMonthlyEffortSubmission(db, member.id, "2026-07")?.status).toBe(
+      "submitted",
+    );
+  });
+
   test("planned-to-actual copy re-enters a cleared day", () => {
     const { member, project } = setupAssignedProject();
     upsertDailyAllocationPlan(db, {

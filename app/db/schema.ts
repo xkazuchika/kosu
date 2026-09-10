@@ -1,5 +1,6 @@
 import { sql } from "drizzle-orm";
 import {
+  check,
   index,
   integer,
   real,
@@ -386,6 +387,14 @@ export const monthlyEffortSubmissions = sqliteTable(
     updatedAt,
   },
   (table) => [
+    check(
+      "monthly_effort_submissions_status_check",
+      sql`${table.status} IN ('draft', 'submitted')`,
+    ),
+    check(
+      "monthly_effort_submissions_month_check",
+      sql`length(${table.month}) = 7 AND ${table.month} GLOB '[0-9][0-9][0-9][0-9]-[0-9][0-9]' AND substr(${table.month}, 6, 2) BETWEEN '01' AND '12'`,
+    ),
     unique("monthly_effort_submission_member_month_unique").on(
       table.memberId,
       table.month,

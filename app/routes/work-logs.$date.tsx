@@ -52,7 +52,10 @@ import {
 } from "~/lib/time";
 import { getMonthlyCostCloseState } from "~/services/monthly-cost-close";
 import { invalidateMonthlyEffortSubmission } from "~/services/monthly-effort-submission";
-import { requireUnlockedMonth } from "~/services/period-lock";
+import {
+  requireUnlockedMonth,
+  runInUnlockedMonthTransaction,
+} from "~/services/period-lock";
 import { getWorkspaceCalendarContext } from "~/services/workspace-calendar";
 import {
   DailyEffortEntryError,
@@ -305,8 +308,6 @@ export const action = async ({ request, params }: Route.ActionArgs) => {
     }
 
     if (intent === "copyPrevious") {
-      requireUnlockedMonth(db, month);
-
       return copyPreviousDayEffort(
         db,
         targetMemberId,
@@ -510,8 +511,7 @@ function copyPreviousDayEffort(
 
   const targetMember = findMemberById(db, memberId);
 
-  db.transaction((transaction) => {
-    const tx = transaction as unknown as KosuDatabase;
+  runInUnlockedMonthTransaction(db, workDate.slice(0, 7), (tx) => {
     const workLog =
       currentLog ??
       createDailyWorkLog(tx, {

@@ -13,4 +13,16 @@ export function requireUnlockedMonth(db: KosuDatabase, month: string) {
   return requireOpenMonth(db, month);
 }
 
+export function runInUnlockedMonthTransaction<T>(
+  db: KosuDatabase,
+  month: string,
+  operation: (tx: KosuDatabase) => T,
+) {
+  return db.transaction((transaction) => {
+    const tx = transaction as unknown as KosuDatabase;
+    requireUnlockedMonth(tx, month);
+    return operation(tx);
+  });
+}
+
 export { getMonthFromDate };
