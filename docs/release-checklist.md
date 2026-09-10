@@ -71,6 +71,7 @@ After the candidate commit passes GitHub Actions, publish it with the manual `Re
 - 2026-07-26: `npm audit --omit=dev` again reported 0 production vulnerabilities. The full audit still reports only the four moderate Drizzle development-toolchain advisories above.
 - 2026-09-08: `qs` was updated from `6.15.3` to `6.16.0`, restoring `npm audit --omit=dev` to 0 production vulnerabilities after the CI quality gate detected two moderate denial-of-service advisories.
 - 2026-09-08: `brace-expansion` and `nanoid` were updated within their existing dependency ranges to remove two high-severity development-toolchain advisories. The full audit still reports only the four accepted moderate Drizzle development-toolchain advisories above.
+- 2026-09-10: `morgan` was updated from `1.11.0` to `1.12.0` after the v0.9.0 CI quality gate detected the Unicode line-separator log-forging advisory. `vitest` was pinned to the compatible patched `4.1.11` release for its development-only redirect-mock path traversal advisory. Production audit is again 0, and the full audit reports only the four accepted moderate Drizzle development-toolchain advisories above.
 
 ## Verification Record
 
@@ -108,4 +109,5 @@ After the candidate commit passes GitHub Actions, publish it with the manual `Re
 - `npm test` passes 60 files and 348 tests; typecheck, ESLint, and the production build pass.
 - A fresh SQLite database applies migrations through `0007_nasty_drax.sql`, and the post-migration foreign-key integrity check passes.
 - Migration `0006_abnormal_gauntlet.sql` creates and backfills monthly effort submissions. Migration `0007_nasty_drax.sql` preserves valid draft, submitted, invalidated, and legacy rows while enforcing supported status and calendar-month values.
-- Application rollback remains compatible with valid constrained rows, but database schema rollback is forward-only and requires restoring the pre-migration backup. GitHub Actions validation and browser smoke remain pending for the final candidate commit.
+- The production dependency audit reports 0 vulnerabilities after updating `morgan` to `1.12.0`; `vitest` is pinned to patched version `4.1.11`, and the full audit contains only the four accepted moderate development-only Drizzle advisories.
+- Application rollback remains compatible with valid constrained rows, but database schema rollback is forward-only and requires restoring the pre-migration backup. The first GitHub Actions run passed browser smoke but stopped the quality gate at the newly published `morgan` advisory; validation of the dependency-fix candidate remains pending.
