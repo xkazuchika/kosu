@@ -100,3 +100,12 @@ After the candidate commit passes GitHub Actions, publish it with the manual `Re
 - A clean Node.js 22 Compose build completes `npm ci`, the production build, fresh SQLite migrations, and the foreign-key integrity check. Setup reaches the dashboard, the health endpoint returns 200, and the workspace and authenticated session remain available after a container restart with the same volume.
 - The production dependency audit reports 0 vulnerabilities. The full audit reports only the four accepted moderate development-only Drizzle toolchain advisories; the newly reported `qs`, `brace-expansion`, and `nanoid` advisories are resolved in the committed lockfile.
 - Migration `0004_modern_stephen_strange.sql` only adds the nullable project effort-budget column. Existing SQLite data was upgraded without loss, and rollback can preserve the volume because older application code ignores the added column. The WAL-aware backup and restore guidance remains valid for the current data layout.
+
+### 2026-09-10 — v0.9.0 candidate
+
+- Adds member monthly effort submission, administrator proxy submission, automatic invalidation after actual-effort changes, and submission gates before review and approval.
+- OpenSpec strict validation passes all 15 current main specifications after syncing and archiving the completed consistency-hardening change.
+- `npm test` passes 60 files and 348 tests; typecheck, ESLint, and the production build pass.
+- A fresh SQLite database applies migrations through `0007_nasty_drax.sql`, and the post-migration foreign-key integrity check passes.
+- Migration `0006_abnormal_gauntlet.sql` creates and backfills monthly effort submissions. Migration `0007_nasty_drax.sql` preserves valid draft, submitted, invalidated, and legacy rows while enforcing supported status and calendar-month values.
+- Application rollback remains compatible with valid constrained rows, but database schema rollback is forward-only and requires restoring the pre-migration backup. GitHub Actions validation and browser smoke remain pending for the final candidate commit.

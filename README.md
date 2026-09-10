@@ -2,7 +2,7 @@
 
 `kosu` は、小さなチームや部門向けの軽量セルフホスト OSS 工数管理アプリです。
 
-現在のアプリバージョンは `v0.8.0` です。
+現在のアプリバージョンは `v0.9.0` です。
 
 重い SaaS や ERP を導入せずに、日次・週次の実績工数入力、案件・タスク別の実績工数、案件工数予算、日別・月次の予定工数、月別の総稼働時間、基本的な工数レポートを扱うことを目指しています。初期 UI とドキュメントは日本語ファーストです。
 
@@ -280,6 +280,7 @@ npm run db:seed:demo
 
 ## バージョン履歴
 
+- `v0.9.0`: メンバーごとの月次工数提出、管理者による代理提出、実績変更時の自動差し戻し、レビュー開始時の提出確認、提出データと月次保護の整合性強化を追加。
 - `v0.8.0`: 案件工数予算と予定・実績・残工数の確認、メンバー別の割当状況、日次入力の下書き・残時間割当、週次一括入力、データ整合性・運用監視・認証保護を追加・強化。
 - `v0.7.0`: 月次原価締め、締め前完全性チェック、全更新経路の保護、理由付き再オープン、承認済み案件財務スナップショットを追加。
 - `v0.6.1`: ワークスペースのタイムゾーンに基づく日付初期値、リリース検証、GitHub Actions CI、Playwright smoke test を追加し、未対応のリソース計画プレビューを削除。
@@ -321,4 +322,4 @@ Issue や Pull Request では、次の情報があると検討しやすくなり
 
 ## English Summary
 
-`kosu` is a lightweight self-hosted OSS effort management web app for small teams. Version `v0.8.0` adds project effort budgets with planned, actual, and remaining effort visibility; member allocation views; faster daily entry with drafts and remaining-time allocation; weekly bulk entry; and stronger data integrity, operational monitoring, and authentication protection. It also includes administrator-only direct-labor cost control, monthly cost closing, daily and monthly planned effort, planned-vs-actual reporting, CSV import/export, workflow-oriented navigation, GitHub Actions CI, Playwright production smoke testing, and SQLite single-instance deployment. Accounting, invoicing, expense, procurement, full resource planning, multi-instance operation, and multi-tenant SaaS use cases are out of scope. The UI and documentation are Japanese-first, and the project is licensed under MIT.
+`kosu` is a lightweight self-hosted OSS effort management web app for small teams. Version `v0.9.0` adds member monthly effort submission, administrator proxy submission, automatic return to draft after actual-effort changes, submission gates before monthly review, and stronger transactional and persisted-data integrity around monthly protection. It also includes project effort budgets, daily and monthly planning, daily, weekly, and monthly actual-effort entry, administrator-only direct-labor cost control, monthly cost closing, planned-vs-actual reporting, CSV import/export, workflow-oriented navigation, GitHub Actions CI, Playwright production smoke testing, and SQLite single-instance deployment. Accounting, invoicing, expense, procurement, full resource planning, multi-instance operation, and multi-tenant SaaS use cases are out of scope. The UI and documentation are Japanese-first, and the project is licensed under MIT.
