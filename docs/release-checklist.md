@@ -4,6 +4,8 @@ Use this checklist for each release candidate. Record the version and commit, an
 
 After the candidate commit passes GitHub Actions, publish it with the manual `Release` workflow in GitHub Actions. The workflow creates the annotated tag and GitHub Release from the latest main commit. Do not rerun checks that already succeeded for the unchanged candidate; use this checklist to identify only missing evidence.
 
+Before the final candidate commit, add a curated Japanese release summary at `docs/releases/vMAJOR.MINOR.PATCH.md`. The `Release` workflow requires this file and prepends it to GitHub's automatically generated change history.
+
 ## Candidate
 
 - Version:
@@ -61,6 +63,7 @@ After the candidate commit passes GitHub Actions, publish it with the manual `Re
 - [ ] Rollback notes state that assignment rows normalized to removed history are not automatically reactivated by older application code.
 - [ ] Rollback notes state that older application code ignores `monthly_effort_submissions` but does not enforce submission gates or automatic invalidation, and that database migrations are forward-only.
 - [ ] Release notes identify new migrations, configuration changes, accepted risks, and rollback limits.
+- [ ] `docs/releases/vMAJOR.MINOR.PATCH.md` provides a user-facing summary, upgrade steps, supported scope, and verification evidence for this version.
 
 ## Current Dependency Review
 

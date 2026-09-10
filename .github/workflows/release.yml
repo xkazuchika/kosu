@@ -49,6 +49,12 @@ jobs:
             exit 1
           fi
 
+          release_notes_file="docs/releases/${VERSION}.md"
+          if [[ ! -s "$release_notes_file" ]]; then
+            echo "::error::Release notes are required at ${release_notes_file}."
+            exit 1
+          fi
+
           git fetch origin main --tags
           remote_main="$(git rev-parse origin/main)"
           if [[ "$GITHUB_SHA" != "$remote_main" ]]; then
@@ -73,6 +79,7 @@ jobs:
 
           echo "tag_exists=${tag_exists}" >> "$GITHUB_OUTPUT"
           echo "release_exists=${release_exists}" >> "$GITHUB_OUTPUT"
+          echo "release_notes_file=${release_notes_file}" >> "$GITHUB_OUTPUT"
 
       - name: Confirm CI success for this commit
         if: steps.validate.outputs.release_exists != 'true'
@@ -118,12 +125,15 @@ jobs:
         env:
           VERSION: ${{ inputs.version }}
           GH_TOKEN: ${{ github.token }}
+          RELEASE_NOTES_FILE: ${{ steps.validate.outputs.release_notes_file }}
         run: |
           set -euo pipefail
+          release_notes="$(cat "$RELEASE_NOTES_FILE")"
           release_url="$(gh release create "$VERSION" \
             --repo "$GITHUB_REPOSITORY" \
             --verify-tag \
             --title "kosu $VERSION" \
+            --notes "$release_notes" \
             --generate-notes \
             --latest)"
           echo "Published ${release_url}"
