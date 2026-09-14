@@ -25,7 +25,7 @@ import {
   copyDailyAllocationPlansToActuals,
   saveDailyAllocationPlans,
 } from "../../app/services/daily-allocation-plans";
-import { startMonthlyCostReview } from "../../app/services/monthly-cost-close";
+import { setEffortConfirmed } from "../support/monthly-cost-close-fixtures";
 import { submitMonthlyEffort } from "../../app/services/monthly-effort-submission";
 import { createTestDatabase } from "../db/helpers";
 
@@ -167,7 +167,7 @@ describe("daily allocation plan service", () => {
       }),
     ).toThrow(DailyAllocationPlanError);
 
-    startMonthlyCostReview(db, { month: "2026-07", actorMemberId: member.id });
+    setEffortConfirmed(db, { month: "2026-07", actorMemberId: member.id });
     expect(() =>
       saveDailyAllocationPlans(db, {
         memberId: member.id,
@@ -345,7 +345,7 @@ describe("daily allocation plan service", () => {
       month: "2026-07",
       actorMemberId: member.id,
     });
-    startMonthlyCostReview(db, {
+    setEffortConfirmed(db, {
       month: "2026-07",
       actorMemberId: member.id,
     });

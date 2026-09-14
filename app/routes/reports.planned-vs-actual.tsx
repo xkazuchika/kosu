@@ -14,7 +14,7 @@ import { findMemberById, listMembers } from "~/db/repositories/members";
 import { findProjectById } from "~/db/repositories/projects";
 import { isValidMonth } from "~/lib/time";
 import { getSessionMember } from "~/services/auth";
-import { getMonthlyCostCloseState } from "~/services/monthly-cost-close";
+import { getMonthlyPeriodState } from "~/services/monthly-cost-close";
 import { getWorkspaceCalendarContext } from "~/services/workspace-calendar";
 
 export const loader = async ({ request }: { request: Request }) => {
@@ -157,7 +157,7 @@ export const loader = async ({ request }: { request: Request }) => {
           overplannedHours: summary?.overplannedHours ?? row.overplannedHours,
         };
       }),
-      closeStatus: getMonthlyCostCloseState(db, month).status,
+      closeStatus: getMonthlyPeriodState(db, month).status,
       hasPlans: planMap.size > 0,
       isAdmin: member.role === "admin",
       month,

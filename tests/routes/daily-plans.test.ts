@@ -18,7 +18,7 @@ import { createProjectAssignment } from "../../app/db/repositories/project-assig
 import { createProject } from "../../app/db/repositories/projects";
 import { members } from "../../app/db/schema";
 import { action as dailyPlansAction, loader as dailyPlansLoader } from "../../app/routes/daily-plans";
-import { startMonthlyCostReview } from "../../app/services/monthly-cost-close";
+import { setEffortConfirmed } from "../support/monthly-cost-close-fixtures";
 import { buildContext, setupAndLogin, type RouteActionHandler, type RouteLoaderHandler } from "./helpers";
 
 let dataDir: string;
@@ -188,7 +188,7 @@ describe("daily plans route", () => {
 
     const lockConnection = createDatabaseConnection(resolveDatabaseConfig().databaseUrl);
     createProjectAssignment(lockConnection.db, { memberId: admin.id, projectId: project.id });
-    startMonthlyCostReview(lockConnection.db, { month: "2026-07", actorMemberId: admin.id });
+    setEffortConfirmed(lockConnection.db, { month: "2026-07", actorMemberId: admin.id });
     lockConnection.sqlite.close();
 
     await expect(

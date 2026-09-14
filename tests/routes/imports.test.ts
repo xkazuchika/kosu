@@ -16,7 +16,7 @@ import {
   action as importsAction,
   loader as importsLoader,
 } from "../../app/routes/imports";
-import { startMonthlyCostReview } from "../../app/services/monthly-cost-close";
+import { setEffortConfirmed } from "../support/monthly-cost-close-fixtures";
 import {
   buildContext,
   setupAndLogin,
@@ -372,7 +372,7 @@ describe("imports", () => {
       resolveDatabaseConfig().databaseUrl,
     );
     const admin = findMemberByEmail(connection.db, "admin@example.com")!;
-    startMonthlyCostReview(connection.db, {
+    setEffortConfirmed(connection.db, {
       month: "2026-07",
       actorMemberId: admin.id,
     });

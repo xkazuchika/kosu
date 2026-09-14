@@ -18,7 +18,7 @@ import {
 import { neutralizeCsvCell } from "~/lib/csv";
 import { isValidMonth } from "~/lib/time";
 import { getSessionMember } from "~/services/auth";
-import { getMonthlyCostCloseState } from "~/services/monthly-cost-close";
+import { getMonthlyPeriodState } from "~/services/monthly-cost-close";
 import { getWorkspaceCalendarContext } from "~/services/workspace-calendar";
 
 export const loader = async ({ request }: { request: Request }) => {
@@ -70,7 +70,7 @@ export const loader = async ({ request }: { request: Request }) => {
         : [];
 
     return {
-      closeStatus: getMonthlyCostCloseState(db, month).status,
+      closeStatus: getMonthlyPeriodState(db, month).status,
       isAdmin: member.role === "admin",
       month,
       departmentName: departmentName ?? "",

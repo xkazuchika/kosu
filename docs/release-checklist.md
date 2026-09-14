@@ -46,6 +46,12 @@ Before the final candidate commit, add a curated Japanese release summary at `do
 - [ ] Restarting the container with the same volume preserves workspace and login state.
 - [ ] Backup and restore guidance has been reviewed against the current data layout.
 
+- [ ] Effort migration maps old open/in-review/approved to open/in-review/confirmed, preserving actors, timestamps, cost states, history, financial snapshots and foreign keys.
+- [ ] A month with no monetary data can be submitted, reviewed and effort-confirmed; financial reports still show unapproved cost.
+- [ ] Effort-only protection rejects ordinary writes and imports atomically; dedicated missing-rate correction preserves hours, submissions, planning confirmation and effort confirmation.
+- [ ] Correction verifies both the selected and source month cost states; cost review/approval additionally require confirmed effort.
+- [ ] Desktop and mobile monthly closing show effort first and optional cost in a collapsed section.
+
 ## Security And Dependency Review
 
 - [ ] `npm audit --omit=dev` has been reviewed for production dependency vulnerabilities.
@@ -59,7 +65,7 @@ Before the final candidate commit, add a curated Japanese release summary at `do
 - [ ] Supported reports are limited to effort, planned-versus-actual, and administrator-only project financial review.
 - [ ] Full resource planning, accounting, invoicing, payroll, expenses, procurement, and multi-instance operation remain clearly out of scope.
 - [ ] Monthly-close release notes state that snapshots cover direct labor cost only and exclude external, subcontractor, expense, and indirect costs.
-- [ ] Application rollback preserves the SQLite volume because older code remains compatible with valid constrained submission rows; restoring the pre-migration backup is required only when the database schema itself must be rolled back.
+- [ ] Do not roll back only the app after effort-state migration: older code ignores effort-only protection. Stop the app, separately save post-migration input, and restore the pre-migration database with its matching old app. Communicate the data period lost by restoring.
 - [ ] Rollback notes state that assignment rows normalized to removed history are not automatically reactivated by older application code.
 - [ ] Rollback notes state that older application code ignores `monthly_effort_submissions` but does not enforce submission gates or automatic invalidation, and that database migrations are forward-only.
 - [ ] Release notes identify new migrations, configuration changes, accepted risks, and rollback limits.
@@ -77,6 +83,16 @@ Before the final candidate commit, add a curated Japanese release summary at `do
 - 2026-09-10: `morgan` was updated from `1.11.0` to `1.12.0` after the v0.9.0 CI quality gate detected the Unicode line-separator log-forging advisory. `vitest` was pinned to the compatible patched `4.1.11` release for its development-only redirect-mock path traversal advisory. Production audit is again 0, and the full audit reports only the four accepted moderate Drizzle development-toolchain advisories above.
 
 ## Verification Record
+
+### 2026-09-15 — effort and cost closing separation (local implementation)
+
+- `npm test`: 63 files / 373 tests passed, including legacy migration preservation, authorization, atomic rollback, effort-only write protection and financial privacy.
+- `npm run typecheck`, `npm run lint`, `git diff --check`, and `openspec validate --all --strict` passed (17 specs/changes).
+- `npm run test:e2e` passed the Chromium smoke, including fresh migration, foreign-key check and production build/start against an isolated temporary database.
+- Verified: no monetary data → submission → effort review/confirmation without expanding cost → disabled ordinary editing → explicit missing-rate correction → cost review/approval → reason-required reopen retaining submission.
+- UI checks passed at 1280×720 and 390×844: correct page identity, meaningful content, no framework overlay or application console errors, no mobile horizontal overflow, and expected control/state changes.
+- Browser plugin selection failed with `No browser is available`; the planned repository Playwright workflow was used. Screenshots are outside the repository in the OS temporary directory: `kosu-effort-close-desktop.png` and `kosu-effort-close-mobile.png`.
+- No production data migration, push, release or deployment performed. Safari/Firefox and production-volume restore were not exercised in this implementation run.
 
 ### 2026-07-24 — v0.6 stabilization working tree
 

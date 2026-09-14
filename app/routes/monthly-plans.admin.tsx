@@ -15,7 +15,7 @@ import { Button } from "~/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "~/components/ui/card";
 import { Input } from "~/components/ui/form";
 import { DataTable } from "~/components/ui/table";
-import { createDatabaseConnection } from "~/db/client";
+import { createDatabaseConnection, type KosuDatabase } from "~/db/client";
 import {
   createMemberMonthlyCapacity,
   deleteMemberMonthlyCapacity,
@@ -43,7 +43,7 @@ import {
 import { logRouteError } from "~/lib/log";
 import { isNonNegativeQuarterHour, isValidMonth } from "~/lib/time";
 import { requireAdministrator } from "~/services/auth";
-import { getMonthlyCostCloseState } from "~/services/monthly-cost-close";
+import { getMonthlyPeriodState } from "~/services/monthly-cost-close";
 import { requireUnlockedMonth } from "~/services/period-lock";
 import { getWorkspaceCalendarContext } from "~/services/workspace-calendar";
 import { getProjectEffortOverview } from "~/services/project-effort";
@@ -73,7 +73,7 @@ export const loader = async ({ request }: { request: Request }) => {
       };
     });
 
-    const closeState = getMonthlyCostCloseState(db, month);
+    const closeState = getMonthlyPeriodState(db, month);
     const projectEffort = projects.map((project) => ({
       projectId: project.id,
       projectCode: project.code,
@@ -105,130 +105,139 @@ export const action = async ({ request }: Route.ActionArgs) => {
   const { db, sqlite } = createDatabaseConnection();
 
   try {
-    const actor = requireAdministrator(db, request);
+    requireAdministrator(db, request);
     const formData = await request.formData();
-    const intent = String(formData.get("intent") ?? "");
+    return db.transaction(
+      (transaction) => {
+        const db = transaction as unknown as KosuDatabase;
+        const actor = requireAdministrator(db, request);
+        const intent = String(formData.get("intent") ?? "");
 
-    if (intent === "confirmPlan") {
-      const revision = String(formData.get("revision") ?? "");
-      confirmMonthlyPlan(db, {
-        actorMemberId: actor.id,
-        memberId: String(formData.get("memberId") ?? ""),
-        month: String(formData.get("month") ?? ""),
-        revision: /^\d+$/.test(revision) ? Number(revision) : NaN,
-      });
-      return null;
-    }
+        if (intent === "confirmPlan") {
+          const revision = String(formData.get("revision") ?? "");
+          confirmMonthlyPlan(db, {
+            actorMemberId: actor.id,
+            memberId: String(formData.get("memberId") ?? ""),
+            month: String(formData.get("month") ?? ""),
+            revision: /^\d+$/.test(revision) ? Number(revision) : NaN,
+          });
+          return null;
+        }
 
-    if (intent === "capacity") {
-      const memberId = String(formData.get("memberId") ?? "");
-      const month = String(formData.get("month") ?? "");
-      const capacityHours = Number(formData.get("capacityHours") ?? 0);
+        if (intent === "capacity") {
+          const memberId = String(formData.get("memberId") ?? "");
+          const month = String(formData.get("month") ?? "");
+          const capacityHours = Number(formData.get("capacityHours") ?? 0);
 
-      if (!isValidMonth(month)) {
-        return { error: "月の形式は YYYY-MM で実在する月にしてください。" };
-      }
+          if (!isValidMonth(month)) {
+            return { error: "月の形式は YYYY-MM で実在する月にしてください。" };
+          }
 
-      if (!isNonNegativeQuarterHour(capacityHours)) {
-        return {
-          error: "稼働可能時間は 0.25h 単位の 0 以上の値で入力してください。",
-        };
-      }
+          if (!isNonNegativeQuarterHour(capacityHours)) {
+            return {
+              error:
+                "稼働可能時間は 0.25h 単位の 0 以上の値で入力してください。",
+            };
+          }
 
-      requireUnlockedMonth(db, month);
-      const existing = findCapacityByMemberAndMonth(db, memberId, month);
+          requireUnlockedMonth(db, month);
+          const existing = findCapacityByMemberAndMonth(db, memberId, month);
 
-      if (existing) {
-        updateMemberMonthlyCapacity(db, existing.id, { capacityHours });
-      } else {
-        createMemberMonthlyCapacity(db, { memberId, month, capacityHours });
-      }
-      return null;
-    }
+          if (existing) {
+            updateMemberMonthlyCapacity(db, existing.id, { capacityHours });
+          } else {
+            createMemberMonthlyCapacity(db, { memberId, month, capacityHours });
+          }
+          return null;
+        }
 
-    if (intent === "plan") {
-      const memberId = String(formData.get("memberId") ?? "");
-      const projectId = String(formData.get("projectId") ?? "");
-      const month = String(formData.get("month") ?? "");
-      const assignmentRole = String(
-        formData.get("assignmentRole") ?? "",
-      ).trim();
-      const plannedHours = Number(formData.get("plannedHours") ?? 0);
+        if (intent === "plan") {
+          const memberId = String(formData.get("memberId") ?? "");
+          const projectId = String(formData.get("projectId") ?? "");
+          const month = String(formData.get("month") ?? "");
+          const assignmentRole = String(
+            formData.get("assignmentRole") ?? "",
+          ).trim();
+          const plannedHours = Number(formData.get("plannedHours") ?? 0);
 
-      if (!isValidMonth(month)) {
-        return { error: "月の形式は YYYY-MM で実在する月にしてください。" };
-      }
+          if (!isValidMonth(month)) {
+            return { error: "月の形式は YYYY-MM で実在する月にしてください。" };
+          }
 
-      if (!isNonNegativeQuarterHour(plannedHours)) {
-        return {
-          error: "予定工数は 0.25h 単位の 0 以上の値で入力してください。",
-        };
-      }
+          if (!isNonNegativeQuarterHour(plannedHours)) {
+            return {
+              error: "予定工数は 0.25h 単位の 0 以上の値で入力してください。",
+            };
+          }
 
-      requireUnlockedMonth(db, month);
-      const existing = findMonthlyPlan(
-        db,
-        memberId,
-        projectId,
-        month,
-        assignmentRole,
-      );
+          requireUnlockedMonth(db, month);
+          const existing = findMonthlyPlan(
+            db,
+            memberId,
+            projectId,
+            month,
+            assignmentRole,
+          );
 
-      if (existing) {
-        updateMonthlyPlan(db, existing.id, { plannedHours });
-      } else {
-        createMonthlyPlan(db, {
-          memberId,
-          projectId,
-          month,
-          assignmentRole,
-          plannedHours,
-          hourlyCostRateSnapshot:
-            findMemberById(db, memberId)?.hourlyCostRate ?? null,
-        });
-      }
-      return null;
-    }
+          if (existing) {
+            updateMonthlyPlan(db, existing.id, { plannedHours });
+          } else {
+            createMonthlyPlan(db, {
+              memberId,
+              projectId,
+              month,
+              assignmentRole,
+              plannedHours,
+              hourlyCostRateSnapshot:
+                findMemberById(db, memberId)?.hourlyCostRate ?? null,
+            });
+          }
+          return null;
+        }
 
-    if (intent === "updatePlan") {
-      const id = String(formData.get("id") ?? "");
-      const plan = findMonthlyPlanById(db, id);
-      if (!plan) return { error: "対象の月次予定が見つかりません。" };
-      const plannedHours = Number(formData.get("plannedHours") ?? 0);
-      const assignmentRole = String(
-        formData.get("assignmentRole") ?? "",
-      ).trim();
+        if (intent === "updatePlan") {
+          const id = String(formData.get("id") ?? "");
+          const plan = findMonthlyPlanById(db, id);
+          if (!plan) return { error: "対象の月次予定が見つかりません。" };
+          const plannedHours = Number(formData.get("plannedHours") ?? 0);
+          const assignmentRole = String(
+            formData.get("assignmentRole") ?? "",
+          ).trim();
 
-      if (!isNonNegativeQuarterHour(plannedHours)) {
-        return {
-          error: "予定工数は 0.25h 単位の 0 以上の値で入力してください。",
-        };
-      }
+          if (!isNonNegativeQuarterHour(plannedHours)) {
+            return {
+              error: "予定工数は 0.25h 単位の 0 以上の値で入力してください。",
+            };
+          }
 
-      requireUnlockedMonth(db, plan.month);
-      updateMonthlyPlan(db, id, { assignmentRole, plannedHours });
-      return null;
-    }
+          requireUnlockedMonth(db, plan.month);
+          updateMonthlyPlan(db, id, { assignmentRole, plannedHours });
+          return null;
+        }
 
-    if (intent === "deleteCapacity") {
-      const id = String(formData.get("id") ?? "");
-      const capacity = findMemberMonthlyCapacityById(db, id);
-      if (!capacity) return { error: "対象のキャパシティが見つかりません。" };
-      requireUnlockedMonth(db, capacity.month);
-      deleteMemberMonthlyCapacity(db, id);
-      return null;
-    }
+        if (intent === "deleteCapacity") {
+          const id = String(formData.get("id") ?? "");
+          const capacity = findMemberMonthlyCapacityById(db, id);
+          if (!capacity)
+            return { error: "対象のキャパシティが見つかりません。" };
+          requireUnlockedMonth(db, capacity.month);
+          deleteMemberMonthlyCapacity(db, id);
+          return null;
+        }
 
-    if (intent === "deletePlan") {
-      const id = String(formData.get("id") ?? "");
-      const plan = findMonthlyPlanById(db, id);
-      if (!plan) return { error: "対象の月次予定が見つかりません。" };
-      requireUnlockedMonth(db, plan.month);
-      deleteMonthlyPlan(db, id);
-      return null;
-    }
+        if (intent === "deletePlan") {
+          const id = String(formData.get("id") ?? "");
+          const plan = findMonthlyPlanById(db, id);
+          if (!plan) return { error: "対象の月次予定が見つかりません。" };
+          requireUnlockedMonth(db, plan.month);
+          deleteMonthlyPlan(db, id);
+          return null;
+        }
 
-    return { error: "不明な操作です。" };
+        return { error: "不明な操作です。" };
+      },
+      { behavior: "immediate" },
+    );
   } catch (error) {
     if (error instanceof Response) {
       throw error;

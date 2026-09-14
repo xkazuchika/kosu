@@ -27,7 +27,7 @@ import {
   getDailyEffortStartingPoint,
   saveDailyEffortEntry,
 } from "../../app/services/daily-effort-entry";
-import { startMonthlyCostReview } from "../../app/services/monthly-cost-close";
+import { setEffortConfirmed } from "../support/monthly-cost-close-fixtures";
 import { submitMonthlyEffort } from "../../app/services/monthly-effort-submission";
 import { createTestDatabase } from "../db/helpers";
 
@@ -279,7 +279,7 @@ describe("daily effort entry", () => {
 
   test("rejects writes to a protected month", () => {
     const { member, first } = setup();
-    startMonthlyCostReview(db, { month: "2026-07", actorMemberId: member.id });
+    setEffortConfirmed(db, { month: "2026-07", actorMemberId: member.id });
     expect(() =>
       saveDailyEffortEntry(db, {
         memberId: member.id,

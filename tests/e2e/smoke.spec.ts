@@ -146,20 +146,95 @@ test("fresh setup, monthly submission lifecycle, and supported reports remain de
 
   await page.goto("/period-locks?month=2026-07");
   await expect(
-    page.getByRole("heading", { level: 1, name: "月次原価締め" }),
+    page.getByRole("heading", { level: 1, name: "月次締め" }),
   ).toBeVisible();
-  await page.getByRole("button", { name: "レビューを開始して保護" }).click();
-  await expect(page.getByText("2026-07 · レビュー中")).toBeVisible();
+  await page.getByRole("button", { name: "工数レビューを開始" }).click();
+  await expect(page.getByText("2026-07 · 工数レビュー中")).toBeVisible();
 
   await page.goto("/monthly-plans/admin?month=2026-07");
   await expect(
-    page.getByText("2026-07 は「レビュー中」のため閲覧のみです。"),
+    page.getByText("2026-07 は「工数レビュー中」のため閲覧のみです。"),
   ).toBeVisible();
 
   await page.goto("/period-locks?month=2026-07");
   await page.getByLabel("再オープン理由（必須）").fill("E2E動作確認");
   await page.getByRole("button", { name: "再オープン" }).click();
-  await expect(page.getByText("2026-07 · 未締め")).toBeVisible();
+  await expect(page.getByText("2026-07 · 工数未確定")).toBeVisible();
+
+  // No rate, contract amount or monetary budget is needed to finish time management.
+  await page.goto("/members");
+  await page.getByRole("link", { name: "E2E Admin" }).click();
+  await page.getByLabel("時間あたり原価（円）").fill("");
+  await page.getByRole("button", { name: "保存する" }).click();
+  await expect(page).toHaveURL(/\/members$/);
+  await page.goto("/monthly-plans/admin?month=2026-11");
+  await planForm.locator('input[name="plannedHours"]').fill("8");
+  await planForm.getByRole("button", { name: "追加", exact: true }).click();
+  await expect(matrix.getByText("8h", { exact: true }).first()).toBeVisible();
+  await page.goto("/work-logs/month?month=2026-11");
+  await page.getByRole("button", { name: "この月の工数を提出" }).click();
+  await expect(page.getByText("提出済み", { exact: true })).toBeVisible();
+  await page.goto("/period-locks?month=2026-11");
+  const optionalCost = page
+    .locator("details")
+    .filter({
+      has: page
+        .locator("summary")
+        .filter({ hasText: "任意: 原価の確認・承認" }),
+    });
+  await expect(optionalCost).not.toHaveAttribute("open", "");
+  await page.getByRole("button", { name: "工数レビューを開始" }).click();
+  await page.getByRole("button", { name: "工数を確定", exact: true }).click();
+  await expect(page.getByText("2026-11 · 工数確定済み")).toBeVisible();
+  await expect(page.getByText("原価未確認", { exact: true })).toBeVisible();
+  await expect(optionalCost).not.toHaveAttribute("open", "");
+  await page.screenshot({
+    path: path.join(os.tmpdir(), "kosu-effort-close-desktop.png"),
+    fullPage: false,
+  });
+  await page.setViewportSize({ width: 390, height: 844 });
+  await expect(page.getByText("2026-11 · 工数確定済み")).toBeVisible();
+  await page.screenshot({
+    path: path.join(os.tmpdir(), "kosu-effort-close-mobile.png"),
+    fullPage: false,
+  });
+  expect(
+    await page.evaluate(
+      () => document.documentElement.scrollWidth <= window.innerWidth,
+    ),
+  ).toBe(true);
+  await page.setViewportSize({ width: 1280, height: 720 });
+  await page.goto("/monthly-plans/admin?month=2026-11");
+  await expect(
+    planForm.getByRole("button", { name: "追加", exact: true }),
+  ).toBeDisabled();
+  await expect(page.getByText(/工数確定済み.*閲覧のみ/)).toBeVisible();
+  await page.goto("/period-locks?month=2026-11");
+  await page
+    .locator("summary")
+    .filter({ hasText: "任意: 原価の確認・承認" })
+    .click();
+  await expect(
+    page.getByRole("button", { name: "原価レビューを開始", exact: true }),
+  ).toBeDisabled();
+  await page.getByLabel("補正する時間単価（円/h）").fill("1000");
+  await page.getByLabel("原価の補正理由").fill("社内作業の単価を確認");
+  await page.getByRole("button", { name: "原価を補正", exact: true }).click();
+  await expect(
+    page.getByText("原価スナップショットを補正し、履歴に記録しました。"),
+  ).toBeVisible();
+  await expect(page.getByText("2026-11 · 工数確定済み")).toBeVisible();
+  await page
+    .getByRole("button", { name: "原価レビューを開始", exact: true })
+    .click();
+  await page.getByRole("button", { name: "原価を承認", exact: true }).click();
+  await expect(page.getByText("原価承認済み", { exact: true })).toBeVisible();
+  await page.getByLabel("再オープン理由（必須）").fill("時間の修正が必要");
+  await page.getByRole("button", { name: "再オープン", exact: true }).click();
+  await expect(page.getByText("2026-11 · 工数未確定")).toBeVisible();
+  await expect(page.getByText("原価未確認", { exact: true })).toBeVisible();
+  await page.goto("/work-logs/month?month=2026-11");
+  await expect(page.getByText("提出済み", { exact: true })).toBeVisible();
 
   await page.goto("/members/new");
   await page.locator('input[name="displayName"]').fill("E2E Member");
@@ -199,11 +274,20 @@ test("fresh setup, monthly submission lifecycle, and supported reports remain de
   await expect(page.getByText("提出済み", { exact: true })).toBeVisible();
 
   await page.goto("/period-locks?month=2026-09");
-  await expect(page.getByText("承認ブロッカー（0件）")).toBeVisible();
-  await page.getByRole("button", { name: "レビューを開始して保護" }).click();
-  await expect(page.getByText("2026-09 · レビュー中")).toBeVisible();
-  await page.getByRole("button", { name: "完全性を再確認して承認" }).click();
-  await expect(page.getByText("2026-09 · 承認済み")).toBeVisible();
+  await expect(page.getByText("工数の確認事項（0件）")).toBeVisible();
+  await page.getByRole("button", { name: "工数レビューを開始" }).click();
+  await expect(page.getByText("2026-09 · 工数レビュー中")).toBeVisible();
+  await page.getByRole("button", { name: "工数を確定", exact: true }).click();
+  await expect(page.getByText("2026-09 · 工数確定済み")).toBeVisible();
+  await page
+    .locator("summary")
+    .filter({ hasText: "任意: 原価の確認・承認" })
+    .click();
+  await page
+    .getByRole("button", { name: "原価レビューを開始", exact: true })
+    .click();
+  await page.getByRole("button", { name: "原価を承認", exact: true }).click();
+  await expect(page.getByText("原価承認済み", { exact: true })).toBeVisible();
   const approvedScreenshot = testInfo.outputPath("monthly-effort-approved.png");
   await page.screenshot({ path: approvedScreenshot });
   await testInfo.attach("monthly-effort-approved", {

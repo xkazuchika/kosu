@@ -15,7 +15,7 @@ import { withoutMemberFinancials } from "~/db/repositories/members";
 import { findProjectById } from "~/db/repositories/projects";
 import { isValidMonth } from "~/lib/time";
 import { getSessionMember } from "~/services/auth";
-import { getMonthlyCostCloseState } from "~/services/monthly-cost-close";
+import { getMonthlyPeriodState } from "~/services/monthly-cost-close";
 import { getWorkspaceCalendarContext } from "~/services/workspace-calendar";
 import { listEffortReportRows } from "~/db/repositories/effort-allocations";
 
@@ -99,7 +99,7 @@ export const loader = async ({ request }: { request: Request }) => {
     const variance =
       capacityHours === null ? null : capacityHours - totalPlanned;
 
-    const closeState = getMonthlyCostCloseState(db, currentMonth);
+    const closeState = getMonthlyPeriodState(db, currentMonth);
 
     return {
       planningSummary: getMonthlyAllocationOverview(db, currentMonth, member.id)

@@ -159,7 +159,7 @@ describe("authorization rejection logging", () => {
     const cookie = await setupAndLogin(dataDir, "password123");
 
     const reviewForm = new FormData();
-    reviewForm.append("intent", "startReview");
+    reviewForm.append("intent", "startEffortReview");
     reviewForm.append("month", "2026-07");
     await (periodLocksAction as unknown as RouteActionHandler)({
       request: buildRequest(reviewForm, cookie),
@@ -190,7 +190,7 @@ describe("monthly close action logging", () => {
     const cookie = await setupAndLogin(dataDir, "password123");
 
     const reviewForm = new FormData();
-    reviewForm.append("intent", "startReview");
+    reviewForm.append("intent", "startEffortReview");
     reviewForm.append("month", "2026-07");
     await (periodLocksAction as unknown as RouteActionHandler)({
       request: buildRequest(reviewForm, cookie),
@@ -198,6 +198,12 @@ describe("monthly close action logging", () => {
       context: buildContext(),
     });
 
+    for (const intent of ["confirmEffort", "startReview"]) {
+      reviewForm.set("intent", intent);
+      await (periodLocksAction as unknown as RouteActionHandler)({
+        request: buildRequest(reviewForm, cookie), params: {}, context: buildContext(),
+      });
+    }
     expect(findEntry("monthly_close.entered_review")).toBeDefined();
 
     const approveForm = new FormData();
@@ -218,7 +224,7 @@ describe("monthly close action logging", () => {
     const cookie = await setupAndLogin(dataDir, "password123");
 
     const reviewForm = new FormData();
-    reviewForm.append("intent", "startReview");
+    reviewForm.append("intent", "startEffortReview");
     reviewForm.append("month", "2026-07");
     await (periodLocksAction as unknown as RouteActionHandler)({
       request: buildRequest(reviewForm, cookie),

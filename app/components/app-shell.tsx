@@ -151,7 +151,7 @@ const administratorNavigation: NavigationSection[] = [
   {
     label: "Admin",
     items: [
-      { href: "/period-locks", icon: ShieldCheck, label: "月次原価締め" },
+      { href: "/period-locks", icon: ShieldCheck, label: "月次締め" },
       { href: "/members", icon: Users, label: "メンバー" },
       { href: "/imports", icon: Import, label: "インポート" },
       { href: "/settings", icon: Settings, label: "設定" },

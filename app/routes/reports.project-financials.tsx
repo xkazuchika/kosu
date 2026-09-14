@@ -64,7 +64,7 @@ export default function ProjectFinancialReview() {
           <p className="text-sm text-slate-600">税抜の契約売上と直接人件費だけを確認します。仕入れ、外注費、経費、税金は含みません。</p>
         </div>
         <div className="flex items-center gap-3">
-          <MonthlyCloseStatusBadge status={closeStatus} />
+          <MonthlyCloseStatusBadge status={closeStatus} kind="cost" />
           <Link className="text-sm font-semibold text-indigo-700 hover:underline" to={`/period-locks?month=${month}`}>月次締めを確認</Link>
         </div>
       </div>

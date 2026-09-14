@@ -364,6 +364,21 @@ export const monthlyCostCloses = sqliteTable(
   {
     id,
     month: text("month").notNull().unique(),
+    effortStatus: text("effort_status", {
+      enum: ["open", "in_review", "confirmed"],
+    })
+      .notNull()
+      .default("open"),
+    effortReviewedByMemberId: text("effort_reviewed_by_member_id").references(
+      () => members.id,
+      { onDelete: "set null" },
+    ),
+    effortReviewedAt: text("effort_reviewed_at"),
+    effortConfirmedByMemberId: text("effort_confirmed_by_member_id").references(
+      () => members.id,
+      { onDelete: "set null" },
+    ),
+    effortConfirmedAt: text("effort_confirmed_at"),
     status: text("status", { enum: ["open", "in_review", "approved"] })
       .notNull()
       .default("open"),
@@ -384,6 +399,10 @@ export const monthlyCostCloses = sqliteTable(
   },
   (table) => [
     index("monthly_cost_closes_month_index").on(table.month),
+    check(
+      "monthly_cost_closes_effort_status_check",
+      sql`${table.effortStatus} IN ('open', 'in_review', 'confirmed')`,
+    ),
     index("monthly_cost_closes_status_month_index").on(
       table.status,
       table.month,
@@ -454,6 +473,9 @@ export const monthlyCostCloseEvents = sqliteTable(
     eventType: text("event_type", {
       enum: [
         "migration",
+        "effort_migration",
+        "effort_reviewed",
+        "effort_confirmed",
         "entered_review",
         "approved",
         "reopened",
@@ -465,6 +487,12 @@ export const monthlyCostCloseEvents = sqliteTable(
     }),
     previousStatus: text("previous_status", {
       enum: ["open", "in_review", "approved"],
+    }),
+    previousEffortStatus: text("previous_effort_status", {
+      enum: ["open", "in_review", "confirmed"],
+    }),
+    nextEffortStatus: text("next_effort_status", {
+      enum: ["open", "in_review", "confirmed"],
     }),
     nextStatus: text("next_status", {
       enum: ["open", "in_review", "approved"],

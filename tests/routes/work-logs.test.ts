@@ -1,3 +1,4 @@
+import { setEffortConfirmed } from "../support/monthly-cost-close-fixtures";
 // @vitest-environment node
 
 import { existsSync, mkdirSync, rmSync } from "node:fs";
@@ -801,12 +802,16 @@ describe("daily work logs and allocations", () => {
     });
     connection.sqlite.close();
     const lockForm = new FormData();
-    lockForm.append("intent", "startReview");
+    lockForm.append("intent", "startEffortReview");
     lockForm.append("month", "2026-07");
     await (periodLocksAction as unknown as RouteActionHandler)({
       request: buildRequest(lockForm, cookie),
       params: {},
       context: buildContext(),
+    });
+    lockForm.set("intent", "confirmEffort");
+    await (periodLocksAction as unknown as RouteActionHandler)({
+      request: buildRequest(lockForm, cookie), params: {}, context: buildContext(),
     });
 
     connection = createDatabaseConnection();
@@ -1428,12 +1433,16 @@ describe("daily work logs and allocations", () => {
     const cookie = await setupAndLogin(dataDir, "password123");
 
     const lockForm = new FormData();
-    lockForm.append("intent", "startReview");
+    lockForm.append("intent", "startEffortReview");
     lockForm.append("month", "2026-07");
     await (periodLocksAction as unknown as RouteActionHandler)({
       request: buildRequest(lockForm, cookie),
       params: {},
       context: buildContext(),
+    });
+    lockForm.set("intent", "confirmEffort");
+    await (periodLocksAction as unknown as RouteActionHandler)({
+      request: buildRequest(lockForm, cookie), params: {}, context: buildContext(),
     });
 
     const formData = buildSaveDayForm({ totalWorkingHours: 8 });
@@ -2159,12 +2168,16 @@ describe("unified daily entry", () => {
     const cookie = await setupAndLogin(dataDir, "password123");
 
     const lockForm = new FormData();
-    lockForm.append("intent", "startReview");
+    lockForm.append("intent", "startEffortReview");
     lockForm.append("month", "2026-07");
     await (periodLocksAction as unknown as RouteActionHandler)({
       request: buildRequest(lockForm, cookie),
       params: {},
       context: buildContext(),
+    });
+    lockForm.set("intent", "confirmEffort");
+    await (periodLocksAction as unknown as RouteActionHandler)({
+      request: buildRequest(lockForm, cookie), params: {}, context: buildContext(),
     });
 
     const form = new FormData();
@@ -2286,12 +2299,16 @@ describe("copy previous day effort", () => {
     connection.sqlite.close();
 
     const lockForm = new FormData();
-    lockForm.append("intent", "startReview");
+    lockForm.append("intent", "startEffortReview");
     lockForm.append("month", "2026-07");
     await (periodLocksAction as unknown as RouteActionHandler)({
       request: buildRequest(lockForm, cookie),
       params: {},
       context: buildContext(),
+    });
+    lockForm.set("intent", "confirmEffort");
+    await (periodLocksAction as unknown as RouteActionHandler)({
+      request: buildRequest(lockForm, cookie), params: {}, context: buildContext(),
     });
 
     await expect(
@@ -2566,6 +2583,7 @@ describe("weekly entry and member effort context", () => {
       .set({ role: "member", hourlyCostRate: 5000 })
       .where(eq(members.id, member.id))
       .run();
+    setEffortConfirmed(connection.db, { month: "2026-07", actorMemberId: member.id });
     connection.sqlite.close();
 
     const response = await (workLogDateLoader as unknown as RouteLoaderHandler)(

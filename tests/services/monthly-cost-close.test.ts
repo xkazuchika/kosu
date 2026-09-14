@@ -1,3 +1,4 @@
+import { startMonthlyEffortReview, confirmMonthlyEffortClose } from "../../app/services/monthly-effort-close";
 // @vitest-environment node
 
 import { afterEach, beforeEach, describe, expect, test } from "vitest";
@@ -105,6 +106,8 @@ describe("monthly cost close lifecycle", () => {
       status: "open",
       isProtected: false,
     });
+    startMonthlyEffortReview(db, { month: "2026-07", actorMemberId: admin.id });
+    confirmMonthlyEffortClose(db, { month: "2026-07", actorMemberId: admin.id });
     startMonthlyCostReview(db, {
       month: "2026-07",
       actorMemberId: admin.id,
@@ -140,7 +143,7 @@ describe("monthly cost close lifecycle", () => {
 
     const close = getMonthlyCostCloseState(db, "2026-07").close!;
     expect(close.status).toBe("open");
-    expect(listMonthlyCostCloseEvents(db, close.id)).toMatchObject([
+    expect(listMonthlyCostCloseEvents(db, close.id).filter(event => !event.eventType.startsWith("effort_"))).toMatchObject([
       {
         eventType: "entered_review",
         previousStatus: "open",
@@ -260,6 +263,8 @@ describe("monthly cost close lifecycle", () => {
       month: "2026-07",
       actorMemberId: member.id,
     });
+    startMonthlyEffortReview(db, { month: "2026-07", actorMemberId: admin.id });
+    confirmMonthlyEffortClose(db, { month: "2026-07", actorMemberId: admin.id });
     startMonthlyCostReview(db, {
       month: "2026-07",
       actorMemberId: admin.id,
@@ -339,6 +344,8 @@ describe("monthly cost approval", () => {
       month: "2026-07",
       actorMemberId: member.id,
     });
+    startMonthlyEffortReview(db, { month: "2026-07", actorMemberId: admin.id });
+    confirmMonthlyEffortClose(db, { month: "2026-07", actorMemberId: admin.id });
     startMonthlyCostReview(db, { month: "2026-07", actorMemberId: admin.id });
     const close = getMonthlyCostCloseState(db, "2026-07").close!;
     connection.sqlite.exec(`
@@ -361,7 +368,7 @@ describe("monthly cost approval", () => {
     expect(listMonthlyCostCloseProjectSnapshots(db, close.id)).toEqual([]);
     expect(
       listMonthlyCostCloseEvents(db, close.id).map((event) => event.eventType),
-    ).toEqual(["entered_review"]);
+    ).toEqual(["effort_reviewed", "effort_confirmed", "entered_review"]);
   });
 
   test("keeps approved financial views immutable after master edits and future actuals", () => {
@@ -380,6 +387,8 @@ describe("monthly cost approval", () => {
       month: "2026-07",
       actorMemberId: member.id,
     });
+    startMonthlyEffortReview(db, { month: "2026-07", actorMemberId: admin.id });
+    confirmMonthlyEffortClose(db, { month: "2026-07", actorMemberId: admin.id });
     startMonthlyCostReview(db, { month: "2026-07", actorMemberId: admin.id });
     approveMonthlyCostClose(db, {
       month: "2026-07",
@@ -433,6 +442,8 @@ describe("monthly cost approval", () => {
       month: "2026-07",
       actorMemberId: member.id,
     });
+    startMonthlyEffortReview(db, { month: "2026-07", actorMemberId: admin.id });
+    confirmMonthlyEffortClose(db, { month: "2026-07", actorMemberId: admin.id });
     startMonthlyCostReview(db, { month: "2026-07", actorMemberId: admin.id });
     invalidateSubmittedMonthlyEffort(db, {
       memberId: member.id,

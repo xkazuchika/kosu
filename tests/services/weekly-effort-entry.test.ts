@@ -16,7 +16,7 @@ import {
   createProject,
 } from "../../app/db/repositories/projects";
 import { listWeekDates } from "../../app/lib/time";
-import { startMonthlyCostReview } from "../../app/services/monthly-cost-close";
+import { setEffortConfirmed } from "../support/monthly-cost-close-fixtures";
 import { submitMonthlyEffort } from "../../app/services/monthly-effort-submission";
 import {
   getWeeklyEffortDraft,
@@ -175,7 +175,7 @@ describe("weekly effort entry", () => {
       month: "2026-09",
       actorMemberId: member.id,
     });
-    startMonthlyCostReview(db, { month: "2026-09", actorMemberId: member.id });
+    setEffortConfirmed(db, { month: "2026-09", actorMemberId: member.id });
     const dates = listWeekDates("2026-08-31");
     const input: WeeklyEffortDraft = {
       weekDate: dates[0],

@@ -37,7 +37,7 @@ import {
   listActiveProjects,
 } from "~/db/repositories/projects";
 import { getSessionMember } from "~/services/auth";
-import { getMonthlyCostCloseState } from "~/services/monthly-cost-close";
+import { getMonthlyPeriodState } from "~/services/monthly-cost-close";
 import {
   getMonthlyEffortSubmissionState,
   getMonthlyEffortSubmissionSummary,
@@ -61,7 +61,7 @@ type DashboardLoaderData = {
   };
   assignedProjects: { id: string; name: string; code: string }[];
   incompleteAllocationsCount: number;
-  closeStatus: "open" | "in_review" | "approved";
+  closeStatus: "open" | "in_review" | "confirmed" | "approved";
   monthlySubmission: {
     isRequired: boolean;
     status: "draft" | "submitted";
@@ -153,7 +153,7 @@ export const loader = async ({
       return log.totalWorkingHours - allocated !== 0;
     }).length;
 
-    const closeState = getMonthlyCostCloseState(db, currentMonth);
+    const closeState = getMonthlyPeriodState(db, currentMonth);
     const submissionSummary = getMonthlyEffortSubmissionSummary(
       db,
       currentMonth,

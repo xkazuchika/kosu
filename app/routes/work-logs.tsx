@@ -10,7 +10,7 @@ import { listAllocationsByWorkLog } from "~/db/repositories/effort-allocations";
 import { findMemberById, listMembers, withoutMemberFinancials } from "~/db/repositories/members";
 import { isValidMonth } from "~/lib/time";
 import { getSessionMember } from "~/services/auth";
-import { getMonthlyCostCloseState } from "~/services/monthly-cost-close";
+import { getMonthlyPeriodState } from "~/services/monthly-cost-close";
 import { getWorkspaceCalendarContext } from "~/services/workspace-calendar";
 
 export const loader = async ({ request }: { request: Request }) => {
@@ -54,7 +54,7 @@ export const loader = async ({ request }: { request: Request }) => {
       .filter((log) => status !== "unbalanced" || log.variance !== 0);
 
     return {
-      closeStatus: getMonthlyCostCloseState(db, month).status,
+      closeStatus: getMonthlyPeriodState(db, month).status,
       currentMemberId: member.id,
       isAdmin: member.role === "admin",
       members: member.role === "admin" ? listMembers(db).map(withoutMemberFinancials) : [],

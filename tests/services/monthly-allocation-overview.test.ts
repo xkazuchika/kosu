@@ -292,7 +292,7 @@ test("migration preserves legacy values and enforces review constraints", () => 
       readFileSync("drizzle/meta/_journal.json", "utf8"),
     ) as { entries: { tag: string }[] };
     for (const entry of journal.entries.filter(
-      (e) => !e.tag.startsWith("0008"),
+      (e) => Number(e.tag.slice(0, 4)) < 8,
     ))
       old.sqlite.exec(
         readFileSync(`drizzle/${entry.tag}.sql`, "utf8").replaceAll(
@@ -322,10 +322,7 @@ test("migration preserves legacy values and enforces review constraints", () => 
       month,
       capacityHours: 160,
     });
-    old.db
-      .insert(monthlyCostCloses)
-      .values({ id: "close", month, status: "approved" })
-      .run();
+    old.sqlite.prepare("INSERT INTO monthly_cost_closes (id, month, status) VALUES (?, ?, ?)").run("close", month, "approved");
     const before = old.sqlite.prepare("SELECT * FROM monthly_plans").all();
     old.sqlite.exec(
       readFileSync("drizzle/0008_monthly_plan_reviews.sql", "utf8").replaceAll(

@@ -1,12 +1,12 @@
 import type { KosuDatabase } from "~/db/client";
 import {
   getMonthFromDate,
-  getMonthlyCostCloseState,
+  getMonthlyPeriodState,
   requireOpenMonth,
 } from "~/services/monthly-cost-close";
 
 export function isMonthLocked(db: KosuDatabase, month: string) {
-  return getMonthlyCostCloseState(db, month).isProtected;
+  return getMonthlyPeriodState(db, month).isProtected;
 }
 
 export function requireUnlockedMonth(db: KosuDatabase, month: string) {
@@ -18,11 +18,14 @@ export function runInUnlockedMonthTransaction<T>(
   month: string,
   operation: (tx: KosuDatabase) => T,
 ) {
-  return db.transaction((transaction) => {
-    const tx = transaction as unknown as KosuDatabase;
-    requireUnlockedMonth(tx, month);
-    return operation(tx);
-  });
+  return db.transaction(
+    (transaction) => {
+      const tx = transaction as unknown as KosuDatabase;
+      requireUnlockedMonth(tx, month);
+      return operation(tx);
+    },
+    { behavior: "immediate" },
+  );
 }
 
 export { getMonthFromDate };

@@ -50,7 +50,7 @@ import {
   isValidCalendarDate,
   isValidDailyHours,
 } from "~/lib/time";
-import { getMonthlyCostCloseState } from "~/services/monthly-cost-close";
+import { getMonthlyPeriodState } from "~/services/monthly-cost-close";
 import { invalidateMonthlyEffortSubmission } from "~/services/monthly-effort-submission";
 import {
   requireUnlockedMonth,
@@ -176,7 +176,7 @@ export const loader = async ({
       (project) => project.id,
     );
 
-    const closeState = getMonthlyCostCloseState(db, month);
+    const closeState = getMonthlyPeriodState(db, month);
     const projectEffortContext = Object.fromEntries(
       getMemberProjectEffortContext(db, targetMemberId, month),
     );

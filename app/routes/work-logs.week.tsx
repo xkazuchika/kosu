@@ -28,7 +28,7 @@ import {
 } from "~/lib/time";
 import { getSessionMember } from "~/services/auth";
 import { DailyEffortEntryError } from "~/services/daily-effort-entry";
-import { getMonthlyCostCloseState } from "~/services/monthly-cost-close";
+import { getMonthlyPeriodState } from "~/services/monthly-cost-close";
 import {
   getWeeklyEffortDraft,
   saveWeeklyEffortDraft,
@@ -82,7 +82,7 @@ export const loader = async ({ request }: Route.LoaderArgs) => {
       .filter((task): task is NonNullable<typeof task> => Boolean(task));
     const closeStates = [
       ...new Set(draft.dates.map((date) => date.slice(0, 7))),
-    ].map((month) => getMonthlyCostCloseState(db, month));
+    ].map((month) => getMonthlyPeriodState(db, month));
 
     return {
       currentMemberId: currentMember.id,

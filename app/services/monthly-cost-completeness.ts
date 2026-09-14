@@ -1,12 +1,11 @@
 import type { KosuDatabase } from "~/db/client";
 import { listDailyAllocationPlansByMonth } from "~/db/repositories/daily-allocation-plans";
-import { listDailyWorkLogsByMonth } from "~/db/repositories/daily-work-logs";
-import { listAllocationsByWorkLog, listEffortReportRows } from "~/db/repositories/effort-allocations";
+import { listEffortReportRows } from "~/db/repositories/effort-allocations";
 import { listMembers } from "~/db/repositories/members";
 import { listMonthlyPlansByMonth } from "~/db/repositories/monthly-plans";
 import { listProjects } from "~/db/repositories/projects";
 import { validateMonth } from "~/services/monthly-cost-close";
-import { getMonthlyEffortSubmissionSummary } from "~/services/monthly-effort-submission";
+import { getMonthlyEffortCompleteness } from "./monthly-effort-completeness";
 
 export type MonthlyCostBlockingIssueCode =
   | "MISSING_EFFORT_SUBMISSION"
@@ -42,54 +41,22 @@ export type MonthlyCostCompleteness = {
 
 const epsilon = 0.0001;
 
-export function getMonthlyCostCompleteness(db: KosuDatabase, month: string): MonthlyCostCompleteness {
+export function getMonthlyCostCompleteness(
+  db: KosuDatabase,
+  month: string,
+): MonthlyCostCompleteness {
   validateMonth(month);
-  const blockers: MonthlyCostIssue[] = [];
+  const blockers = getMonthlyEffortCompleteness(db, month).blockers;
   const warnings: MonthlyCostIssue[] = [];
   const members = listMembers(db);
   const projects = listProjects(db);
   const memberById = new Map(members.map((member) => [member.id, member]));
   const projectById = new Map(projects.map((project) => [project.id, project]));
-  const workLogs = listDailyWorkLogsByMonth(db, month);
   const monthlyPlans = listMonthlyPlansByMonth(db, month);
   const monthlyActuals = listEffortReportRows(db, { month });
-  const historicalActuals = listEffortReportRows(db, { endDate: `${month}-01` })
-    .filter((allocation) => allocation.workDate < `${month}-01`);
-
-  for (const entry of getMonthlyEffortSubmissionSummary(db, month).members) {
-    if (entry.status === "submitted") continue;
-
-    blockers.push({
-      code: "MISSING_EFFORT_SUBMISSION",
-      severity: "blocking",
-      key: `MISSING_EFFORT_SUBMISSION:${entry.member.id}:${month}`,
-      title: "月次工数が未提出です",
-      detail: `${entry.member.displayName} / ${month}`,
-      href: `/work-logs/month?month=${month}&memberId=${entry.member.id}`,
-      memberId: entry.member.id,
-    });
-  }
-
-  for (const workLog of workLogs) {
-    const allocatedHours = listAllocationsByWorkLog(db, workLog.id)
-      .reduce((total, allocation) => total + allocation.allocatedHours, 0);
-
-    if (Math.abs(allocatedHours - workLog.totalWorkingHours) <= epsilon) {
-      continue;
-    }
-
-    const member = memberById.get(workLog.memberId);
-    blockers.push({
-      code: "UNBALANCED_WORK_LOG",
-      severity: "blocking",
-      key: `UNBALANCED_WORK_LOG:${workLog.id}`,
-      title: "勤務時間と配賦時間が一致していません",
-      detail: `${member?.displayName ?? workLog.memberId} / ${workLog.workDate}: 勤務 ${workLog.totalWorkingHours}h、配賦 ${allocatedHours}h`,
-      href: `/work-logs/${workLog.workDate}?memberId=${workLog.memberId}`,
-      memberId: workLog.memberId,
-      workDate: workLog.workDate,
-    });
-  }
+  const historicalActuals = listEffortReportRows(db, {
+    endDate: `${month}-01`,
+  }).filter((allocation) => allocation.workDate < `${month}-01`);
 
   for (const plan of monthlyPlans) {
     if (plan.plannedHours <= 0 || plan.hourlyCostRateSnapshot !== null) {
@@ -112,7 +79,10 @@ export function getMonthlyCostCompleteness(db: KosuDatabase, month: string): Mon
   }
 
   for (const allocation of monthlyActuals) {
-    if (allocation.allocatedHours <= 0 || allocation.hourlyCostRateSnapshot !== null) {
+    if (
+      allocation.allocatedHours <= 0 ||
+      allocation.hourlyCostRateSnapshot !== null
+    ) {
       continue;
     }
 
@@ -126,12 +96,18 @@ export function getMonthlyCostCompleteness(db: KosuDatabase, month: string): Mon
       memberId: allocation.memberId,
       projectId: allocation.projectId,
       workDate: allocation.workDate,
-      correction: { targetType: "effort_allocation", targetId: allocation.allocationId },
+      correction: {
+        targetType: "effort_allocation",
+        targetId: allocation.allocationId,
+      },
     });
   }
 
   for (const allocation of historicalActuals) {
-    if (allocation.allocatedHours <= 0 || allocation.hourlyCostRateSnapshot !== null) {
+    if (
+      allocation.allocatedHours <= 0 ||
+      allocation.hourlyCostRateSnapshot !== null
+    ) {
       continue;
     }
 
@@ -145,7 +121,10 @@ export function getMonthlyCostCompleteness(db: KosuDatabase, month: string): Mon
       memberId: allocation.memberId,
       projectId: allocation.projectId,
       workDate: allocation.workDate,
-      correction: { targetType: "effort_allocation", targetId: allocation.allocationId },
+      correction: {
+        targetType: "effort_allocation",
+        targetId: allocation.allocationId,
+      },
     });
   }
 
@@ -154,11 +133,15 @@ export function getMonthlyCostCompleteness(db: KosuDatabase, month: string): Mon
     if (plan.plannedHours > epsilon) activeProjectIds.add(plan.projectId);
   }
   for (const allocation of monthlyActuals) {
-    if (allocation.allocatedHours > epsilon) activeProjectIds.add(allocation.projectId);
+    if (allocation.allocatedHours > epsilon)
+      activeProjectIds.add(allocation.projectId);
   }
 
   for (const project of projects) {
-    if (project.projectType !== "billable" || !activeProjectIds.has(project.id)) {
+    if (
+      project.projectType !== "billable" ||
+      !activeProjectIds.has(project.id)
+    ) {
       continue;
     }
 
@@ -186,19 +169,29 @@ export function getMonthlyCostCompleteness(db: KosuDatabase, month: string): Mon
     }
   }
 
-  const monthlyPlanHours = aggregateHours(monthlyPlans, (plan) => `${plan.memberId}:${plan.projectId}`, "plannedHours");
+  const monthlyPlanHours = aggregateHours(
+    monthlyPlans,
+    (plan) => `${plan.memberId}:${plan.projectId}`,
+    "plannedHours",
+  );
   const dailyPlanHours = aggregateHours(
     listDailyAllocationPlansByMonth(db, month),
     (plan) => `${plan.memberId}:${plan.projectId}`,
     "plannedHours",
   );
-  const planKeys = new Set([...monthlyPlanHours.keys(), ...dailyPlanHours.keys()]);
+  const planKeys = new Set([
+    ...monthlyPlanHours.keys(),
+    ...dailyPlanHours.keys(),
+  ]);
 
   for (const key of planKeys) {
     const monthlyHours = monthlyPlanHours.get(key) ?? 0;
     const dailyHours = dailyPlanHours.get(key) ?? 0;
 
-    if (Math.abs(monthlyHours - dailyHours) <= epsilon || (monthlyHours <= epsilon && dailyHours <= epsilon)) {
+    if (
+      Math.abs(monthlyHours - dailyHours) <= epsilon ||
+      (monthlyHours <= epsilon && dailyHours <= epsilon)
+    ) {
       continue;
     }
 

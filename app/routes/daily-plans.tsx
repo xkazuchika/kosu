@@ -15,7 +15,7 @@ import { logRouteError } from "~/lib/log";
 import { getWeekdayLabel, isSaturdayDate, isSundayDate, isValidMonth, isWeekendDate, listMonthDates } from "~/lib/time";
 import { DailyAllocationPlanError, copyDailyAllocationPlansToActuals, saveDailyAllocationPlans } from "~/services/daily-allocation-plans";
 import { getSessionMember } from "~/services/auth";
-import { getMonthlyCostCloseState } from "~/services/monthly-cost-close";
+import { getMonthlyPeriodState } from "~/services/monthly-cost-close";
 import { getWorkspaceCalendarContext } from "~/services/workspace-calendar";
 
 export const loader = async ({ request }: { request: Request }) => {
@@ -73,7 +73,7 @@ export const loader = async ({ request }: { request: Request }) => {
     const monthlyTotal = monthlyPlans.reduce((sum, plan) => sum + plan.plannedHours, 0);
     const dailyTotal = dailyPlans.reduce((sum, plan) => sum + plan.plannedHours, 0);
 
-    const closeState = getMonthlyCostCloseState(db, month);
+    const closeState = getMonthlyPeriodState(db, month);
 
     return {
       assignedProjects,

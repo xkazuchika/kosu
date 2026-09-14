@@ -10,19 +10,31 @@ import {
 } from "../schema";
 
 export type MonthlyCostCloseStatus = "open" | "in_review" | "approved";
+export type MonthlyEffortCloseStatus = "open" | "in_review" | "confirmed";
 export type MonthlyCostCloseEventType =
   | "migration"
+  | "effort_migration"
+  | "effort_reviewed"
+  | "effort_confirmed"
   | "entered_review"
   | "approved"
   | "reopened"
   | "cost_snapshot_corrected";
 
 export function findMonthlyCostCloseByMonth(db: KosuDatabase, month: string) {
-  return db.select().from(monthlyCostCloses).where(eq(monthlyCostCloses.month, month)).get();
+  return db
+    .select()
+    .from(monthlyCostCloses)
+    .where(eq(monthlyCostCloses.month, month))
+    .get();
 }
 
 export function listMonthlyCostCloses(db: KosuDatabase) {
-  return db.select().from(monthlyCostCloses).orderBy(desc(monthlyCostCloses.month)).all();
+  return db
+    .select()
+    .from(monthlyCostCloses)
+    .orderBy(desc(monthlyCostCloses.month))
+    .all();
 }
 
 export function getOrCreateMonthlyCostClose(db: KosuDatabase, month: string) {
@@ -43,7 +55,12 @@ export function updateMonthlyCostClose(
   db: KosuDatabase,
   id: string,
   input: {
-    status: MonthlyCostCloseStatus;
+    status?: MonthlyCostCloseStatus;
+    effortStatus?: MonthlyEffortCloseStatus;
+    effortReviewedByMemberId?: string | null;
+    effortReviewedAt?: string | null;
+    effortConfirmedByMemberId?: string | null;
+    effortConfirmedAt?: string | null;
     enteredReviewByMemberId?: string | null;
     enteredReviewAt?: string | null;
     approvedByMemberId?: string | null;
@@ -66,6 +83,8 @@ export function appendMonthlyCostCloseEvent(
     eventType: MonthlyCostCloseEventType;
     actorMemberId?: string | null;
     previousStatus?: MonthlyCostCloseStatus | null;
+    previousEffortStatus?: MonthlyEffortCloseStatus | null;
+    nextEffortStatus?: MonthlyEffortCloseStatus | null;
     nextStatus?: MonthlyCostCloseStatus | null;
     reason?: string | null;
     targetType?: "monthly_plan" | "effort_allocation" | null;
@@ -83,6 +102,8 @@ export function appendMonthlyCostCloseEvent(
       eventType: input.eventType,
       actorMemberId: input.actorMemberId ?? null,
       previousStatus: input.previousStatus ?? null,
+      previousEffortStatus: input.previousEffortStatus ?? null,
+      nextEffortStatus: input.nextEffortStatus ?? null,
       nextStatus: input.nextStatus ?? null,
       reason: input.reason ?? null,
       targetType: input.targetType ?? null,
@@ -100,7 +121,10 @@ export function listMonthlyCostCloseEvents(db: KosuDatabase, closeId: string) {
     .select()
     .from(monthlyCostCloseEvents)
     .where(eq(monthlyCostCloseEvents.closeId, closeId))
-    .orderBy(asc(monthlyCostCloseEvents.occurredAt), asc(monthlyCostCloseEvents.createdAt))
+    .orderBy(
+      asc(monthlyCostCloseEvents.occurredAt),
+      asc(monthlyCostCloseEvents.createdAt),
+    )
     .all();
 }
 
@@ -120,7 +144,10 @@ export function createMonthlyCostCloseProjectSnapshot(
     .get();
 }
 
-export function listMonthlyCostCloseProjectSnapshots(db: KosuDatabase, closeId: string) {
+export function listMonthlyCostCloseProjectSnapshots(
+  db: KosuDatabase,
+  closeId: string,
+) {
   return db
     .select()
     .from(monthlyCostCloseProjectSnapshots)
@@ -129,7 +156,10 @@ export function listMonthlyCostCloseProjectSnapshots(db: KosuDatabase, closeId: 
     .all();
 }
 
-export function deleteMonthlyCostCloseProjectSnapshots(db: KosuDatabase, closeId: string) {
+export function deleteMonthlyCostCloseProjectSnapshots(
+  db: KosuDatabase,
+  closeId: string,
+) {
   return db
     .delete(monthlyCostCloseProjectSnapshots)
     .where(eq(monthlyCostCloseProjectSnapshots.closeId, closeId))

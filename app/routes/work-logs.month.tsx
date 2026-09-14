@@ -38,7 +38,7 @@ import {
   listMonthDates,
 } from "~/lib/time";
 import { getSessionMember } from "~/services/auth";
-import { getMonthlyCostCloseState } from "~/services/monthly-cost-close";
+import { getMonthlyPeriodState } from "~/services/monthly-cost-close";
 import {
   getMonthlyEffortSubmissionState,
   invalidateMonthlyEffortSubmission,
@@ -83,7 +83,7 @@ export const loader = async ({ request }: { request: Request }) => {
       isAdmin && targetMemberId !== currentMember.id
         ? `&memberId=${targetMemberId}`
         : "";
-    const closeState = getMonthlyCostCloseState(db, month);
+    const closeState = getMonthlyPeriodState(db, month);
     const isLocked = closeState.isProtected;
     const submissionState = getMonthlyEffortSubmissionState(
       db,

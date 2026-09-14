@@ -53,6 +53,15 @@ export function saveDailyAllocationPlans(
   db: KosuDatabase,
   input: SaveDailyAllocationPlansInput,
 ) {
+  return runInUnlockedMonthTransaction(db, input.month, (tx) =>
+    saveDailyAllocationPlansInTransaction(tx, input),
+  );
+}
+
+function saveDailyAllocationPlansInTransaction(
+  db: KosuDatabase,
+  input: SaveDailyAllocationPlansInput,
+) {
   validateMonth(input.month);
   requireUnlockedMonth(db, input.month);
 
