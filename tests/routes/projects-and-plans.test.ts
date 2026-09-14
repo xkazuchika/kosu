@@ -121,6 +121,98 @@ async function assignAdminToProject(cookie: string, projectId: string) {
 }
 
 describe("projects, tasks, assignments, and plans routes", () => {
+  test("monthly overview confirms current planning, invalidates edits, and protects team data", async () => {
+    const cookie = await setupAndLogin(dataDir, "password123");
+    const request = new Request(
+      "http://localhost/monthly-plans/admin?month=2026-09",
+      { headers: { Cookie: cookie } },
+    );
+    const initial = await monthlyPlansAdminLoader({ request });
+    const person = initial.allocationOverview.rows[0];
+    expect(person).toMatchObject({
+      isConfirmed: false,
+      capacityHours: null,
+      availableHours: null,
+    });
+    const submit = async (fields: Record<string, string>) => {
+      const form = new FormData();
+      for (const [key, value] of Object.entries(fields)) form.set(key, value);
+      return (monthlyPlansAdminAction as unknown as RouteActionHandler)({
+        request: buildRequest(form, cookie),
+        params: {},
+        context: buildContext(),
+      });
+    };
+    await submit({
+      intent: "capacity",
+      memberId: person.memberId,
+      month: "2026-09",
+      capacityHours: "160",
+    });
+    expect(
+      await submit({
+        intent: "confirmPlan",
+        memberId: person.memberId,
+        month: "2026-09",
+        revision: "0",
+      }),
+    ).toMatchObject({ error: expect.stringContaining("変更されています") });
+    const current = (await monthlyPlansAdminLoader({ request }))
+      .allocationOverview.rows[0];
+    await submit({
+      intent: "confirmPlan",
+      memberId: person.memberId,
+      month: "2026-09",
+      revision: String(current.revision),
+    });
+    expect(
+      (await monthlyPlansAdminLoader({ request })).allocationOverview.rows[0],
+    ).toMatchObject({ isConfirmed: true, availableHours: 160 });
+    const personal = await monthlyPlansLoader({ request });
+    expect(personal.planningSummary).toMatchObject({
+      isConfirmed: true,
+      availableHours: 160,
+    });
+    await submit({
+      intent: "capacity",
+      memberId: person.memberId,
+      month: "2026-09",
+      capacityHours: "140",
+    });
+    expect(
+      (await monthlyPlansLoader({ request })).planningSummary,
+    ).toMatchObject({
+      isConfirmed: false,
+      availableHours: null,
+      balanceHours: 140,
+    });
+    const conn = createDatabaseConnection();
+    createMember(conn.db, {
+      displayName: "Private colleague",
+      email: "private@example.com",
+      passwordHash: "hash",
+    });
+    conn.db
+      .update(members)
+      .set({ role: "member" })
+      .where(eq(members.id, person.memberId))
+      .run();
+    conn.sqlite.close();
+    await expect(monthlyPlansAdminLoader({ request })).rejects.toMatchObject({
+      status: 403,
+    });
+    await expect(
+      submit({
+        intent: "confirmPlan",
+        memberId: person.memberId,
+        month: "2026-09",
+        revision: "2",
+      }),
+    ).rejects.toMatchObject({ status: 403 });
+    const own = JSON.stringify(await monthlyPlansLoader({ request }));
+    expect(own).not.toMatch(/Private colleague|passwordHash|hourlyCostRate/);
+  });
+
   test("admin creates and archives a project", async () => {
     const cookie = await setupAndLogin(dataDir, "password123");
 

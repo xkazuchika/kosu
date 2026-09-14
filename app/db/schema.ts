@@ -178,6 +178,38 @@ export const memberMonthlyCapacities = sqliteTable(
   ],
 );
 
+// Revisions and invalidation are maintained by migration triggers for all writers.
+export const memberMonthlyPlanReviews = sqliteTable(
+  "member_monthly_plan_reviews",
+  {
+    memberId: text("member_id")
+      .notNull()
+      .references(() => members.id, { onDelete: "cascade" }),
+    month: text("month").notNull(),
+    revision: integer("revision").notNull().default(0),
+    confirmedByMemberId: text("confirmed_by_member_id").references(
+      () => members.id,
+      { onDelete: "set null" },
+    ),
+    confirmedAt: text("confirmed_at"),
+  },
+  (table) => [
+    unique("member_monthly_plan_reviews_member_month_unique").on(
+      table.memberId,
+      table.month,
+    ),
+    index("member_monthly_plan_reviews_month_index").on(table.month),
+    check(
+      "member_monthly_plan_reviews_revision_check",
+      sql`typeof(${table.revision}) = 'integer' AND ${table.revision} >= 0`,
+    ),
+    check(
+      "member_monthly_plan_reviews_month_check",
+      sql`length(${table.month}) = 7 AND ${table.month} GLOB '[0-9][0-9][0-9][0-9]-[0-9][0-9]' AND substr(${table.month}, 1, 4) >= '0001' AND substr(${table.month}, 6, 2) BETWEEN '01' AND '12'`,
+    ),
+  ],
+);
+
 export const monthlyPlans = sqliteTable(
   "monthly_plans",
   {
@@ -534,6 +566,7 @@ export const importJobs = sqliteTable(
 );
 
 export const schema = {
+  memberMonthlyPlanReviews,
   dailyAllocationPlans,
   dailyWorkLogs,
   effortAllocations,

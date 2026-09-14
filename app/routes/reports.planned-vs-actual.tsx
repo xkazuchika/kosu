@@ -1,4 +1,6 @@
 import { Form, useLoaderData } from "react-router";
+import { PlanningBalance } from "~/components/planning-balance";
+import { getMonthlyAllocationOverview } from "~/services/monthly-allocation-overview";
 import type { Route } from "./+types/reports.planned-vs-actual";
 
 import { MonthlyCloseStatusBadge } from "~/components/monthly-close-status";
@@ -28,10 +30,15 @@ export const loader = async ({ request }: { request: Request }) => {
     const url = new URL(request.url);
     const { currentMonth } = getWorkspaceCalendarContext(db);
     const requestedMonth = url.searchParams.get("month");
-    const month = requestedMonth && isValidMonth(requestedMonth) ? requestedMonth : currentMonth;
+    const month =
+      requestedMonth && isValidMonth(requestedMonth)
+        ? requestedMonth
+        : currentMonth;
 
     const { allocations, plans } = listPlannedVsActualByMonth(db, month);
-    const visibleMembers = listMembers(db).filter((item) => member.role === "admin" || item.id === member.id);
+    const visibleMembers = listMembers(db).filter(
+      (item) => member.role === "admin" || item.id === member.id,
+    );
 
     const actualMap = new Map<string, number>();
     const actualByMember = new Map<string, number>();
@@ -39,10 +46,21 @@ export const loader = async ({ request }: { request: Request }) => {
       if (member.role !== "admin" && a.memberId !== member.id) continue;
       const key = `${a.memberId}|${a.projectId}`;
       actualMap.set(key, (actualMap.get(key) ?? 0) + a.allocatedHours);
-      actualByMember.set(a.memberId, (actualByMember.get(a.memberId) ?? 0) + a.allocatedHours);
+      actualByMember.set(
+        a.memberId,
+        (actualByMember.get(a.memberId) ?? 0) + a.allocatedHours,
+      );
     }
 
-    const planMap = new Map<string, { memberId: string; projectId: string; plannedHours: number; roles: Set<string> }>();
+    const planMap = new Map<
+      string,
+      {
+        memberId: string;
+        projectId: string;
+        plannedHours: number;
+        roles: Set<string>;
+      }
+    >();
     const plannedByMember = new Map<string, number>();
     for (const p of plans) {
       if (member.role !== "admin" && p.memberId !== member.id) continue;
@@ -56,7 +74,10 @@ export const loader = async ({ request }: { request: Request }) => {
       existing.plannedHours += p.plannedHours;
       if (p.assignmentRole) existing.roles.add(p.assignmentRole);
       planMap.set(key, existing);
-      plannedByMember.set(p.memberId, (plannedByMember.get(p.memberId) ?? 0) + p.plannedHours);
+      plannedByMember.set(
+        p.memberId,
+        (plannedByMember.get(p.memberId) ?? 0) + p.plannedHours,
+      );
     }
 
     const keys = new Set([...planMap.keys(), ...actualMap.keys()]);
@@ -71,7 +92,8 @@ export const loader = async ({ request }: { request: Request }) => {
         memberName: findMemberById(db, memberId)?.displayName ?? memberId,
         projectId,
         projectName: findProjectById(db, projectId)?.name ?? projectId,
-        assignmentRole: plan && plan.roles.size > 0 ? [...plan.roles].join(" / ") : "-",
+        assignmentRole:
+          plan && plan.roles.size > 0 ? [...plan.roles].join(" / ") : "-",
         plannedHours: planned,
         actualHours: actual,
         variance: actual - planned,
@@ -80,7 +102,11 @@ export const loader = async ({ request }: { request: Request }) => {
 
     const capacityRows = visibleMembers
       .map((visibleMember) => {
-        const capacity = findCapacityByMemberAndMonth(db, visibleMember.id, month);
+        const capacity = findCapacityByMemberAndMonth(
+          db,
+          visibleMember.id,
+          month,
+        );
         const capacityHours = capacity?.capacityHours ?? null;
         const totalPlanned = plannedByMember.get(visibleMember.id) ?? 0;
         const totalActual = actualByMember.get(visibleMember.id) ?? 0;
@@ -91,14 +117,46 @@ export const loader = async ({ request }: { request: Request }) => {
           capacityHours,
           totalPlanned,
           totalActual,
-          unallocatedCapacity: capacityHours === null ? null : Math.max(capacityHours - totalPlanned, 0),
-          overplannedHours: capacityHours === null ? null : Math.max(totalPlanned - capacityHours, 0),
+          unallocatedCapacity:
+            capacityHours === null
+              ? null
+              : Math.max(capacityHours - totalPlanned, 0),
+          overplannedHours:
+            capacityHours === null
+              ? null
+              : Math.max(totalPlanned - capacityHours, 0),
         };
       })
-      .filter((row) => row.capacityHours !== null || row.totalPlanned > 0 || row.totalActual > 0);
+      .filter(
+        (row) =>
+          row.capacityHours !== null ||
+          row.totalPlanned > 0 ||
+          row.totalActual > 0,
+      );
+
+    const planning = getMonthlyAllocationOverview(
+      db,
+      month,
+      member.role === "admin" ? undefined : member.id,
+    );
+    const planningByMember = new Map(
+      planning.rows.map((row) => [row.memberId, row]),
+    );
 
     return {
-      capacityRows,
+      capacityRows: capacityRows.map((row) => {
+        const summary = planningByMember.get(row.memberId);
+        return {
+          ...row,
+          isActive: summary?.isActive ?? false,
+          isConfirmed: summary?.isConfirmed ?? false,
+          balanceHours: summary?.balanceHours ?? null,
+          totalPlanned: summary?.totalPlanned ?? row.totalPlanned,
+          capacityHours: summary?.capacityHours ?? row.capacityHours,
+          unallocatedCapacity: summary?.availableHours ?? null,
+          overplannedHours: summary?.overplannedHours ?? row.overplannedHours,
+        };
+      }),
       closeStatus: getMonthlyCostCloseState(db, month).status,
       hasPlans: planMap.size > 0,
       isAdmin: member.role === "admin",
@@ -111,7 +169,9 @@ export const loader = async ({ request }: { request: Request }) => {
   }
 };
 
-export const meta: Route.MetaFunction = () => [{ title: "予定工数対実績工数 | kosu" }];
+export const meta: Route.MetaFunction = () => [
+  { title: "予定工数対実績工数 | kosu" },
+];
 
 export default function PlannedVsActual() {
   const data = useLoaderData<typeof loader>();
@@ -120,7 +180,9 @@ export default function PlannedVsActual() {
     <div className="space-y-6">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight text-slate-950">予定工数対実績工数</h1>
+          <h1 className="text-2xl font-bold tracking-tight text-slate-950">
+            予定工数対実績工数
+          </h1>
           <p className="text-sm text-slate-600">
             月次予定工数と実績工数を比較します。日別の総稼働時間は月別総稼働時間入力、案件別の実績工数は日別詳細から集計します。
           </p>
@@ -133,7 +195,10 @@ export default function PlannedVsActual() {
           <CardTitle>フィルター</CardTitle>
         </CardHeader>
         <CardContent>
-          <Form className="flex flex-col gap-4 sm:flex-row sm:items-end" method="get">
+          <Form
+            className="flex flex-col gap-4 sm:flex-row sm:items-end"
+            method="get"
+          >
             <div>
               <label className="text-sm font-medium text-slate-800">月</label>
               <input
@@ -156,29 +221,59 @@ export default function PlannedVsActual() {
         </CardHeader>
         <CardContent>
           {data.capacityRows.length === 0 ? (
-            <EmptyState description="案件別予定工数を登録すると、予定工数対実績工数を確認できます。稼働可能時間は任意です。" title="予定データがありません" />
+            <EmptyState
+              description="案件別予定工数を登録すると、予定工数対実績工数を確認できます。稼働可能時間は任意です。"
+              title="予定データがありません"
+            />
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead className="border-b border-slate-200 text-left text-slate-600">
                   <tr>
-                    {data.isAdmin ? <th className="py-2 pr-4">メンバー</th> : null}
+                    {data.isAdmin ? (
+                      <th className="py-2 pr-4">メンバー</th>
+                    ) : null}
                     <th className="py-2 pr-4 text-right">稼働可能時間</th>
                     <th className="py-2 pr-4 text-right">予定</th>
                     <th className="py-2 pr-4 text-right">実績</th>
-                    <th className="py-2 pr-4 text-right">未予定</th>
+                    <th className="py-2 pr-4">予定確認</th>
+                    <th className="py-2 pr-4">余力・超過</th>
                     <th className="py-2 text-right">予定超過</th>
                   </tr>
                 </thead>
                 <tbody>
                   {data.capacityRows.map((row) => (
-                    <tr key={row.memberId} className="border-b border-slate-100">
-                      {data.isAdmin ? <td className="py-2 pr-4">{row.memberName}</td> : null}
-                      <td className="py-2 pr-4 text-right">{row.capacityHours === null ? "未設定" : `${row.capacityHours}h`}</td>
-                      <td className="py-2 pr-4 text-right">{row.totalPlanned}h</td>
-                      <td className="py-2 pr-4 text-right">{row.totalActual}h</td>
-                      <td className="py-2 pr-4 text-right">{row.unallocatedCapacity === null ? "-" : `${row.unallocatedCapacity}h`}</td>
-                      <td className={`py-2 text-right ${row.overplannedHours !== null && row.overplannedHours > 0 ? "text-red-700" : ""}`}>{row.overplannedHours === null ? "-" : `${row.overplannedHours}h`}</td>
+                    <tr
+                      key={row.memberId}
+                      className="border-b border-slate-100"
+                    >
+                      {data.isAdmin ? (
+                        <td className="py-2 pr-4">{row.memberName}</td>
+                      ) : null}
+                      <td className="py-2 pr-4 text-right">
+                        {row.capacityHours === null
+                          ? "未設定"
+                          : `${row.capacityHours}h`}
+                      </td>
+                      <td className="py-2 pr-4 text-right">
+                        {row.totalPlanned}h
+                      </td>
+                      <td className="py-2 pr-4 text-right">
+                        {row.totalActual}h
+                      </td>
+                      <td className="py-2 pr-4">
+                        {row.isConfirmed ? "確認済み" : "未確認"}
+                      </td>
+                      <td className="py-2 pr-4">
+                        <PlanningBalance value={row} />
+                      </td>
+                      <td
+                        className={`py-2 text-right ${row.overplannedHours !== null && row.overplannedHours > 0 ? "text-red-700" : ""}`}
+                      >
+                        {row.overplannedHours === null
+                          ? "-"
+                          : `${row.overplannedHours}h`}
+                      </td>
                     </tr>
                   ))}
                 </tbody>
@@ -194,13 +289,18 @@ export default function PlannedVsActual() {
         </CardHeader>
         <CardContent>
           {data.rows.length === 0 ? (
-            <EmptyState description="月次予定工数を登録すると、案件別の予定工数対実績工数を確認できます。" title="月次予定工数がありません" />
+            <EmptyState
+              description="月次予定工数を登録すると、案件別の予定工数対実績工数を確認できます。"
+              title="月次予定工数がありません"
+            />
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead className="border-b border-slate-200 text-left text-slate-600">
                   <tr>
-                    {data.isAdmin ? <th className="py-2 pr-4">メンバー</th> : null}
+                    {data.isAdmin ? (
+                      <th className="py-2 pr-4">メンバー</th>
+                    ) : null}
                     <th className="py-2 pr-4">案件</th>
                     <th className="py-2 pr-4">担当ロール</th>
                     <th className="py-2 pr-4 text-right">予定</th>
@@ -211,12 +311,20 @@ export default function PlannedVsActual() {
                 <tbody>
                   {data.rows.map((row, index) => (
                     <tr key={index} className="border-b border-slate-100">
-                      {data.isAdmin ? <td className="py-2 pr-4">{row.memberName}</td> : null}
+                      {data.isAdmin ? (
+                        <td className="py-2 pr-4">{row.memberName}</td>
+                      ) : null}
                       <td className="py-2 pr-4">{row.projectName}</td>
                       <td className="py-2 pr-4">{row.assignmentRole}</td>
-                      <td className="py-2 pr-4 text-right">{row.plannedHours}h</td>
-                      <td className="py-2 pr-4 text-right">{row.actualHours}h</td>
-                      <td className={`py-2 text-right ${row.variance > 0 ? "text-amber-700" : ""}`}>
+                      <td className="py-2 pr-4 text-right">
+                        {row.plannedHours}h
+                      </td>
+                      <td className="py-2 pr-4 text-right">
+                        {row.actualHours}h
+                      </td>
+                      <td
+                        className={`py-2 text-right ${row.variance > 0 ? "text-amber-700" : ""}`}
+                      >
                         {row.variance >= 0 ? "+" : ""}
                         {row.variance}h
                       </td>

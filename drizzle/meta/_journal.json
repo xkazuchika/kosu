@@ -57,6 +57,13 @@
       "when": 1788992930628,
       "tag": "0007_nasty_drax",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "6",
+      "when": 1789222725573,
+      "tag": "0008_monthly_plan_reviews",
+      "breakpoints": true
     }
   ]
 }

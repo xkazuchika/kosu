@@ -9,6 +9,7 @@ test("database schema exports all MVP tables", () => {
     "effortAllocations",
     "importJobs",
     "memberMonthlyCapacities",
+    "memberMonthlyPlanReviews",
     "members",
     "monthlyCostCloseEvents",
     "monthlyCostCloseProjectSnapshots",

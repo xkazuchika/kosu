@@ -1,4 +1,6 @@
 import { Form, useLoaderData } from "react-router";
+import { PlanningBalance } from "~/components/planning-balance";
+import { getMonthlyAllocationOverview } from "~/services/monthly-allocation-overview";
 import type { Route } from "./+types/monthly-plans";
 
 import { MonthlyCloseStatusBadge } from "~/components/monthly-close-status";
@@ -100,6 +102,8 @@ export const loader = async ({ request }: { request: Request }) => {
     const closeState = getMonthlyCostCloseState(db, currentMonth);
 
     return {
+      planningSummary: getMonthlyAllocationOverview(db, currentMonth, member.id)
+        .rows[0],
       member: withoutMemberFinancials(member),
       isAdmin: member.role === "admin",
       currentMonth,
@@ -124,7 +128,7 @@ export default function MonthlyPlans() {
     currentMonth,
     capacityHours,
     totalPlanned,
-    variance,
+    planningSummary,
     plans,
   } = useLoaderData<typeof loader>();
 
@@ -186,17 +190,15 @@ export default function MonthlyPlans() {
         </Card>
         <Card>
           <CardHeader>
-            <CardTitle>稼働可能時間との差分</CardTitle>
+            <CardTitle>予定上の余力・超過</CardTitle>
           </CardHeader>
           <CardContent>
-            <p
-              className={`text-3xl font-semibold ${variance !== null && variance < 0 ? "text-red-700" : "text-emerald-700"}`}
-            >
-              {variance === null
-                ? "-"
-                : variance >= 0
-                  ? `+${variance}h`
-                  : `${variance}h`}
+            <p className="text-lg">
+              <PlanningBalance value={planningSummary} />
+            </p>
+            <p className="mt-2 text-sm text-slate-500">
+              予定確認: {planningSummary.isConfirmed ? "確認済み" : "未確認"}
+              （管理者が確認）
             </p>
           </CardContent>
         </Card>

@@ -24,6 +24,61 @@ import {
   type ImportType,
 } from "../../app/services/import";
 import { setupWorkspace } from "../../app/services/auth";
+import { confirmMonthlyPlan } from "../../app/services/monthly-plan-review";
+import { findMonthlyPlanReview } from "../../app/db/repositories/member-monthly-plan-reviews";
+
+test("CSV planning updates invalidate only the target review and invalid imports preserve confirmations", async () => {
+  const admin = findMemberByEmail(db, "admin@example.com")!;
+  const project = createProject(db, {
+    code: "REVIEW",
+    name: "Review",
+    projectType: "internal",
+  });
+  createProjectAssignment(db, { memberId: admin.id, projectId: project.id });
+  const confirm = (month: string) =>
+    confirmMonthlyPlan(db, {
+      actorMemberId: admin.id,
+      memberId: admin.id,
+      month,
+      revision: findMonthlyPlanReview(db, admin.id, month)?.revision ?? 0,
+    });
+  confirm("2026-09");
+  confirm("2026-10");
+  for (const [type, rows] of [
+    [
+      "monthly_plans",
+      [
+        ["memberEmail", "projectCode", "month", "plannedHours"],
+        [admin.email, project.code, "2026-09", "40"],
+      ],
+    ],
+    [
+      "member_monthly_capacities",
+      [
+        ["memberEmail", "month", "capacityHours"],
+        [admin.email, "2026-09", "160"],
+      ],
+    ],
+  ] as [ImportType, string[][]][]) {
+    expect(
+      await commitImport(db, type, rows, undefined, admin.id),
+    ).toMatchObject({ imported: 1, failed: 0 });
+    expect(
+      findMonthlyPlanReview(db, admin.id, "2026-09")?.confirmedAt,
+    ).toBeNull();
+    expect(
+      findMonthlyPlanReview(db, admin.id, "2026-10")?.confirmedAt,
+    ).not.toBeNull();
+    confirm("2026-09");
+    const before = findMonthlyPlanReview(db, admin.id, "2026-09");
+    const invalidRow = [...rows[1]];
+    invalidRow[invalidRow.length - 1] = "-1";
+    expect(
+      await commitImport(db, type, [...rows, invalidRow], undefined, admin.id),
+    ).toMatchObject({ imported: 0 });
+    expect(findMonthlyPlanReview(db, admin.id, "2026-09")).toEqual(before);
+  }
+});
 
 let db: KosuDatabase;
 let connection: ReturnType<typeof createDatabaseConnection>;
@@ -286,7 +341,13 @@ describe("member CSV validation", () => {
       db,
       "monthly_plans",
       [
-        ["memberEmail", "projectCode", "month", "assignmentRole", "plannedHours"],
+        [
+          "memberEmail",
+          "projectCode",
+          "month",
+          "assignmentRole",
+          "plannedHours",
+        ],
         [admin.email, project.code, "2026-07", "", "8"],
       ],
       undefined,

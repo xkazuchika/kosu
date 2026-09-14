@@ -5,6 +5,9 @@ import os from "node:os";
 import path from "node:path";
 
 import { eq } from "drizzle-orm";
+import { confirmMonthlyPlan } from "../../app/services/monthly-plan-review";
+import { findMonthlyPlanReview } from "../../app/db/repositories/member-monthly-plan-reviews";
+import { createMember } from "../../app/db/repositories/members";
 import { beforeEach, describe, expect, test } from "vitest";
 
 import { createDatabaseConnection } from "../../app/db/client";
@@ -302,9 +305,62 @@ describe("reports", () => {
       capacityHours: 160,
       totalPlanned: 10,
       totalActual: 6,
-      unallocatedCapacity: 150,
+      unallocatedCapacity: null,
+      balanceHours: 150,
+      isConfirmed: false,
       overplannedHours: 0,
     });
+    const confirmedConnection = createDatabaseConnection();
+    confirmMonthlyPlan(confirmedConnection.db, {
+      actorMemberId: adminMember.id,
+      memberId: adminMember.id,
+      month: "2026-07",
+      revision: findMonthlyPlanReview(
+        confirmedConnection.db,
+        adminMember.id,
+        "2026-07",
+      )!.revision,
+    });
+    confirmedConnection.sqlite.close();
+    const confirmed = await plannedVsActualLoader({
+      request: new Request(
+        "http://localhost/reports/planned-vs-actual?month=2026-07",
+        { headers: { Cookie: cookie } },
+      ),
+    });
+    expect(confirmed.capacityRows[0]).toMatchObject({
+      unallocatedCapacity: 150,
+      totalActual: 6,
+      isConfirmed: true,
+    });
+    const memberConnection = createDatabaseConnection();
+    const colleague = createMember(memberConnection.db, {
+      displayName: "Other colleague",
+      email: "other@example.com",
+      passwordHash: "hash",
+    });
+    createMemberMonthlyCapacity(memberConnection.db, {
+      memberId: colleague.id,
+      month: "2026-07",
+      capacityHours: 160,
+    });
+    memberConnection.db
+      .update(members)
+      .set({ role: "member" })
+      .where(eq(members.id, adminMember.id))
+      .run();
+    memberConnection.sqlite.close();
+    const own = await plannedVsActualLoader({
+      request: new Request(
+        "http://localhost/reports/planned-vs-actual?month=2026-07",
+        { headers: { Cookie: cookie } },
+      ),
+    });
+    expect(own.capacityRows).toHaveLength(1);
+    expect(own.capacityRows[0].isConfirmed).toBe(true);
+    expect(JSON.stringify(own)).not.toMatch(
+      /Other colleague|hourlyCost|passwordHash/,
+    );
   });
 
   test("planned-versus-actual report exposes missing-plan guidance state", async () => {

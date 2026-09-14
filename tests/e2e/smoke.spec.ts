@@ -1,4 +1,6 @@
 import { expect, test } from "@playwright/test";
+import os from "node:os";
+import path from "node:path";
 
 test("fresh setup, monthly submission lifecycle, and supported reports remain deployable", async ({
   page,
@@ -60,6 +62,56 @@ test("fresh setup, monthly submission lifecycle, and supported reports remain de
     .selectOption({ label: "E2E Admin (admin@example.com)" });
   await page.getByRole("button", { name: "アサイン" }).click();
   await expect(page.getByRole("cell", { name: "E2E Admin" })).toBeVisible();
+
+  await page.goto("/monthly-plans/admin?month=2026-10");
+  await expect(page).toHaveTitle("月次予定工数入力 | kosu");
+  const matrix = page.getByRole("region", { name: "月次配分一覧" });
+  await expect(matrix.getByText("稼働可能時間が未設定")).toBeVisible();
+  const capacityForm = page
+    .locator("form")
+    .filter({ has: page.locator('input[name="intent"][value="capacity"]') })
+    .first();
+  await capacityForm.locator('input[name="capacityHours"]').fill("160");
+  await capacityForm.getByRole("button", { name: "保存", exact: true }).click();
+  await expect(matrix.getByText("未確認（仮の残り 160h）")).toBeVisible();
+  const planForm = page
+    .locator("form")
+    .filter({ has: page.locator('input[name="intent"][value="plan"]') });
+  await planForm.locator('input[name="plannedHours"]').fill("140");
+  await planForm.getByRole("button", { name: "追加", exact: true }).click();
+  await expect(matrix.getByText("未確認（仮の残り 20h）")).toBeVisible();
+  await expect(matrix.getByText(/社内/)).toBeVisible();
+  await matrix.getByRole("button", { name: "E2E Adminの予定を確認" }).click();
+  await expect(matrix.getByText("予定上の余力 20h")).toBeVisible();
+  await page.screenshot({
+    path: path.join(os.tmpdir(), "kosu-monthly-allocation-desktop.png"),
+    fullPage: false,
+  });
+  await page.getByRole("link", { name: "同じ月の実績と比較" }).click();
+  await expect(page).toHaveURL(/planned-vs-actual\?month=2026-10$/);
+  await expect(page.getByText("予定上の余力 20h")).toBeVisible();
+  await page.goto("/monthly-plans/admin?month=2026-10");
+  await capacityForm.locator('input[name="capacityHours"]').fill("0");
+  await capacityForm.getByRole("button", { name: "保存", exact: true }).click();
+  await expect(matrix.getByText("予定超過 140h")).toBeVisible();
+  await expect(
+    matrix.getByRole("cell", { name: "未確認", exact: true }),
+  ).toBeVisible();
+  await page.setViewportSize({ width: 390, height: 844 });
+  await expect(matrix).toBeVisible();
+  await matrix.getByRole("button", { name: "E2E Adminの予定を確認" }).click();
+  await expect(
+    matrix.getByRole("cell", { name: "確認済み", exact: true }),
+  ).toBeVisible();
+  await page.screenshot({
+    path: path.join(os.tmpdir(), "kosu-monthly-allocation-mobile.png"),
+    fullPage: false,
+  });
+  await page.setViewportSize({ width: 1280, height: 720 });
+  await page.locator('input[name="month"][type="month"]').fill("2026-11");
+  await page.getByRole("button", { name: "表示", exact: true }).click();
+  await expect(page).toHaveURL(/month=2026-11$/);
+  await expect(matrix.getByText("稼働可能時間が未設定")).toBeVisible();
 
   await page.goto("/work-logs/2026-08-12");
   await page.locator('form[data-entry-ready="true"]').waitFor();

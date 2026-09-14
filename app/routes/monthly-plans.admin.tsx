@@ -1,4 +1,10 @@
-import { Form, useLoaderData } from "react-router";
+import { Form, Link, useLoaderData } from "react-router";
+import { PlanningBalance } from "~/components/planning-balance";
+import { getMonthlyAllocationOverview } from "~/services/monthly-allocation-overview";
+import {
+  confirmMonthlyPlan,
+  MonthlyPlanReviewError,
+} from "~/services/monthly-plan-review";
 import type { Route } from "./+types/monthly-plans.admin";
 
 import {
@@ -76,6 +82,7 @@ export const loader = async ({ request }: { request: Request }) => {
     }));
 
     return {
+      allocationOverview: getMonthlyAllocationOverview(db, month),
       month,
       isLocked: closeState.isProtected,
       closeStatus: closeState.status,
@@ -98,9 +105,20 @@ export const action = async ({ request }: Route.ActionArgs) => {
   const { db, sqlite } = createDatabaseConnection();
 
   try {
-    requireAdministrator(db, request);
+    const actor = requireAdministrator(db, request);
     const formData = await request.formData();
     const intent = String(formData.get("intent") ?? "");
+
+    if (intent === "confirmPlan") {
+      const revision = String(formData.get("revision") ?? "");
+      confirmMonthlyPlan(db, {
+        actorMemberId: actor.id,
+        memberId: String(formData.get("memberId") ?? ""),
+        month: String(formData.get("month") ?? ""),
+        revision: /^\d+$/.test(revision) ? Number(revision) : NaN,
+      });
+      return null;
+    }
 
     if (intent === "capacity") {
       const memberId = String(formData.get("memberId") ?? "");
@@ -215,6 +233,8 @@ export const action = async ({ request }: Route.ActionArgs) => {
     if (error instanceof Response) {
       throw error;
     }
+    if (error instanceof MonthlyPlanReviewError)
+      return { error: error.message };
     logRouteError("monthly-plans.admin", error);
     return { error: "保存に失敗しました。" };
   } finally {
@@ -230,6 +250,7 @@ export default function MonthlyPlansAdmin({
   actionData,
 }: Route.ComponentProps) {
   const {
+    allocationOverview,
     closeStatus,
     month,
     isLocked,
@@ -248,7 +269,7 @@ export default function MonthlyPlansAdmin({
             月次予定工数入力
           </h1>
           <p className="text-sm text-slate-600">
-            担当者と案件ごとの予定工数を登録します。稼働可能時間は必要なチームだけ使う任意の補足情報です。
+            月ごとの仕事の配分と予定上の余力を確認します。社内作業も含めて予定を登録してください。
           </p>
         </div>
         <MonthlyCloseStatusBadge status={closeStatus} />
@@ -289,6 +310,175 @@ export default function MonthlyPlansAdmin({
       ) : null}
 
       <MonthlyCloseReadOnlyNotice month={month} status={closeStatus} />
+
+      <Card>
+        <CardHeader>
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <CardTitle>担当者ごとの月次配分</CardTitle>
+            <Link
+              className="text-sm font-medium text-blue-700 underline"
+              to={`/reports/planned-vs-actual?month=${month}`}
+            >
+              同じ月の実績と比較
+            </Link>
+          </div>
+        </CardHeader>
+        <CardContent>
+          <p className="mb-4 text-sm text-slate-600">
+            予定と稼働可能時間を確認すると、月単位の余力が分かります。予定確認は任意で、工数の提出とは別です。
+          </p>
+          <div
+            className="overflow-x-auto"
+            role="region"
+            aria-label="月次配分一覧"
+            tabIndex={0}
+          >
+            <table className="w-full whitespace-nowrap text-sm">
+              <thead className="border-b border-slate-200 text-left text-slate-600">
+                <tr>
+                  <th
+                    scope="col"
+                    className="sticky left-0 z-10 bg-white px-3 py-3"
+                  >
+                    担当者
+                  </th>
+                  {allocationOverview.projects.map((project) => (
+                    <th
+                      scope="col"
+                      className="px-3 py-3 text-right"
+                      key={project.projectId}
+                    >
+                      <span className="block">{project.projectName}</span>
+                      <span className="block text-xs font-normal">
+                        {project.projectCode}
+                        {project.projectType === "internal"
+                          ? " · 社内"
+                          : project.projectType === "non_billable"
+                            ? " · 非請求"
+                            : ""}
+                        {project.isArchived ? " · アーカイブ済み" : ""}
+                      </span>
+                    </th>
+                  ))}
+                  <th scope="col" className="px-3 py-3 text-right">
+                    予定合計
+                  </th>
+                  <th scope="col" className="px-3 py-3 text-right">
+                    稼働可能時間
+                  </th>
+                  <th scope="col" className="px-3 py-3">
+                    予定確認
+                  </th>
+                  <th scope="col" className="px-3 py-3">
+                    余力・超過
+                  </th>
+                  <th scope="col" className="px-3 py-3">
+                    操作
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                {allocationOverview.rows.map((row) => {
+                  const cells = new Map(
+                    row.cells.map((cell) => [cell.projectId, cell]),
+                  );
+                  return (
+                    <tr
+                      key={row.memberId}
+                      className="border-b border-slate-100"
+                    >
+                      <th
+                        scope="row"
+                        className="sticky left-0 bg-white px-3 py-3 text-left font-medium"
+                      >
+                        {row.memberName}
+                        {!row.isActive ? (
+                          <span className="block text-xs text-slate-500">
+                            無効メンバー
+                          </span>
+                        ) : null}
+                      </th>
+                      {allocationOverview.projects.map((project) => {
+                        const cell = cells.get(project.projectId);
+                        return (
+                          <td
+                            className="px-3 py-3 text-right tabular-nums"
+                            key={project.projectId}
+                          >
+                            {cell ? `${cell.plannedHours}h` : "—"}
+                            {cell?.assignmentRemoved ? (
+                              <span className="block text-xs text-slate-500">
+                                アサインなし
+                              </span>
+                            ) : null}
+                          </td>
+                        );
+                      })}
+                      <td className="px-3 py-3 text-right font-semibold tabular-nums">
+                        {row.totalPlanned}h
+                      </td>
+                      <td className="px-3 py-3 text-right tabular-nums">
+                        {row.capacityHours === null
+                          ? "未設定"
+                          : `${row.capacityHours}h`}
+                      </td>
+                      <td className="px-3 py-3">
+                        {row.isConfirmed ? "確認済み" : "未確認"}
+                      </td>
+                      <td className="px-3 py-3">
+                        <PlanningBalance value={row} />
+                      </td>
+                      <td className="px-3 py-3">
+                        {row.isActive ? (
+                          <Form
+                            method="post"
+                            action={`/monthly-plans/admin?month=${month}`}
+                          >
+                            <input
+                              type="hidden"
+                              name="intent"
+                              value="confirmPlan"
+                            />
+                            <input
+                              type="hidden"
+                              name="memberId"
+                              value={row.memberId}
+                            />
+                            <input type="hidden" name="month" value={month} />
+                            <input
+                              type="hidden"
+                              name="revision"
+                              value={row.revision}
+                            />
+                            <Button
+                              type="submit"
+                              variant="secondary"
+                              disabled={isLocked || row.isConfirmed}
+                              aria-label={`${row.memberName}の予定を確認`}
+                            >
+                              予定を確認
+                            </Button>
+                          </Form>
+                        ) : (
+                          "—"
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+          {allocationOverview.rows.length === 0 ? (
+            <p className="py-4 text-sm text-slate-500">
+              対象のメンバーがいません。
+            </p>
+          ) : null}
+          <p className="mt-3 text-xs text-slate-500">
+            余力は月単位の目安です。週ごとの空きや担当できる業務は別途確認してください。予定・稼働可能時間を変更すると未確認に戻ります。
+          </p>
+        </CardContent>
+      </Card>
 
       <Card>
         <CardHeader>
