@@ -8,10 +8,10 @@ Before the final candidate commit, add a curated Japanese release summary at `do
 
 ## Candidate
 
-- Version:
-- Commit:
-- Verification date:
-- Verifier:
+- Version: v0.10.0
+- Commit: the main-branch commit containing this version and `docs/releases/v0.10.0.md`; exact SHA is recorded in GitHub Actions and the release tag.
+- Verification date: 2026-09-15
+- Verifier: Codex (local evidence below; final candidate CI is the publication gate).
 
 ## Automated Quality Gates
 
@@ -21,7 +21,7 @@ Before the final candidate commit, add a curated Japanese release summary at `do
 - [ ] `npm run lint` passes.
 - [ ] `npm run build` passes.
 - [ ] `npm run test:e2e` discovers and passes the Playwright browser smoke.
-- [x] The GitHub Actions quality and browser-smoke jobs pass for the candidate commit.
+- [ ] The GitHub Actions quality and browser-smoke jobs pass for the candidate commit.
 
 ## Database And Container Smoke
 
@@ -83,6 +83,15 @@ Before the final candidate commit, add a curated Japanese release summary at `do
 - 2026-09-10: `morgan` was updated from `1.11.0` to `1.12.0` after the v0.9.0 CI quality gate detected the Unicode line-separator log-forging advisory. `vitest` was pinned to the compatible patched `4.1.11` release for its development-only redirect-mock path traversal advisory. Production audit is again 0, and the full audit reports only the four accepted moderate Drizzle development-toolchain advisories above.
 
 ## Verification Record
+
+### 2026-09-15 — v0.10.0 candidate
+
+- Includes monthly allocation overview and independent effort/cost closing; implementation evidence is recorded below. No application code changed after the successful 373-test and production browser-smoke runs.
+- All 16 main OpenSpec specifications pass strict validation; both completed changes have been synced and archived.
+- Dependency review: production audit reports 0 vulnerabilities; full audit retains the four previously accepted moderate development-toolchain advisories, with no high or critical findings. No forced downgrade was applied.
+- Migrations `0008_monthly_plan_reviews.sql` and `0009_sleepy_sabra.sql` are covered by fresh/legacy database tests and foreign-key validation. A new Docker-volume restore rehearsal was not performed for this candidate.
+- The final version/documentation commit must pass both CI jobs before the manual Release workflow publishes v0.10.0. CI results and the immutable target SHA are recorded by GitHub Actions; unchecked template items above must not be interpreted as completed evidence.
+- App-only rollback is not safe after the effort-state migration. Restore a pre-migration backup with the matching old app after stopping writes and preserving post-migration input.
 
 ### 2026-09-15 — effort and cost closing separation (local implementation)
 
