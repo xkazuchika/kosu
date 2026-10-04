@@ -52,6 +52,18 @@ Before the final candidate commit, add a curated Japanese release summary at `do
 - [ ] Correction verifies both the selected and source month cost states; cost review/approval additionally require confirmed effort.
 - [ ] Desktop and mobile monthly closing show effort first and optional cost in a collapsed section.
 
+## Installation Onboarding
+
+- [ ] The released tag includes `docs/install/agent.md`, Windows batch entries, and the shared preparation/startup scripts; package version and the selected release tag agree.
+- [ ] The README public-URL prompt can acquire that stable tag using Git and, separately, a ZIP without requiring Git.
+- [ ] The local-folder prompt preserves the acquired version, configuration, secret, and data without re-cloning.
+- [ ] Windows x64 installation smoke passes through the public batch entries on the candidate, including a path with spaces and Japanese characters, localhost setup/login, repeat preparation, restart, and backup/restore.
+- [ ] Missing Node.js, invalid configuration, occupied ports, and startup failures produce actionable errors rather than a ready report.
+- [ ] Docker guidance runs on an isolated Compose project and identifies the actual volume rather than assuming a fixed name.
+- [ ] Prompts explain missing guide files on older releases, environment restrictions, and a handoff when the agent cannot maintain a process.
+- [ ] Installation diagnostics contain no `.env`, session secrets, runtime database, or backup data.
+- [ ] Record acquisition checks against an unpublished candidate separately from stable-release checks; do not advertise the current stable tag as containing unpublished installers.
+
 ## Security And Dependency Review
 
 - [ ] `npm audit --omit=dev` has been reviewed for production dependency vulnerabilities.

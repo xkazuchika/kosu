@@ -6,6 +6,34 @@
 
 重い SaaS や ERP を導入せずに、日次・週次の実績工数入力、案件・タスク別の実績工数、案件工数予算、日別・月次の予定工数、月別の総稼働時間、基本的な工数レポートを扱うことを目指しています。初期 UI とドキュメントは日本語ファーストです。
 
+## インストールから起動まで、エージェントに任せられます
+
+使っているエージェントにプロンプトを渡せば、ソースの取得から設定・導入・起動確認まで進められます。ファイル操作・ネットワーク取得・コマンド実行ができるエージェントを想定し、専用スキルの登録は不要です。
+
+**まだダウンロードしていない場合:**
+
+```text
+https://github.com/xkazuchika/kosu の安定版を取得し、取得した版の docs/install/agent.md に従ってインストール・起動してください。
+Gitが使えればリリースタグをクローンし、なければ同じ版のZIPを取得・展開してください。取得先は新しいフォルダーにしてください。
+Dockerを使えないWindowsではNode.jsで直接起動してください。導入用ファイルがない版ではその版の手動手順を案内し、無断でmainへ切り替えないでください。
+既存設定・シークレット・データを維持してください。管理者情報は私がブラウザで初期設定します。
+最後に選んだ版、導入方法、確認済みURL、データ保存先、停止と再起動の方法を教えてください。未確認の起動を成功と報告しないでください。
+```
+
+**クローン・ZIP展開済みの場合:**
+
+```text
+このフォルダーのkosuを、docs/install/agent.md に従ってインストール・起動してください。
+現在の版と環境を確認し、再取得や無断のバージョン変更をせず、既存設定・シークレット・データを維持してください。
+Dockerが使えないWindowsではNode.jsで直接起動し、導入用ファイルがない版ではその版のREADMEの手動手順を案内してください。
+管理者情報は私がブラウザで初期設定します。確認済みURL、データ保存先、停止と再起動の方法を教えてください。
+実行できない操作や、利用者が最後に起動する必要がある場合は具体的に引き継いでください。
+```
+
+自分で進めたい方は [Windows直接起動](docs/install/windows.md) または [Docker導入](docs/install/docker.md)へ。全体の選び方は [導入ガイド](docs/install/README.md)、詳しいプロンプトは [エージェント向けガイド](docs/install/agent.md)にあります。
+
+この導入機能は、ガイドと起動ファイルが含まれる安定版で利用できます。公開済みの安定版にまだ含まれていない場合は、その版のREADMEの手動手順を使ってください。
+
 ## 操作ガイド
 
 画面ごとの操作手順は [docs/user-guide.md](docs/user-guide.md) を参照してください。
@@ -105,7 +133,7 @@ KOSU_DATA_DIR=/var/lib/kosu npm run db:migrate
 
 セルフホスト運用では、このディレクトリを永続化ボリュームに配置し、バックアップ対象にしてください。
 
-データベースは WAL（Write-Ahead Logging）モードで動作します。同じディレクトリに `kosu.sqlite-wal` と `kosu.sqlite-shm` が生成されますが、**これらもデータベースの一部です**。バックアップと復元は必ず `kosu.sqlite` とこれらのファイルを一体として扱ってください。
+データベースは WAL（Write-Ahead Logging）モードで動作します。同じディレクトリに `kosu.sqlite-wal` と `kosu.sqlite-shm` が生成されますが、**これらもデータベースの一部です**。停止後にディレクトリを保存・復元する場合は、DB本体とこれらのファイルを一体として扱ってください。一貫性バックアップコマンドでは、必要な内容を単一のDBへ取り込みます。
 
 データベース接続ごとに外部キー制約を有効化しています。`journal_mode = WAL` と `busy_timeout`（デフォルト 5000ms、環境変数 `KOSU_SQLITE_BUSY_TIMEOUT_MS` で変更可能）も合わせて設定されます。
 
@@ -158,70 +186,30 @@ KOSU_DATA_DIR=/var/lib/kosu npm run db:migrate
 
 ## Docker デプロイ
 
-必要なもの:
-
-- Docker
-- Docker Compose
-
-ビルドと起動:
+DockerとDocker Composeを使う場合は [Docker導入ガイド](docs/install/docker.md)で `.env` に固有のシークレットを設定してから起動します。現在のComposeはソースからビルドし、`/data` をnamed volumeに保存します。
 
 ```bash
-# 本番用シークレットを設定
-export KOSU_SESSION_SECRET=$(openssl rand -hex 32)
-
-# ビルド＆起動
 docker compose up --build -d
+docker compose ps
 ```
 
-環境によっては Docker Compose plugin ではなく standalone コマンドを使います。
-
-```bash
-docker-compose up --build -d
-```
-
-`docker-compose.yml` は `/data` を `kosu-data` ボリュームにマウントします。
-
-Docker 手順は release checklist で smoke test する対象です。公開前には build、起動、初期セットアップ画面への到達、永続化ボリュームの確認を行ってください。
+standalone Composeを使う環境では `docker-compose` に読み替えます。WindowsでDockerを使えない場合は [Windows直接起動](docs/install/windows.md)を利用できます。
 
 ## バックアップと復元
 
-SQLite データベースは `KOSU_DATA_DIR`（デフォルト `./data`）に保存されます。WAL モードのため `kosu.sqlite` に加えて `kosu.sqlite-wal` / `kosu.sqlite-shm` が存在します。これら 3 ファイルをまとめてバックアップしてください。
+停止・更新・バックアップ・復元の具体的な手順は [運用ガイド](docs/install/operations.md)にあります。
 
-**重要: 稼働中の SQLite ファイルを `cp` でコピーしないでください。** 書き込み中のデータベースをコピーすると、破損したバックアップになる可能性があります。次のいずれかの方法を使用してください。
-
-方法1: SQLite の一貫性バックアップコマンド（アプリ稼働中でも安全）:
+導入用の設定を使う直接起動では、SQLite CLIを追加せずに一貫性バックアップを作成できます。
 
 ```bash
-sqlite3 ./data/kosu.sqlite ".backup '/backup/kosu-$(date +%Y%m%d).sqlite'"
+npm run backup:local
 ```
 
-方法2: アプリを停止してからディレクトリをコピー:
+アプリ版、整合性結果、チェックサムを含むmanifestとSQLiteバックアップを新規フォルダーへ保存します。復元は対応する同じ版のアプリで、元データを保持したまま新しい保存先へ行います。
 
-```bash
-npm stop  # または docker compose stop
-cp -r ./data /backup/kosu-$(date +%Y%m%d)
-```
+稼働中のSQLiteファイルを普通のファイルコピーでバックアップしないでください。一貫性バックアップ、またはアプリ停止後のデータディレクトリ全体の保存を使います。停止後の保存では `kosu.sqlite-wal` と `kosu.sqlite-shm` があればDB本体と一体として扱い、別のDBの古いWAL/SHMを混ぜません。
 
-Docker Compose の named volume を使っている場合（コンテナ停止後にコピー）:
-
-```bash
-docker compose stop
-docker run --rm -v kosu_kosu-data:/data -v "$PWD/backups:/backup" alpine sh -c 'cp -r /data /backup/kosu-$(date +%Y%m%d)'
-docker compose start
-```
-
-復元:
-
-```bash
-rm -rf ./data
-cp -r /backup/kosu-YYYYMMDD ./data
-```
-
-Docker Compose の named volume へ復元する場合:
-
-```bash
-docker run --rm -v kosu_kosu-data:/data -v "$PWD/backups:/backup" alpine sh -c 'rm -rf /data/* && cp -r /backup/kosu-YYYYMMDD/* /data/'
-```
+Dockerの実際のvolume名はComposeプロジェクトによって異なります。運用ガイドのマウント確認とバックアップ処理を使ってください。
 
 ## 外部キー制約の検査
 

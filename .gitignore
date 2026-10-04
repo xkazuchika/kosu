@@ -21,6 +21,7 @@ test-results/
 
 # Runtime data
 data/
+backups/
 *.sqlite
 *.sqlite-*
 *.sqlite3

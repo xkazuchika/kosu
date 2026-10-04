@@ -1,6 +1,7 @@
 node_modules
 build
 data
+backups
 *.sqlite
 *.sqlite-*
 .env

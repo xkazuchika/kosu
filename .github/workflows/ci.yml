@@ -14,6 +14,28 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  windows-install:
+    name: Windows installation smoke
+    runs-on: windows-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22.22.0
+          cache: npm
+      - run: npm ci
+      - run: npx playwright install chromium
+      - run: npm run test:install
+      - name: Upload installation diagnostics
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: windows-install-diagnostics
+          path: test-results/install-smoke/
+          if-no-files-found: ignore
+          retention-days: 7
+
   quality:
     name: Quality gate
     runs-on: ubuntu-latest
