@@ -81,6 +81,8 @@ docker cp <コンテナID>:/data/backups/pre-update-1 ./pre-update-1
 
 アプリを停止し、バックアップと同じ版のソース・イメージを使います。既存のvolumeを保持し、その中の新しいサブフォルダーへ復元します。
 
+バックアップフォルダーはDockerから参照できるホストの場所に置いてください。Docker DesktopやColimaのファイル共有対象外の場所では、コンテナ内の `/backup` が空になることがあります。`manifest.json` が見つからない場合は、ホストのフォルダーと共有設定を確認します。
+
 ```bash
 docker compose stop
 docker compose run --rm --no-deps -v "<バックアップフォルダーの絶対パス>:/backup:ro" kosu sh -c "node scripts/install/cli.mjs config --config /tmp/kosu-restore.env && node scripts/install/cli.mjs restore --config /tmp/kosu-restore.env --input /backup --target-data-dir /data/restored-1"
