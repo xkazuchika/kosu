@@ -11,12 +11,13 @@ import {
   listMembers,
   withoutMemberFinancials,
 } from "~/db/repositories/members";
-import {
-  listActiveProjects,
-  withoutProjectFinancials,
-} from "~/db/repositories/projects";
+import { listEffortReportProjects } from "~/db/repositories/projects";
 import { neutralizeCsvCell } from "~/lib/csv";
-import { isValidMonth } from "~/lib/time";
+import {
+  effortReportSearch,
+  parseEffortReportFilters,
+} from "~/lib/effort-report-filters";
+import { memberRoleLabels, projectTypeLabels } from "~/lib/master-labels";
 import { getSessionMember } from "~/services/auth";
 import { getMonthlyPeriodState } from "~/services/monthly-cost-close";
 import { getWorkspaceCalendarContext } from "~/services/workspace-calendar";
@@ -33,19 +34,9 @@ export const loader = async ({ request }: { request: Request }) => {
 
     const url = new URL(request.url);
     const { currentMonth } = getWorkspaceCalendarContext(db);
-    const requestedMonth = url.searchParams.get("month");
-    const month =
-      requestedMonth && isValidMonth(requestedMonth)
-        ? requestedMonth
-        : currentMonth;
-    const departmentName = url.searchParams.get("departmentName") ?? undefined;
-    const role = url.searchParams.get("role") ?? undefined;
-    const projectId = url.searchParams.get("projectId") ?? undefined;
-    const projectType = url.searchParams.get("projectType") ?? undefined;
-    const memberId =
-      member.role === "admin"
-        ? (url.searchParams.get("memberId") ?? undefined)
-        : member.id;
+    const filters = parseEffortReportFilters(url, member, currentMonth);
+    const { month, departmentName, role, projectId, projectType, memberId } =
+      filters;
 
     const reportRows = listEffortReportRows(db, {
       month,
@@ -60,16 +51,17 @@ export const loader = async ({ request }: { request: Request }) => {
       hourlyCostRateSnapshot: null,
     }));
 
-    const projects =
-      member.role === "admin"
-        ? listActiveProjects(db)
-        : listActiveProjects(db).map(withoutProjectFinancials);
+    const projects = listEffortReportProjects(
+      db,
+      member.role === "admin" ? undefined : member.id,
+    );
     const members =
       member.role === "admin"
         ? listMembers(db).map(withoutMemberFinancials)
         : [];
 
     return {
+      exportSearch: effortReportSearch(filters),
       closeStatus: getMonthlyPeriodState(db, month).status,
       isAdmin: member.role === "admin",
       month,
@@ -99,19 +91,9 @@ export const action = async ({ request }: Route.ActionArgs) => {
 
     const url = new URL(request.url);
     const { currentMonth } = getWorkspaceCalendarContext(db);
-    const requestedMonth = url.searchParams.get("month");
-    const month =
-      requestedMonth && isValidMonth(requestedMonth)
-        ? requestedMonth
-        : currentMonth;
-    const departmentName = url.searchParams.get("departmentName") ?? undefined;
-    const role = url.searchParams.get("role") ?? undefined;
-    const projectId = url.searchParams.get("projectId") ?? undefined;
-    const projectType = url.searchParams.get("projectType") ?? undefined;
-    const memberId =
-      member.role === "admin"
-        ? (url.searchParams.get("memberId") ?? undefined)
-        : member.id;
+    const filters = parseEffortReportFilters(url, member, currentMonth);
+    const { month, departmentName, role, projectId, projectType, memberId } =
+      filters;
 
     const rows = listEffortReportRows(db, {
       month,
@@ -168,7 +150,8 @@ function escapeCsv(value: string) {
   if (
     neutralized.includes(",") ||
     neutralized.includes('"') ||
-    neutralized.includes("\n")
+    neutralized.includes("\n") ||
+    neutralized.includes("\r")
   ) {
     return `"${neutralized.replace(/"/g, '""')}"`;
   }
@@ -199,9 +182,15 @@ export default function Reports() {
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-3">
-          <MonthlyCloseStatusBadge status={data.closeStatus} />
-          <Form method="post">
-            <input name="month" type="hidden" value={data.month} />
+          <MonthlyCloseStatusBadge
+            month={data.month}
+            status={data.closeStatus}
+          />
+          <Form
+            method="post"
+            action={`/reports/export?${data.exportSearch}`}
+            reloadDocument
+          >
             <Button type="submit" variant="outline">
               CSV エクスポート
             </Button>
@@ -209,18 +198,49 @@ export default function Reports() {
         </div>
       </div>
 
+      <div className="space-y-2 break-words rounded-xl bg-slate-50 p-4 text-sm text-slate-700">
+        <p>
+          適用中：{data.month} ／ 案件：
+          {data.projects.find((p) => p.id === data.projectId)?.name ??
+            (data.projectId || "すべて")}
+          {data.isAdmin
+            ? ` ／ メンバー：${data.members.find((m) => m.id === data.memberId)?.displayName ?? (data.memberId || "全員")}`
+            : " ／ 本人分"}
+          {data.departmentName ? ` ／ 部署：${data.departmentName}` : ""}
+          {data.role
+            ? ` ／ 操作権限：${memberRoleLabels[data.role as keyof typeof memberRoleLabels] ?? data.role}`
+            : ""}
+          {data.projectType
+            ? ` ／ 種別：${projectTypeLabels[data.projectType as keyof typeof projectTypeLabels] ?? data.projectType}`
+            : ""}
+        </p>
+        <p>
+          名称・部署・操作権限・案件種別は現在のマスタを参照します。工数確定済みでも、当時の所属や分類が固定されるわけではありません。
+        </p>
+        <p>
+          CSVは適用済みの条件で出力します。未適用の変更は含みません。既存形式との互換性のため、権限・種別はコード（admin
+          / member、billable / internal / non_billable）で出力します。
+        </p>
+      </div>
       <Card>
         <CardHeader>
           <CardTitle>フィルター</CardTitle>
         </CardHeader>
         <CardContent>
           <Form
+            key={data.exportSearch}
             className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4"
             method="get"
           >
             <div>
-              <label className="text-sm font-medium text-slate-800">月</label>
+              <label
+                htmlFor="report-month"
+                className="text-sm font-medium text-slate-800"
+              >
+                月
+              </label>
               <input
+                id="report-month"
                 className="mt-1 block w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
                 defaultValue={data.month}
                 name="month"
@@ -229,10 +249,14 @@ export default function Reports() {
             </div>
             {data.isAdmin ? (
               <div>
-                <label className="text-sm font-medium text-slate-800">
+                <label
+                  htmlFor="report-member"
+                  className="text-sm font-medium text-slate-800"
+                >
                   メンバー
                 </label>
                 <select
+                  id="report-member"
                   className="mt-1 block w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm"
                   defaultValue={data.memberId}
                   name="memberId"
@@ -241,6 +265,7 @@ export default function Reports() {
                   {data.members.map((m) => (
                     <option key={m.id} value={m.id}>
                       {m.displayName}
+                      {m.isActive ? "" : "（無効）"}
                     </option>
                   ))}
                 </select>
@@ -248,10 +273,14 @@ export default function Reports() {
             ) : null}
             {data.isAdmin ? (
               <div>
-                <label className="text-sm font-medium text-slate-800">
+                <label
+                  htmlFor="report-department"
+                  className="text-sm font-medium text-slate-800"
+                >
                   部署
                 </label>
                 <input
+                  id="report-department"
                   className="mt-1 block w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
                   defaultValue={data.departmentName}
                   name="departmentName"
@@ -261,10 +290,14 @@ export default function Reports() {
             ) : null}
             {data.isAdmin ? (
               <div>
-                <label className="text-sm font-medium text-slate-800">
-                  権限
+                <label
+                  htmlFor="report-role"
+                  className="text-sm font-medium text-slate-800"
+                >
+                  操作権限
                 </label>
                 <select
+                  id="report-role"
                   className="mt-1 block w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm"
                   defaultValue={data.role}
                   name="role"
@@ -276,31 +309,55 @@ export default function Reports() {
               </div>
             ) : null}
             <div>
-              <label className="text-sm font-medium text-slate-800">案件</label>
+              <label
+                htmlFor="report-project"
+                className="text-sm font-medium text-slate-800"
+              >
+                案件
+              </label>
               <select
+                id="report-project"
                 className="mt-1 block w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm"
                 defaultValue={data.projectId}
                 name="projectId"
               >
                 <option value="">すべて</option>
-                {data.projects.map((p) => (
-                  <option key={p.id} value={p.id}>
-                    {p.code} {p.name}
-                  </option>
+                {[false, true].map((archived) => (
+                  <optgroup
+                    key={String(archived)}
+                    label={archived ? "終了（アーカイブ）" : "有効"}
+                  >
+                    {data.projects
+                      .filter((p) => p.isArchived === archived)
+                      .map((p) => (
+                        <option key={p.id} value={p.id}>
+                          {p.code} {p.name}
+                          {archived ? " 終了（アーカイブ）" : ""}
+                        </option>
+                      ))}
+                  </optgroup>
                 ))}
               </select>
             </div>
             <div>
-              <label className="text-sm font-medium text-slate-800">種別</label>
+              <label
+                htmlFor="report-type"
+                className="text-sm font-medium text-slate-800"
+              >
+                種別
+              </label>
               <select
+                id="report-type"
                 className="mt-1 block w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm"
                 defaultValue={data.projectType}
                 name="projectType"
               >
                 <option value="">すべて</option>
-                <option value="billable">請求対応</option>
-                <option value="internal">内部</option>
-                <option value="non_billable">非請求</option>
+                {Object.entries(projectTypeLabels).map(([value, label]) => (
+                  <option key={value} value={value}>
+                    {label}
+                  </option>
+                ))}
               </select>
             </div>
             <div className="flex items-end">
@@ -343,7 +400,7 @@ export default function Reports() {
             />
           ) : (
             <div className="overflow-x-auto">
-              <table className="w-full text-sm">
+              <table className="w-full min-w-[44rem] text-sm">
                 <thead className="border-b border-slate-200 text-left text-slate-600">
                   <tr>
                     <th className="py-2 pr-4">日付</th>
@@ -363,9 +420,14 @@ export default function Reports() {
                       key={row.allocationId}
                       className="border-b border-slate-100"
                     >
-                      <td className="py-2 pr-4">{row.workDate}</td>
+                      <td className="whitespace-nowrap py-2 pr-4">
+                        {row.workDate}
+                      </td>
                       {data.isAdmin ? (
-                        <td className="py-2 pr-4">{row.memberName}</td>
+                        <td className="py-2 pr-4">
+                          {row.memberName}
+                          {row.memberIsActive ? "" : "（無効）"}
+                        </td>
                       ) : null}
                       <td className="py-2 pr-4">
                         {data.isAdmin ? (
@@ -380,8 +442,11 @@ export default function Reports() {
                             {row.projectCode} {row.projectName}
                           </span>
                         )}
+                        {row.projectIsArchived ? " 終了（アーカイブ）" : ""}
                       </td>
-                      <td className="py-2 pr-4">{row.projectType}</td>
+                      <td className="py-2 pr-4">
+                        {projectTypeLabels[row.projectType]}
+                      </td>
                       <td className="py-2 pr-4">{row.taskName ?? "-"}</td>
                       <td className="py-2 pr-4 text-right">
                         {row.allocatedHours}h

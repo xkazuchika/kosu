@@ -180,10 +180,10 @@ export default function ProjectAssignments({
             </div>
             <div className="flex-1">
               <label className="text-sm font-medium text-slate-800">
-                担当ロール
+                案件内の役割
               </label>
               <input
-                aria-label="担当ロール"
+                aria-label="案件内の役割"
                 className="mt-1 block w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm"
                 name="assignmentRole"
                 placeholder="PM, Engineer など"
@@ -198,7 +198,7 @@ export default function ProjectAssignments({
       </Card>
 
       <DataTable
-        columns={["メンバー", "担当ロール", "ソース", "操作"]}
+        columns={["メンバー", "案件内の役割", "ソース", "操作"]}
         emptyMessage="アサインされているメンバーはいません。"
         rows={assignments
           .filter((a) => !a.removedAt)
@@ -223,13 +223,13 @@ export default function ProjectAssignments({
                     value={assignment.memberId}
                   />
                   <input
-                    aria-label={`${member?.displayName ?? "メンバー"}の担当ロール`}
+                    aria-label={`${member?.displayName ?? "メンバー"}の案件内の役割`}
                     className="w-36 rounded-lg border border-slate-300 px-2 py-1 text-sm"
                     name="assignmentRole"
                     defaultValue={assignment.assignmentRole ?? ""}
                   />
                   <Button type="submit" variant="outline">
-                    ロール保存
+                    役割を保存
                   </Button>
                 </Form>
                 <Form

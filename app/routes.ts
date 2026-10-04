@@ -33,6 +33,7 @@ export default [
     route("work-logs/week", "routes/work-logs.week.tsx"),
     route("work-logs/:date", "routes/work-logs.$date.tsx"),
     route("reports", "routes/reports.tsx"),
+    route("reports/export", "routes/reports.export.ts"),
     route("reports/planned-vs-actual", "routes/reports.planned-vs-actual.tsx"),
     route(
       "reports/project-financials",

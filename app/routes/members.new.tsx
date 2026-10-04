@@ -90,7 +90,7 @@ export default function NewMember({ actionData }: Route.ComponentProps) {
             <Field label="メールアドレス">
               <Input name="email" type="email" required />
             </Field>
-            <Field label="権限">
+            <Field label="操作権限">
               <select
                 className="block w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm"
                 name="role"

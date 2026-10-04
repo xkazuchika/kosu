@@ -157,6 +157,9 @@ export default function EditMember({ actionData }: Route.ComponentProps) {
               {actionData.error}
             </p>
           ) : null}
+          <p className="mb-4 text-sm text-slate-600">
+            氏名・部署・操作権限の変更は、過去の工数レポートにも反映されます。当時の所属を固定するものではなく、記録済みの時間や保存済みの原価単価は変更しません。
+          </p>
           <Form method="post" className="space-y-4">
             <input name="intent" type="hidden" value="update" />
             <Field label="氏名">
@@ -174,7 +177,7 @@ export default function EditMember({ actionData }: Route.ComponentProps) {
                 required
               />
             </Field>
-            <Field label="権限">
+            <Field label="操作権限">
               <select
                 className="block w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm"
                 defaultValue={member.role}
@@ -209,6 +212,9 @@ export default function EditMember({ actionData }: Route.ComponentProps) {
               </Button>
             </div>
           </Form>
+          <p className="mt-4 text-sm text-slate-600">
+            無効化するとログインできなくなりますが、記録済みの実績は残り、レポートで確認できます。
+          </p>
           <Form className="mt-4" method="post" action={`/members/${member.id}`}>
             <input
               name="intent"

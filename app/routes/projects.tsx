@@ -1,10 +1,15 @@
 import { Link, useLoaderData } from "react-router";
 
 import { Badge } from "~/components/ui/badge";
+import { projectTypeLabels } from "~/lib/master-labels";
 import { DataTable } from "~/components/ui/table";
 import { createDatabaseConnection } from "~/db/client";
 import { listActiveAssignmentsByMember } from "~/db/repositories/project-assignments";
-import { listActiveProjects, listProjects, withoutProjectFinancials } from "~/db/repositories/projects";
+import {
+  listActiveProjects,
+  listProjects,
+  withoutProjectFinancials,
+} from "~/db/repositories/projects";
 import { getSessionMember } from "~/services/auth";
 
 import type { Route } from "./+types/projects";
@@ -27,7 +32,12 @@ export const loader = async ({ request }: { request: Request }) => {
     const projectIds = new Set(assignments.map((a) => a.projectId));
     const allActive = listActiveProjects(db);
 
-    return { projects: allActive.filter((p) => projectIds.has(p.id)).map(withoutProjectFinancials), isAdmin: false };
+    return {
+      projects: allActive
+        .filter((p) => projectIds.has(p.id))
+        .map(withoutProjectFinancials),
+      isAdmin: false,
+    };
   } finally {
     sqlite.close();
   }
@@ -41,7 +51,9 @@ export default function Projects() {
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold tracking-tight text-slate-950">案件</h1>
+        <h1 className="text-2xl font-bold tracking-tight text-slate-950">
+          案件
+        </h1>
         {isAdmin ? (
           <Link
             className="inline-flex items-center justify-center rounded-lg bg-sky-700 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-sky-800"
@@ -52,27 +64,43 @@ export default function Projects() {
         ) : null}
       </div>
       <DataTable
-        columns={isAdmin ? ["コード", "名前", "タイプ", "クライアント", "状態", "操作"] : ["コード", "名前", "タイプ", "クライアント", "状態"]}
+        columns={
+          isAdmin
+            ? ["コード", "名前", "タイプ", "クライアント", "状態", "操作"]
+            : ["コード", "名前", "タイプ", "クライアント", "状態"]
+        }
         emptyMessage="案件がまだ登録されていません。"
         rows={projects.map((project) => {
           const baseRows = [
             isAdmin ? (
-              <Link className="text-sky-700 hover:underline" key={project.id} to={`/projects/${project.id}`}>
+              <Link
+                className="text-sky-700 hover:underline"
+                key={project.id}
+                to={`/projects/${project.id}`}
+              >
                 {project.code}
               </Link>
             ) : (
               project.code
             ),
             project.name,
-            project.projectType,
+            projectTypeLabels[project.projectType],
             project.clientName ?? "-",
-            project.isArchived ? <Badge tone="neutral">アーカイブ</Badge> : <Badge tone="success">有効</Badge>,
+            project.isArchived ? (
+              <Badge tone="neutral">アーカイブ</Badge>
+            ) : (
+              <Badge tone="success">有効</Badge>
+            ),
           ];
 
           return isAdmin
             ? [
                 ...baseRows,
-                <Link className="text-sky-700 hover:underline" key={`${project.id}-assignments`} to={`/projects/${project.id}/assignments`}>
+                <Link
+                  className="text-sky-700 hover:underline"
+                  key={`${project.id}-assignments`}
+                  to={`/projects/${project.id}/assignments`}
+                >
                   アサイン
                 </Link>,
               ]

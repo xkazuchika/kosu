@@ -4,7 +4,9 @@ import path from "node:path";
 
 import { defineConfig, devices } from "@playwright/test";
 
-const e2eDataDir = mkdtempSync(path.join(os.tmpdir(), "kosu-playwright-"));
+const e2eDataDir =
+  process.env.KOSU_E2E_DATA_DIR ??
+  mkdtempSync(path.join(os.tmpdir(), "kosu-playwright-"));
 process.env.KOSU_E2E_DATA_DIR = e2eDataDir;
 
 export default defineConfig({

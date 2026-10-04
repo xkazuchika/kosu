@@ -2,6 +2,7 @@ import { Form, redirect } from "react-router";
 import type { Route } from "./+types/projects.new";
 
 import { Button } from "~/components/ui/button";
+import { projectTypeLabels } from "~/lib/master-labels";
 import { Card, CardContent, CardHeader, CardTitle } from "~/components/ui/card";
 import { Field, Input } from "~/components/ui/form";
 import { createDatabaseConnection } from "~/db/client";
@@ -127,9 +128,11 @@ export default function NewProject({ actionData }: Route.ComponentProps) {
                 name="projectType"
                 required
               >
-                <option value="billable">請求対象</option>
-                <option value="internal">社内</option>
-                <option value="non_billable">非請求</option>
+                {Object.entries(projectTypeLabels).map(([value, label]) => (
+                  <option key={value} value={value}>
+                    {label}
+                  </option>
+                ))}
               </select>
             </Field>
             <Field label="クライアント名">

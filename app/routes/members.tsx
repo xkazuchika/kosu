@@ -3,7 +3,10 @@ import type { Route } from "./+types/members";
 
 import { DataTable } from "~/components/ui/table";
 import { createDatabaseConnection } from "~/db/client";
-import { listMembers, withoutMemberPasswordHash } from "~/db/repositories/members";
+import {
+  listMembers,
+  withoutMemberPasswordHash,
+} from "~/db/repositories/members";
 import { requireAdministrator } from "~/services/auth";
 
 export const loader = async ({ request }: { request: Request }) => {
@@ -26,7 +29,9 @@ export default function Members() {
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold tracking-tight text-slate-950">メンバー</h1>
+        <h1 className="text-2xl font-bold tracking-tight text-slate-950">
+          メンバー
+        </h1>
         <Link
           className="inline-flex items-center justify-center rounded-lg bg-sky-700 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-sky-800"
           to="/members/new"
@@ -35,10 +40,14 @@ export default function Members() {
         </Link>
       </div>
       <DataTable
-        columns={["氏名", "メール", "権限", "部署", "時給原価", "状態"]}
+        columns={["氏名", "メール", "操作権限", "部署", "時給原価", "状態"]}
         emptyMessage="メンバーがまだ登録されていません。"
         rows={members.map((member) => [
-          <Link className="text-sky-700 hover:underline" key={member.id} to={`/members/${member.id}`}>
+          <Link
+            className="text-sky-700 hover:underline"
+            key={member.id}
+            to={`/members/${member.id}`}
+          >
             {member.displayName}
           </Link>,
           member.email,

@@ -1,6 +1,8 @@
 // @vitest-environment node
 
 import { afterEach, beforeEach, describe, expect, test } from "vitest";
+import { eq } from "drizzle-orm";
+import { members } from "../../app/db/schema";
 import type { DatabaseConnection, KosuDatabase } from "../../app/db/client";
 import {
   createDailyWorkLog,
@@ -39,6 +41,10 @@ function setup() {
     email: "taro@example.com",
     passwordHash: "hash",
   });
+  db.update(members)
+    .set({ createdAt: "2026-07-01T00:00:00.000Z" })
+    .where(eq(members.id, member.id))
+    .run();
   const project = createProject(db, {
     code: "P-1",
     name: "Project",

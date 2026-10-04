@@ -86,12 +86,16 @@ export const loader = async ({ request }: { request: Request }) => {
       const [memberId, projectId] = key.split("|");
       const actual = actualMap.get(key) ?? 0;
       const planned = plan?.plannedHours ?? 0;
+      const rowMember = findMemberById(db, memberId);
+      const rowProject = findProjectById(db, projectId);
 
       return {
         memberId,
-        memberName: findMemberById(db, memberId)?.displayName ?? memberId,
+        memberName: rowMember?.displayName ?? memberId,
+        memberIsActive: rowMember?.isActive ?? false,
         projectId,
-        projectName: findProjectById(db, projectId)?.name ?? projectId,
+        projectName: rowProject?.name ?? projectId,
+        projectIsArchived: rowProject?.isArchived ?? false,
         assignmentRole:
           plan && plan.roles.size > 0 ? [...plan.roles].join(" / ") : "-",
         plannedHours: planned,
@@ -187,7 +191,7 @@ export default function PlannedVsActual() {
             月次予定工数と実績工数を比較します。日別の総稼働時間は月別総稼働時間入力、案件別の実績工数は日別詳細から集計します。
           </p>
         </div>
-        <MonthlyCloseStatusBadge status={data.closeStatus} />
+        <MonthlyCloseStatusBadge month={data.month} status={data.closeStatus} />
       </div>
 
       <Card>
@@ -227,7 +231,7 @@ export default function PlannedVsActual() {
             />
           ) : (
             <div className="overflow-x-auto">
-              <table className="w-full text-sm">
+              <table className="w-full min-w-[44rem] text-sm">
                 <thead className="border-b border-slate-200 text-left text-slate-600">
                   <tr>
                     {data.isAdmin ? (
@@ -248,7 +252,10 @@ export default function PlannedVsActual() {
                       className="border-b border-slate-100"
                     >
                       {data.isAdmin ? (
-                        <td className="py-2 pr-4">{row.memberName}</td>
+                        <td className="py-2 pr-4">
+                          {row.memberName}
+                          {row.isActive ? "" : "（無効）"}
+                        </td>
                       ) : null}
                       <td className="py-2 pr-4 text-right">
                         {row.capacityHours === null
@@ -295,14 +302,14 @@ export default function PlannedVsActual() {
             />
           ) : (
             <div className="overflow-x-auto">
-              <table className="w-full text-sm">
+              <table className="w-full min-w-[40rem] text-sm">
                 <thead className="border-b border-slate-200 text-left text-slate-600">
                   <tr>
                     {data.isAdmin ? (
                       <th className="py-2 pr-4">メンバー</th>
                     ) : null}
                     <th className="py-2 pr-4">案件</th>
-                    <th className="py-2 pr-4">担当ロール</th>
+                    <th className="py-2 pr-4">案件内の役割</th>
                     <th className="py-2 pr-4 text-right">予定</th>
                     <th className="py-2 pr-4 text-right">実績</th>
                     <th className="py-2 text-right">差分</th>
@@ -312,9 +319,15 @@ export default function PlannedVsActual() {
                   {data.rows.map((row, index) => (
                     <tr key={index} className="border-b border-slate-100">
                       {data.isAdmin ? (
-                        <td className="py-2 pr-4">{row.memberName}</td>
+                        <td className="py-2 pr-4">
+                          {row.memberName}
+                          {row.memberIsActive ? "" : "（無効）"}
+                        </td>
                       ) : null}
-                      <td className="py-2 pr-4">{row.projectName}</td>
+                      <td className="py-2 pr-4">
+                        {row.projectName}
+                        {row.projectIsArchived ? " 終了（アーカイブ）" : ""}
+                      </td>
                       <td className="py-2 pr-4">{row.assignmentRole}</td>
                       <td className="py-2 pr-4 text-right">
                         {row.plannedHours}h

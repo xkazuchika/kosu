@@ -1,11 +1,33 @@
 import { expect, test } from "@playwright/test";
 import os from "node:os";
 import path from "node:path";
+import Database from "better-sqlite3";
+import { verifyReportHistory } from "./report-history-flow";
+
+function setHistoricalCreationDate(email: string) {
+  const dataDir = process.env.KOSU_E2E_DATA_DIR;
+  if (!dataDir || !path.basename(dataDir).startsWith("kosu-playwright-")) {
+    throw new Error("An isolated E2E database is required.");
+  }
+  const sqlite = new Database(path.join(dataDir, "kosu.sqlite"), {
+    fileMustExist: true,
+  });
+  try {
+    // The zero-hour September lifecycle assumes these accounts already existed.
+    const updated = sqlite
+      .prepare("UPDATE members SET created_at = ? WHERE email = ?")
+      .run("2026-09-01T00:00:00.000Z", email);
+    expect(updated.changes).toBe(1);
+  } finally {
+    sqlite.close();
+  }
+}
 
 test("fresh setup, monthly submission lifecycle, and supported reports remain deployable", async ({
   page,
 }, testInfo) => {
-  test.setTimeout(120_000);
+  test.setTimeout(180_000);
+  page.setDefaultTimeout(15_000);
   const browserErrors: string[] = [];
   page.on("console", (message) => {
     if (message.type() === "error") {
@@ -26,6 +48,7 @@ test("fresh setup, monthly submission lifecycle, and supported reports remain de
   await page.getByRole("button", { name: "セットアップを完了する" }).click();
 
   await expect(page).toHaveURL(/\/dashboard$/);
+  setHistoricalCreationDate("admin@example.com");
   await expect(
     page.getByRole("heading", { name: "ダッシュボード", exact: true }),
   ).toBeVisible();
@@ -175,13 +198,9 @@ test("fresh setup, monthly submission lifecycle, and supported reports remain de
   await page.getByRole("button", { name: "この月の工数を提出" }).click();
   await expect(page.getByText("提出済み", { exact: true })).toBeVisible();
   await page.goto("/period-locks?month=2026-11");
-  const optionalCost = page
-    .locator("details")
-    .filter({
-      has: page
-        .locator("summary")
-        .filter({ hasText: "任意: 原価の確認・承認" }),
-    });
+  const optionalCost = page.locator("details").filter({
+    has: page.locator("summary").filter({ hasText: "任意: 原価の確認・承認" }),
+  });
   await expect(optionalCost).not.toHaveAttribute("open", "");
   await page.getByRole("button", { name: "工数レビューを開始" }).click();
   await page.getByRole("button", { name: "工数を確定", exact: true }).click();
@@ -242,6 +261,7 @@ test("fresh setup, monthly submission lifecycle, and supported reports remain de
   await page.locator('input[name="password"]').fill("password123");
   await page.getByRole("button", { name: "作成する" }).click();
   await expect(page).toHaveURL(/\/members$/);
+  setHistoricalCreationDate("member@example.com");
 
   await page.getByRole("button", { name: "ログアウト" }).click();
   await page.getByLabel("メールアドレス").fill("member@example.com");
@@ -299,6 +319,7 @@ test("fresh setup, monthly submission lifecycle, and supported reports remain de
   await expect(
     page.getByRole("heading", { level: 1, name: "予定工数対実績工数" }),
   ).toBeVisible();
+  await verifyReportHistory(page, testInfo);
   expect(browserErrors).toEqual([]);
 
   const obsoletePreviewResponse = await page.goto("/reports/resource-planning");

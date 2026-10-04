@@ -1,9 +1,9 @@
-import { and, asc, eq } from "drizzle-orm";
+import { and, asc, eq, exists, isNull, or } from "drizzle-orm";
 
 import { createId } from "~/lib/id";
 
 import type { KosuDatabase } from "../client";
-import { projects } from "../schema";
+import { dailyWorkLogs, effortAllocations, projects } from "../schema";
 
 export type ProjectType = "billable" | "internal" | "non_billable";
 
@@ -23,6 +23,40 @@ export type ProjectUpdate = Partial<ProjectInsert>;
 
 export function listProjects(db: KosuDatabase) {
   return db.select().from(projects).orderBy(asc(projects.code)).all();
+}
+
+// Historical report choices must not change active-only input choices.
+export function listEffortReportProjects(db: KosuDatabase, memberId?: string) {
+  const ownEffort = db
+    .select({ id: effortAllocations.id })
+    .from(effortAllocations)
+    .innerJoin(
+      dailyWorkLogs,
+      eq(effortAllocations.dailyWorkLogId, dailyWorkLogs.id),
+    )
+    .where(
+      and(
+        eq(effortAllocations.projectId, projects.id),
+        memberId ? eq(effortAllocations.memberId, memberId) : undefined,
+        isNull(effortAllocations.deletedAt),
+        isNull(dailyWorkLogs.deletedAt),
+      ),
+    );
+  return db
+    .select({
+      id: projects.id,
+      code: projects.code,
+      name: projects.name,
+      isArchived: projects.isArchived,
+    })
+    .from(projects)
+    .where(
+      memberId
+        ? or(eq(projects.isArchived, false), exists(ownEffort))
+        : undefined,
+    )
+    .orderBy(asc(projects.isArchived), asc(projects.code))
+    .all();
 }
 
 export function findProjectById(db: KosuDatabase, id: string) {

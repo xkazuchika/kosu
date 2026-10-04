@@ -57,6 +57,8 @@ function createActors() {
     email: "jiro@example.com",
     passwordHash: "hash",
   });
+  // These actors already existed in the month under test, regardless of today.
+  db.update(members).set({ createdAt: "2026-09-01T00:00:00.000Z" }).run();
   return { admin, member, other };
 }
 

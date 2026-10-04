@@ -2,6 +2,7 @@ import { Form, Link, redirect, useLoaderData } from "react-router";
 import type { Route } from "./+types/projects.$id";
 
 import { Button } from "~/components/ui/button";
+import { projectTypeLabels } from "~/lib/master-labels";
 import { Card, CardContent, CardHeader, CardTitle } from "~/components/ui/card";
 import { Field, Input } from "~/components/ui/form";
 import { createDatabaseConnection } from "~/db/client";
@@ -145,6 +146,9 @@ export default function EditProject({ actionData }: Route.ComponentProps) {
               {actionData.error}
             </p>
           ) : null}
+          <p className="mb-4 text-sm text-slate-600">
+            案件コード・名称・種別の変更は、過去の工数レポートにも反映されます。当時の分類を固定するものではなく、記録済みの時間や保存済みの原価単価は変更しません。
+          </p>
           <Form method="post" className="space-y-4">
             <input name="intent" type="hidden" value="update" />
             <Field label="案件コード">
@@ -160,9 +164,11 @@ export default function EditProject({ actionData }: Route.ComponentProps) {
                 name="projectType"
                 required
               >
-                <option value="billable">請求対象</option>
-                <option value="internal">社内</option>
-                <option value="non_billable">非請求</option>
+                {Object.entries(projectTypeLabels).map(([value, label]) => (
+                  <option key={value} value={value}>
+                    {label}
+                  </option>
+                ))}
               </select>
             </Field>
             <Field label="クライアント名">
@@ -225,7 +231,7 @@ export default function EditProject({ actionData }: Route.ComponentProps) {
                 円です。意味を自動判定できないため、契約売上または人件費予算として改めて入力してください。
               </p>
             ) : null}
-            <div className="flex gap-2">
+            <div className="flex flex-wrap gap-2">
               <Button type="submit" variant="primary">
                 保存する
               </Button>
@@ -249,6 +255,9 @@ export default function EditProject({ actionData }: Route.ComponentProps) {
               </Link>
             </div>
           </Form>
+          <p className="mt-4 text-sm text-slate-600">
+            アーカイブすると新しい工数を入力できなくなりますが、記録済みの実績は残り、終了案件としてレポートで確認できます。
+          </p>
           <Form
             className="mt-4"
             method="post"
