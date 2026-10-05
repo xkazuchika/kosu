@@ -8,9 +8,9 @@ Before the final candidate commit, add a curated Japanese release summary at `do
 
 ## Candidate
 
-- Version: v0.10.0
-- Commit: the main-branch commit containing this version and `docs/releases/v0.10.0.md`; exact SHA is recorded in GitHub Actions and the release tag.
-- Verification date: 2026-09-15
+- Version: v0.11.0
+- Commit: the main-branch commit containing this version and `docs/releases/v0.11.0.md`; exact SHA is recorded in GitHub Actions and the release tag.
+- Verification date: 2026-10-05
 - Verifier: Codex (local evidence below; final candidate CI is the publication gate).
 
 ## Automated Quality Gates
@@ -85,6 +85,7 @@ Before the final candidate commit, add a curated Japanese release summary at `do
 
 ## Current Dependency Review
 
+- 2026-10-05: Production audit of the committed lockfile reports 0 vulnerabilities after updating morgan to 1.12.1. The full lockfile audit retains only the four accepted moderate Drizzle development-toolchain advisories after compatible updates to brace-expansion 5.0.12 and undici 7.30.0. The final candidate CI verifies installation and regression behavior with these updates.
 - 2026-07-24: `npm audit --omit=dev --json` reported 0 production vulnerabilities.
 - 2026-07-24: Full `npm audit --json` reported 4 moderate development-toolchain advisories through `drizzle-kit@0.31.10` → `@esbuild-kit/*` → `esbuild@0.18.20`.
 - npm currently proposes `drizzle-kit@0.18.1` as the automatic fix, which is an incompatible downgrade. Do not apply `npm audit fix --force`; revisit when a compatible dependency path removes the deprecated loader.
@@ -95,6 +96,17 @@ Before the final candidate commit, add a curated Japanese release summary at `do
 - 2026-09-10: `morgan` was updated from `1.11.0` to `1.12.0` after the v0.9.0 CI quality gate detected the Unicode line-separator log-forging advisory. `vitest` was pinned to the compatible patched `4.1.11` release for its development-only redirect-mock path traversal advisory. Production audit is again 0, and the full audit reports only the four accepted moderate Drizzle development-toolchain advisories above.
 
 ## Verification Record
+
+### 2026-10-05 — v0.11.0 candidate
+
+- Includes Windows installation/startup, manual and agent onboarding, consistent backup/restore, and master/report history improvements. No new database migrations since v0.10.0; existing CSV columns, order and code values are retained.
+- Main implementation commit `98f1f648c6f447ba5abe4d33b799e50b4472945d` passed all three CI jobs in [run 37310638021](https://github.com/xkazuchika/kosu/actions/runs/37310638021). Earlier implementation evidence: 66 files / 410 tests, typecheck, lint, production build and Chromium E2E.
+- Windows x64 / Node.js 22.22.0 smoke verifies public batch entries in Japanese/space-containing paths, fresh setup/login, repeat preparation preserving configuration, restart/login, consistent backup and new-directory restore/login, occupied port rejection, invalid configuration and missing Node.js. Diagnostic artifacts exclude configuration files, secrets and database/backup data.
+- Isolated Compose source build, health, setup/login, persistence after stop/start, host backup extraction, restore into a new data directory and restored login succeeded. The test project and volume were removed after validation. Colima bind mounts must use a shared host directory; the guide explains how to diagnose an empty backup mount.
+- Installation self-hosting requirements are synced and the 19/19-task change is archived at `openspec/changes/archive/2026-10-05-simplify-installation-and-agent-onboarding/`. All 16 formal specifications pass strict validation.
+- The final version/documentation/lockfile commit must pass Quality gate, Browser smoke and Windows installation smoke before the manual Release workflow publishes v0.11.0. Prior implementation checks are reused where code is unchanged; final CI validates the changed development dependency lockfile. Template checkboxes above remain evidence prompts, not a claim that every historical migration scenario was rerun for this candidate.
+- After publication, verify the latest stable release resolves to v0.11.0, Git clone and source ZIP contain the guides and public entries, and the acquired ZIP can prepare/start an isolated application. Keep unpublished-candidate acquisition rehearsals distinct from public-release verification.
+- Windows ARM, actual console Ctrl+C, Safari/Firefox, offline installation, and product-specific agent process persistence are unverified. New installer configuration is local-only by default; team sharing requires HTTPS. Application/database backup version pairing and earlier effort-state rollback protections still apply.
 
 ### 2026-09-15 — v0.10.0 candidate
 

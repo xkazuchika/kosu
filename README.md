@@ -2,7 +2,7 @@
 
 `kosu` は、小さなチームや部門向けの軽量セルフホスト OSS 工数管理アプリです。
 
-現在のアプリバージョンは `v0.10.0` です。
+現在のアプリバージョンは `v0.11.0` です。
 
 重い SaaS や ERP を導入せずに、日次・週次の実績工数入力、案件・タスク別の実績工数、案件工数予算、日別・月次の予定工数、月別の総稼働時間、基本的な工数レポートを扱うことを目指しています。初期 UI とドキュメントは日本語ファーストです。
 
@@ -32,7 +32,7 @@ Dockerが使えないWindowsではNode.jsで直接起動し、導入用ファイ
 
 自分で進めたい方は [Windows直接起動](docs/install/windows.md) または [Docker導入](docs/install/docker.md)へ。全体の選び方は [導入ガイド](docs/install/README.md)、詳しいプロンプトは [エージェント向けガイド](docs/install/agent.md)にあります。
 
-この導入機能は、ガイドと起動ファイルが含まれる安定版で利用できます。公開済みの安定版にまだ含まれていない場合は、その版のREADMEの手動手順を使ってください。
+この導入機能は `v0.11.0` 以降の安定版で利用できます。導入用ファイルがない旧版では、その版のREADMEの手動手順を使ってください。
 
 ## 操作ガイド
 
@@ -114,7 +114,7 @@ npm run build
 npm run test:e2e
 ```
 
-`npm run test:e2e` は、隔離された一時SQLiteデータベースで初期セットアップ、ログイン、主要レポートへの到達をChromiumで確認します。Pull RequestではGitHub Actionsが単体テスト、型、Lint、build、browser smokeを自動実行します。
+`npm run test:e2e` は、隔離された一時SQLiteデータベースで初期セットアップ、ログイン、主要レポートへの到達をChromiumで確認します。mainへのpushでGitHub Actionsが単体テスト、型、Lint、build、browser smoke、Windows導入smokeを自動実行します。
 
 Drizzle マイグレーション用コマンド:
 
@@ -274,6 +274,7 @@ npm run db:seed:demo
 
 ## バージョン履歴
 
+- `v0.11.0`: Windowsの導入・起動バッチ、エージェント用プロンプト、手動導入とバックアップ復元ガイドを追加。終了案件を含む過去工数レポートとマスタの説明・状態表示を改善。
 - `v0.10.0`: 担当者×案件の月次配分一覧、予定確認と予定上の余力を追加。金額なしで完了できる工数確定と任意の原価承認を分離。
 - `v0.9.0`: メンバーごとの月次工数提出、管理者による代理提出、実績変更時の自動差し戻し、レビュー開始時の提出確認、提出データと月次保護の整合性強化を追加。
 - `v0.8.0`: 案件工数予算と予定・実績・残工数の確認、メンバー別の割当状況、日次入力の下書き・残時間割当、週次一括入力、データ整合性・運用監視・認証保護を追加・強化。
@@ -317,4 +318,4 @@ Issue や Pull Request では、次の情報があると検討しやすくなり
 
 ## English Summary
 
-`kosu` is a lightweight self-hosted OSS effort management web app for small teams. Version `v0.10.0` adds a monthly member-by-project allocation overview, reviewed planned availability, and time-only effort confirmation independent of optional cost approval. It also includes project effort budgets, daily and monthly planning, daily, weekly, and monthly actual-effort entry, administrator-only direct-labor cost control, monthly cost closing, planned-vs-actual reporting, CSV import/export, workflow-oriented navigation, GitHub Actions CI, Playwright production smoke testing, and SQLite single-instance deployment. Accounting, invoicing, expense, procurement, full resource planning, multi-instance operation, and multi-tenant SaaS use cases are out of scope. The UI and documentation are Japanese-first, and the project is licensed under MIT.
+`kosu` is a lightweight self-hosted OSS effort management web app for small teams. Version `v0.11.0` adds Windows installation and startup entries, agent installation prompts, backup and restore guidance, and clearer historical effort reports and master-data status labels. It also includes project effort budgets, daily and monthly planning, daily, weekly, and monthly actual-effort entry, administrator-only direct-labor cost control, monthly cost closing, planned-vs-actual reporting, CSV import/export, workflow-oriented navigation, GitHub Actions CI, Playwright production smoke testing, and SQLite single-instance deployment. Accounting, invoicing, expense, procurement, full resource planning, multi-instance operation, and multi-tenant SaaS use cases are out of scope. The UI and documentation are Japanese-first, and the project is licensed under MIT.
