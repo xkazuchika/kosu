@@ -4,7 +4,7 @@
 
 - 実装コミット: `fd467f89764b33cd4dbef138e4d7541d314b5f5e`
 - ブランチ: `codex/windows-agent-installation`
-- [ドラフトPR #1](https://github.com/xkazuchika/kosu/pull/1)
+- 初回CIの検証用に作成した [PR #1](https://github.com/xkazuchika/kosu/pull/1)。オーナーの方針に合わせて閉じ、検証済みコミットをmainへ直接反映する。
 - [CI run 37240545576](https://github.com/xkazuchika/kosu/actions/runs/37240545576): Quality gate、Browser smoke、Windows installation smokeがすべて成功。
 - PRのテスト用mergeコミット: `0baaf6daca650228108ebc8cbe7187e7a4be5876`。Windows診断の `candidateRevision` はGitHub ActionsのこのSHAを記録する。
 - アプリ版は `0.10.0` のまま。導入機能を含む安定版の公開は今回行っていない。

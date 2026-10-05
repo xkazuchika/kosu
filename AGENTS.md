@@ -25,6 +25,8 @@ Write Vitest files as `*.test.ts` or `*.test.tsx` under the matching `tests/` ar
 
 ## Commit & Pull Request Guidelines
 
+This is the owner's project. Apply completed changes directly to `main`; do not create a pull request unless the user explicitly requests one.
+
 Recent commits use Conventional Commit prefixes with concise Japanese summaries, for example `feat: v0.6の案件財務を追加`, plus `docs:` and `chore:`. Keep each commit focused. PRs should explain the use case, affected workflow, authorization impact, reproduction steps, and expected versus actual behavior. Link related issues or OpenSpec changes, include screenshots for UI changes, and call out migrations or configuration changes.
 
 ## Releases
